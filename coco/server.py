@@ -51,9 +51,12 @@ def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
 
 @app.on_event("startup")
 def resume_interrupted():
-    """服务重启后，把上次被打断的转写任务重新排队。"""
+    """服务重启后，把上次被打断或还在排队的转写任务重新排队。
+
+    覆盖两种情况：转写到一半被杀（transcribing）、排队中被杀（new）。
+    """
     for m in list_meetings():
-        if (m.meta.get("status") == "transcribing"
+        if (m.meta.get("status") in ("new", "transcribing")
                 and not m.transcript_md.exists() and m.audio_file):
             _start_transcribe_job(m)
 
@@ -225,7 +228,7 @@ class BriefBody(BaseModel):
 def api_brief(body: BriefBody):
     try:
         path, content = ai.daily_brief(body.date or None)
-        return {"path": path, "content": content}
+        return {"path": path, "content": content, "date": Path(path).stem}
     except ai.AIError as e:
         _err(e)
 
@@ -238,6 +241,40 @@ def api_briefs():
         {"date": p.stem, "content": p.read_text(encoding="utf-8")}
         for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)
     ]
+
+
+# ---------- 下载（.md 导出） ----------
+
+def _md_download(path: Path, filename: str):
+    if not path.exists():
+        _err(FileNotFoundError(f"文件不存在：{path.name}"), 404)
+    return FileResponse(path, media_type="text/markdown; charset=utf-8",
+                        filename=filename)
+
+
+@app.get("/api/download/brief/{date}")
+def dl_brief(date: str):
+    return _md_download(BRIEFS_DIR / f"{date}.md", f"每日简报-{date}.md")
+
+
+@app.get("/api/download/meeting/{mid}/transcript")
+def dl_transcript(mid: str):
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    return _md_download(m.transcript_md, f"{m.title}-转写.md")
+
+
+@app.get("/api/download/meeting/{mid}/report/{name}")
+def dl_report(mid: str, name: str):
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if "/" in name or ".." in name:
+        _err(ValueError("非法报告名"))
+    return _md_download(m.reports_dir / f"{name}.md", f"{m.title}-{name}.md")
 
 
 # ---------- 模板 / 记忆 ----------

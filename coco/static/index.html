@@ -273,7 +273,8 @@ async function renderMeeting() {
   m.report_list.forEach(r => addTab('r:' + r.name, r.name));
   const actions = document.createElement('div');
   actions.id = 'report-actions';
-  actions.innerHTML = `<select id="tpl-select"></select>
+  actions.innerHTML = `<button id="btn-dl">↓ 下载 .md</button>
+    <select id="tpl-select"></select>
     <button id="btn-gen" class="primary">生成报告</button>`;
   tabs.appendChild(actions);
   const sel = actions.querySelector('#tpl-select');
@@ -283,6 +284,13 @@ async function renderMeeting() {
     sel.appendChild(o);
   });
   actions.querySelector('#btn-gen').onclick = genReport;
+  actions.querySelector('#btn-dl').onclick = () => {
+    const mid = encodeURIComponent(state.current);
+    const url = state.tab === 'transcript'
+      ? `/api/download/meeting/${mid}/transcript`
+      : `/api/download/meeting/${mid}/report/${encodeURIComponent(state.tab.slice(2))}`;
+    window.location.href = url;
+  };
 
   let content;
   if (state.tab === 'transcript')
@@ -407,8 +415,12 @@ $('btn-brief').onclick = async () => {
     });
     $('empty').style.display = 'none';
     $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
-    $('mtg-title').textContent = '每日简报';
-    $('mtg-meta').textContent = r.path;
+    $('mtg-title').textContent = '每日简报 · ' + r.date;
+    $('mtg-meta').innerHTML = '';
+    const dl = document.createElement('button');
+    dl.textContent = '↓ 下载 .md';
+    dl.onclick = () => { window.location.href = '/api/download/brief/' + r.date; };
+    $('mtg-meta').appendChild(dl);
     $('doc-md').innerHTML = md(r.content);
     state.current = null;
   } catch (e) { toast(e.message, 6000); }
