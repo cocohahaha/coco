@@ -1,0 +1,4 @@
+#!/bin/zsh
+# coco 启动器：用项目自带 venv 运行
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/.venv/bin/python" -m coco "$@"

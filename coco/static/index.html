@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>coco · 本地会议助手</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #26241f; --muted: #8a857c;
+    --line: #e8e5df; --accent: #1f6f5c; --accent-ink: #ffffff;
+    --rec: #c0392b; --soft: #f0eee9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--bg); color: var(--ink); height: 100vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px; background: var(--panel);
+    border-bottom: 1px solid var(--line); flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+    color: var(--ink); transition: all .15s;
+  }
+  button:hover { border-color: var(--ink); }
+  button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  button.recording { background: var(--rec); color: #fff; border-color: var(--rec); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .65; } }
+  button:disabled { opacity: .4; cursor: default; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+
+  /* 左侧会议库 */
+  #sidebar {
+    width: 270px; flex-shrink: 0; background: var(--panel);
+    border-right: 1px solid var(--line); overflow-y: auto; padding: 10px;
+  }
+  #sidebar .section { font-size: 11px; color: var(--muted); letter-spacing: 1px;
+    padding: 8px 8px 6px; text-transform: uppercase; }
+  .mtg {
+    padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
+  }
+  .mtg:hover { background: var(--soft); }
+  .mtg.active { background: var(--ink); color: #fff; }
+  .mtg .t { font-size: 13px; font-weight: 500; line-height: 1.35;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mtg .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .mtg.active .s { color: #cfcbc4; }
+
+  /* 中间内容 */
+  #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #mtg-head { padding: 16px 24px 0; flex-shrink: 0; }
+  #mtg-head h2 { font-size: 19px; font-weight: 600; }
+  #mtg-head .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  #tabs { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--line);
+    flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+  .tab { padding: 7px 14px; font-size: 13px; cursor: pointer; border-radius: 8px 8px 0 0;
+    color: var(--muted); border: 1px solid transparent; border-bottom: none; }
+  .tab.active { color: var(--ink); background: var(--bg); border-color: var(--line); font-weight: 500; }
+  #report-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 8px; }
+  select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); }
+  #doc { flex: 1; overflow-y: auto; padding: 20px 28px 60px; }
+  #doc .md { max-width: 780px; line-height: 1.75; font-size: 14px; }
+
+  /* markdown 样式 */
+  .md h1 { font-size: 20px; margin: 18px 0 10px; }
+  .md h2 { font-size: 16px; margin: 18px 0 8px; }
+  .md h3 { font-size: 14px; margin: 14px 0 6px; }
+  .md p { margin: 8px 0; }
+  .md ul, .md ol { margin: 8px 0 8px 22px; }
+  .md li { margin: 3px 0; }
+  .md table { border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  .md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .md th { background: var(--soft); }
+  .md code { background: var(--soft); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  .md .ts { color: var(--accent); font-size: 12px; font-family: ui-monospace, monospace; }
+  .md blockquote { border-left: 3px solid var(--line); padding-left: 12px; color: var(--muted); margin: 8px 0; }
+
+  /* 右侧对话 */
+  #chat {
+    width: 360px; flex-shrink: 0; background: var(--panel);
+    border-left: 1px solid var(--line); display: flex; flex-direction: column;
+  }
+  #chat .section { font-size: 11px; color: var(--muted); letter-spacing: 1px;
+    padding: 14px 16px 6px; text-transform: uppercase; flex-shrink: 0; }
+  #chat-log { flex: 1; overflow-y: auto; padding: 6px 16px; }
+  .bubble { margin: 8px 0; font-size: 13px; line-height: 1.65; }
+  .bubble.user { background: var(--ink); color: #fff; border-radius: 12px 12px 2px 12px;
+    padding: 8px 12px; margin-left: 40px; }
+  .bubble.coco { background: var(--soft); border-radius: 12px 12px 12px 2px;
+    padding: 10px 12px; margin-right: 16px; }
+  .bubble.coco.thinking { color: var(--muted); font-style: italic; }
+  #chat-ref { font-size: 11px; color: var(--muted); padding: 4px 16px; flex-shrink: 0; }
+  #chat-input-row { display: flex; gap: 8px; padding: 10px 16px 14px; flex-shrink: 0;
+    border-top: 1px solid var(--line); }
+  #chat-input { flex: 1; font: inherit; font-size: 13px; padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: 10px; resize: none; height: 40px;
+    background: var(--bg); }
+  #chat-input:focus { outline: none; border-color: var(--ink); }
+
+  /* 弹层 */
+  #overlay { position: fixed; inset: 0; background: rgba(38,36,31,.45);
+    display: none; align-items: center; justify-content: center; z-index: 10; }
+  #overlay.show { display: flex; }
+  #modal { background: var(--panel); border-radius: 14px; width: 620px; max-width: 92vw;
+    max-height: 84vh; display: flex; flex-direction: column; padding: 20px; }
+  #modal h3 { font-size: 15px; margin-bottom: 10px; }
+  #modal textarea { flex: 1; min-height: 320px; font: 13px/1.6 ui-monospace, monospace;
+    padding: 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; }
+  #modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 10px;
+    font-size: 13px; display: none; z-index: 20; max-width: 70vw; }
+  #empty { color: var(--muted); padding: 60px; text-align: center; font-size: 14px; line-height: 2; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>coco<span>本地会议助手</span></h1>
+  <div class="spacer"></div>
+  <button id="btn-upload" class="primary">↑ 上传音频</button>
+  <button id="btn-import">⌖ 本地路径</button>
+  <button id="btn-brief">☀ 每日简报</button>
+  <button id="btn-memory">◈ 记忆</button>
+  <input type="file" id="file-input" multiple accept="audio/*,video/*,.m4a,.mp3,.wav,.aiff,.flac,.ogg,.mp4,.mov,.webm,.amr">
+</header>
+
+<main>
+  <nav id="sidebar">
+    <div class="section">会议库</div>
+    <div id="mtg-list"></div>
+  </nav>
+
+  <section id="content">
+    <div id="empty">还没有选中的会议<br>
+      把音频文件<b>拖进窗口</b>，或点右上角「上传音频」「本地路径」，<br>
+      转写完成后在左侧打开。本地路径支持粘贴文件夹（批量导入）。</div>
+    <div id="mtg-head" style="display:none"><h2 id="mtg-title"></h2>
+      <div class="meta" id="mtg-meta"></div></div>
+    <div id="tabs" style="display:none"></div>
+    <div id="doc" style="display:none"><div class="md" id="doc-md"></div></div>
+  </section>
+
+  <aside id="chat">
+    <div class="section">和 coco 对话</div>
+    <div id="chat-log">
+      <div class="bubble coco">你好，我是 coco。选中左侧会议后，可以问我任何关于这场对话的问题：决策、情绪、行动项、隐藏的分歧……</div>
+    </div>
+    <div id="chat-ref"></div>
+    <div id="chat-input-row">
+      <textarea id="chat-input" placeholder="对这场会议提问…（回车发送）"></textarea>
+      <button id="btn-send" class="primary">发送</button>
+    </div>
+  </aside>
+</main>
+
+<div id="overlay"><div id="modal">
+  <h3>全局记忆（注入每一次 AI 分析）</h3>
+  <textarea id="memory-text"></textarea>
+  <div class="row">
+    <button onclick="closeModal()">取消</button>
+    <button class="primary" id="btn-save-memory">保存</button>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let state = { meetings: [], current: null, tab: 'transcript', recording: false, recSeconds: 0 };
+
+/* ---------- 工具 ---------- */
+function toast(msg, ms = 3200) {
+  $('toast').textContent = msg; $('toast').style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => $('toast').style.display = 'none', ms);
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* 极简 markdown 渲染：标题/粗体/列表/表格/引用/代码/时间戳 */
+function md(src) {
+  const lines = esc(src).split('\n');
+  let html = '', listMode = '', inTable = false;
+  const closeList = () => { if (listMode) { html += `</${listMode}>`; listMode = ''; } };
+  const closeTable = () => { if (inTable) { html += '</table>'; inTable = false; } };
+  const inline = s => s
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[(\d+:\d{2}(?::\d{2})?)\]/g, '<span class="ts">[$1]</span>');
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (/^\|.+\|$/.test(line.trim())) {
+      closeList();
+      const cells = line.trim().slice(1, -1).split('|').map(c => c.trim());
+      if (cells.every(c => /^:?-{2,}:?$/.test(c))) continue;
+      if (!inTable) { html += '<table>'; inTable = true;
+        html += '<tr>' + cells.map(c => `<th>${inline(c)}</th>`).join('') + '</tr>'; }
+      else html += '<tr>' + cells.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>';
+      continue;
+    }
+    closeTable();
+    let m;
+    if ((m = line.match(/^(#{1,3})\s+(.+)/))) { closeList(); html += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; }
+    else if ((m = line.match(/^[-*]\s+(.+)/))) { if (listMode !== 'ul') { closeList(); html += '<ul>'; listMode = 'ul'; } html += `<li>${inline(m[1])}</li>`; }
+    else if ((m = line.match(/^\d+[.、]\s+(.+)/))) { if (listMode !== 'ol') { closeList(); html += '<ol>'; listMode = 'ol'; } html += `<li>${inline(m[1])}</li>`; }
+    else if ((m = line.match(/^>\s?(.*)/))) { closeList(); html += `<blockquote>${inline(m[1])}</blockquote>`; }
+    else if (line === '') { closeList(); }
+    else { closeList(); html += `<p>${inline(line)}</p>`; }
+  }
+  closeList(); closeTable();
+  return html;
+}
+
+/* ---------- 会议库 ---------- */
+async function loadMeetings(keepCurrent = true) {
+  state.meetings = await api('/api/meetings');
+  const list = $('mtg-list');
+  list.innerHTML = '';
+  if (!state.meetings.length)
+    list.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">空空如也</div>';
+  for (const m of state.meetings) {
+    const div = document.createElement('div');
+    div.className = 'mtg' + (state.current === m.id ? ' active' : '');
+    const mark = { done: '', transcribing: '⏳ ', error: '⚠️ ', new: '· ' }[m.status] || '';
+    div.innerHTML = `<div class="t">${mark}${esc(m.title)}</div>
+      <div class="s">${m.created.slice(0, 16).replace('T', ' ')} ${m.duration || ''}</div>`;
+    div.onclick = () => openMeeting(m.id);
+    list.appendChild(div);
+  }
+  if (keepCurrent && state.current) renderDocIfStale();
+}
+
+async function openMeeting(id) {
+  state.current = id; state.tab = 'transcript';
+  await renderMeeting();
+  loadMeetings();
+}
+
+async function renderMeeting() {
+  if (!state.current) return;
+  const m = await api('/api/meetings/' + encodeURIComponent(state.current));
+  state.currentData = m;
+  $('empty').style.display = 'none';
+  $('mtg-head').style.display = ''; $('tabs').style.display = 'flex'; $('doc').style.display = '';
+  $('mtg-title').textContent = m.title;
+  $('mtg-meta').textContent =
+    `${m.created.slice(0, 16).replace('T', ' ')} · ${m.duration || '未转写'} · ${m.source}`;
+  const tabs = $('tabs'); tabs.innerHTML = '';
+  const addTab = (key, label) => {
+    const t = document.createElement('div');
+    t.className = 'tab' + (state.tab === key ? ' active' : '');
+    t.textContent = label;
+    t.onclick = () => { state.tab = key; renderMeeting(); };
+    tabs.appendChild(t);
+  };
+  addTab('transcript', '转写');
+  m.report_list.forEach(r => addTab('r:' + r.name, r.name));
+  const actions = document.createElement('div');
+  actions.id = 'report-actions';
+  actions.innerHTML = `<select id="tpl-select"></select>
+    <button id="btn-gen" class="primary">生成报告</button>`;
+  tabs.appendChild(actions);
+  const sel = actions.querySelector('#tpl-select');
+  (state.templates || []).forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.name; o.textContent = `${t.name} — ${t.desc}`;
+    sel.appendChild(o);
+  });
+  actions.querySelector('#btn-gen').onclick = genReport;
+
+  let content;
+  if (state.tab === 'transcript')
+    content = m.transcript || (m.status === 'transcribing' ? '⏳ 转写进行中…' : '（还没有转写内容）');
+  else {
+    const r = m.report_list.find(r => 'r:' + r.name === state.tab);
+    content = r ? r.content : '';
+  }
+  $('doc-md').innerHTML = md(content);
+  $('chat-ref').textContent = '对话引用：' + m.title;
+}
+
+function renderDocIfStale() {
+  const cur = state.meetings.find(m => m.id === state.current);
+  if (cur && state.currentData && cur.status !== state.currentData.status) renderMeeting();
+}
+
+/* ---------- 报告 ---------- */
+async function genReport() {
+  const tpl = $('tpl-select').value;
+  const btn = $('btn-gen');
+  btn.disabled = true; btn.textContent = '生成中…';
+  toast(`正在生成「${tpl}」报告，约需 30-90 秒…`, 6000);
+  try {
+    const r = await api('/api/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: state.current, template: tpl }),
+    });
+    toast('报告已生成');
+    state.tab = 'transcript';
+    await renderMeeting();
+    state.tab = 'r:' + r.path.split('/').pop().replace('.md', '');
+    await renderMeeting();
+  } catch (e) { toast('生成失败：' + e.message, 6000); }
+  btn.disabled = false; btn.textContent = '生成报告';
+}
+
+/* ---------- 对话 ---------- */
+async function send() {
+  const q = $('chat-input').value.trim();
+  if (!q) return;
+  $('chat-input').value = '';
+  const log = $('chat-log');
+  log.insertAdjacentHTML('beforeend', `<div class="bubble user">${esc(q)}</div>`);
+  const tip = document.createElement('div');
+  tip.className = 'bubble coco thinking'; tip.textContent = 'coco 思考中…';
+  log.appendChild(tip); log.scrollTop = log.scrollHeight;
+  try {
+    const r = await api('/api/ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, ids: state.current ? [state.current] : [] }),
+    });
+    tip.className = 'bubble coco'; tip.innerHTML = md(r.answer);
+  } catch (e) { tip.className = 'bubble coco'; tip.textContent = '出错了：' + e.message; }
+  log.scrollTop = log.scrollHeight;
+}
+$('btn-send').onclick = send;
+$('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+/* ---------- 上传（多选 + 拖拽） ---------- */
+async function uploadFiles(files) {
+  for (const f of files) {
+    const fd = new FormData();
+    fd.append('file', f);
+    toast(`上传 ${f.name} …`);
+    try {
+      const r = await api('/api/upload', { method: 'POST', body: fd });
+      toast(`${f.name} 已入库，转写排队中…`);
+      watchJob(r.job, r.meeting_id);
+    } catch (err) { toast(`${f.name} 上传失败：` + err.message, 6000); }
+  }
+}
+$('btn-upload').onclick = () => $('file-input').click();
+$('file-input').onchange = e => { uploadFiles([...e.target.files]); e.target.value = ''; };
+
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) uploadFiles([...e.dataTransfer.files]);
+});
+
+/* ---------- 本地路径导入 ---------- */
+$('btn-import').onclick = async () => {
+  const path = prompt('粘贴音频/视频文件的完整路径，或文件夹路径（批量导入）：');
+  if (!path) return;
+  try {
+    const r = await api('/api/import', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    toast(`已导入 ${r.count} 个文件，转写排队中…`);
+    r.imported.forEach(it => watchJob(it.job, it.meeting_id));
+  } catch (e) { toast('导入失败：' + e.message, 8000); }
+};
+
+/* ---------- 任务轮询 ---------- */
+function watchJob(jid, meetingId) {
+  loadMeetings();
+  const timer = setInterval(async () => {
+    try {
+      const j = await api('/api/jobs/' + jid);
+      if (j.status === 'done') {
+        clearInterval(timer); toast('转写完成');
+        await loadMeetings();
+        if (!state.current || state.current === meetingId) openMeeting(meetingId);
+      } else if (j.status === 'error') {
+        clearInterval(timer); toast('转写失败：' + j.detail, 9000); loadMeetings();
+      }
+    } catch { clearInterval(timer); }
+  }, 3000);
+}
+
+/* ---------- 简报 / 记忆 ---------- */
+$('btn-brief').onclick = async () => {
+  toast('正在生成今日简报（汇总今天所有会议）…', 6000);
+  try {
+    const r = await api('/api/brief', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: '' }),
+    });
+    $('empty').style.display = 'none';
+    $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
+    $('mtg-title').textContent = '每日简报';
+    $('mtg-meta').textContent = r.path;
+    $('doc-md').innerHTML = md(r.content);
+    state.current = null;
+  } catch (e) { toast(e.message, 6000); }
+};
+
+function closeModal() { $('overlay').className = ''; }
+$('btn-memory').onclick = async () => {
+  const r = await api('/api/memory');
+  $('memory-text').value = r.content;
+  $('overlay').className = 'show';
+};
+$('btn-save-memory').onclick = async () => {
+  await api('/api/memory', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: $('memory-text').value }),
+  });
+  closeModal(); toast('记忆已保存');
+};
+
+/* ---------- 启动 ---------- */
+(async function init() {
+  state.templates = await api('/api/templates');
+  await loadMeetings();
+  setInterval(() => loadMeetings(), 8000); // 会议库轻量轮询
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# 运行环境
+.venv/
+__pycache__/
+*.pyc
+logs/
+
+# 隐私数据：录音、转写、报告、记忆、个人配置 —— 一律不上传
+library/
+memory/
+coco.config.json
+
+# 系统
+.DS_Store
