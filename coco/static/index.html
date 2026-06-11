@@ -624,7 +624,7 @@ async function showBriefView(selDate) {
 $('btn-track').onclick = async () => {
   const focus = prompt('追踪焦点：某个人 / 项目 / 客户（留空 = 全局追踪承诺履行与表态变化）：', '');
   if (focus === null) return;
-  toast('跨会议追踪分析中（汇总全部已转写会议，约需 1-3 分钟）…', 12000);
+  toast('跨会议追踪分析中（汇总全部已转写会议，会议越多越久，可能需要数分钟）…', 12000);
   try {
     const r = await api('/api/track', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
