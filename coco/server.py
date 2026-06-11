@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import ai
-from .config import BRIEFS_DIR, MEMORY_FILE, ensure_dirs
+from .config import (BRIEFS_DIR, MEMORY_FILE, ensure_dirs, load_config,
+                     save_config)
 from .library import (AUDIO_EXTS, Meeting, create_meeting, find_meeting,
                       list_meetings)
 from .recorder import Recorder
@@ -241,6 +242,54 @@ def api_briefs():
         {"date": p.stem, "content": p.read_text(encoding="utf-8")}
         for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)
     ]
+
+
+# ---------- 配置 / 转写编辑 / 校对 ----------
+
+@app.get("/api/config")
+def api_config():
+    return {"whisper_model": load_config()["whisper_model"]}
+
+
+class ConfigBody(BaseModel):
+    whisper_model: str
+
+
+@app.post("/api/config")
+def api_config_save(body: ConfigBody):
+    if body.whisper_model not in ("turbo", "large"):
+        _err(ValueError("模型只能是 turbo 或 large"))
+    cfg = load_config()
+    cfg["whisper_model"] = body.whisper_model
+    save_config(cfg)
+    return {"ok": True, "whisper_model": body.whisper_model}
+
+
+class TranscriptBody(BaseModel):
+    content: str
+
+
+@app.post("/api/meetings/{mid}/transcript")
+def api_save_transcript(mid: str, body: TranscriptBody):
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if not body.content.strip():
+        _err(ValueError("内容为空，未保存"))
+    m.transcript_md.write_text(body.content.rstrip() + "\n", encoding="utf-8")
+    m.save_meta(edited_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return {"ok": True}
+
+
+@app.post("/api/proofread/{mid}")
+def api_proofread(mid: str):
+    try:
+        m = find_meeting(mid)
+        content = ai.proofread(m)
+        return {"content": content}
+    except (LookupError, ai.AIError) as e:
+        _err(e)
 
 
 # ---------- 下载（.md 导出） ----------

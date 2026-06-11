@@ -32,12 +32,17 @@ def transcribe_file(audio: Path, model: str | None = None,
     progress("转写中…")
     kwargs = {}
     if language == "zh":
-        kwargs["initial_prompt"] = "以下是普通话的句子，请用简体中文输出。"
+        prompt = "以下是普通话的句子，请用简体中文输出。"
+        if cfg.get("initial_prompt_extra"):
+            prompt += "本次对话可能涉及：" + cfg["initial_prompt_extra"]
+        kwargs["initial_prompt"] = prompt
     result = mlx_whisper.transcribe(
         str(audio),
         path_or_hf_repo=repo,
         language=language,
         verbose=None,
+        # 长音频防复读/幻觉：不把上一段输出当作下一段的条件
+        condition_on_previous_text=False,
         **kwargs,
     )
     segments = [

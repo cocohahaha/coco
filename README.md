@@ -18,6 +18,13 @@ cd "~/Documents/Tool Creation/录音"
 网页版三种导入方式：**拖拽文件进窗口**、「上传音频」多选、「本地路径」粘贴文件或文件夹路径（文件夹=批量导入）。
 多个文件会排队转写，完成一个出一个。转写、报告、每日简报都可在界面一键下载为 .md。
 
+转写页还提供：
+
+- **✎ 编辑**：直接改转写正文并保存，后续 AI 分析用的就是改过的版本
+- **✦ AI 校对**：用 claude 修正同音字、专有名词、标点（不改写内容），
+  原始机器稿自动备份为 `transcript.raw.md`；全局记忆里的人名/术语写法会作为校对依据
+- **顶栏模型切换**：turbo（快）/ large（最准），对之后的转写生效
+
 建议把 CLI 加入 PATH：
 ```bash
 echo 'alias coco="~/Documents/Tool\ Creation/录音/bin/coco"' >> ~/.zshrc
@@ -45,7 +52,10 @@ echo 'alias coco="~/Documents/Tool\ Creation/录音/bin/coco"' >> ~/.zshrc
 
 ## 配置说明（coco config）
 
-- `whisper_model`：`large`（默认，精度最高）/ `turbo`（约快 2 倍）。两个模型本机均已缓存。
+- `whisper_model`：`turbo`（默认）或 `large`，网页顶栏也可切换。
+  本机实测（M 系列，5 分钟真实会议音频）：turbo 约 23 倍速、large 约 7 倍速，
+  即 45 分钟会议 turbo 约 2 分钟、large 约 6-7 分钟。
+- `initial_prompt_extra`：常出现的人名/品牌/术语（逗号分隔），注入转写提示提高识别准确率。
 - `claude_extra_args`：传给 claude CLI 的额外参数，如 `["--model","claude-sonnet-4-6"]`。
 - `hf_endpoint`：模型下载源；网络不通时自动切换到 hf-mirror.com。
 
@@ -61,5 +71,5 @@ coco.config.json       配置（首次 coco config 修改后生成）
 ## 注意事项
 
 - 首次录音时 macOS 会弹窗请求终端的麦克风权限，需允许。
-- 转写速度（Apple Silicon）：large 约为录音时长的 1/5～1/3，turbo 更快。
+- 长音频已开启防复读参数（condition_on_previous_text=False），减少 whisper 重复幻觉。
 - Web 界面只监听 127.0.0.1，不对外网开放。

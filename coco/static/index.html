@@ -64,7 +64,10 @@
   .tab { padding: 7px 14px; font-size: 13px; cursor: pointer; border-radius: 8px 8px 0 0;
     color: var(--muted); border: 1px solid transparent; border-bottom: none; }
   .tab.active { color: var(--ink); background: var(--bg); border-color: var(--line); font-weight: 500; }
-  #report-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 8px; }
+  #report-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 8px;
+    flex-wrap: nowrap; align-items: center; }
+  #report-actions button, #report-actions select { white-space: nowrap; flex-shrink: 0; }
+  #tpl-select { max-width: 220px; }
   select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line);
     border-radius: 8px; background: var(--panel); }
   #doc { flex: 1; overflow-y: auto; padding: 20px 28px 60px; }
@@ -83,6 +86,12 @@
   .md code { background: var(--soft); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
   .md .ts { color: var(--accent); font-size: 12px; font-family: ui-monospace, monospace; }
   .md blockquote { border-left: 3px solid var(--line); padding-left: 12px; color: var(--muted); margin: 8px 0; }
+
+  /* 转写编辑器 */
+  #edit-area { width: 100%; height: 72vh; font: 13px/1.8 ui-monospace, "PingFang SC", monospace;
+    padding: 14px; border: 1px solid var(--line); border-radius: 10px; resize: vertical;
+    background: var(--panel); }
+  #edit-area:focus { outline: none; border-color: var(--ink); }
 
   /* 右侧对话 */
   #chat {
@@ -129,6 +138,10 @@
 <header>
   <h1>coco<span>本地会议助手</span></h1>
   <div class="spacer"></div>
+  <select id="model-select" title="对之后的转写生效">
+    <option value="turbo">模型：turbo（快）</option>
+    <option value="large">模型：large（最准）</option>
+  </select>
   <button id="btn-upload" class="primary">↑ 上传音频</button>
   <button id="btn-import">⌖ 本地路径</button>
   <button id="btn-brief">☀ 每日简报</button>
@@ -247,7 +260,7 @@ async function loadMeetings(keepCurrent = true) {
 }
 
 async function openMeeting(id) {
-  state.current = id; state.tab = 'transcript';
+  state.current = id; state.tab = 'transcript'; state.editing = false;
   await renderMeeting();
   loadMeetings();
 }
@@ -266,21 +279,37 @@ async function renderMeeting() {
     const t = document.createElement('div');
     t.className = 'tab' + (state.tab === key ? ' active' : '');
     t.textContent = label;
-    t.onclick = () => { state.tab = key; renderMeeting(); };
+    t.onclick = () => { state.tab = key; state.editing = false; renderMeeting(); };
     tabs.appendChild(t);
   };
   addTab('transcript', '转写');
   m.report_list.forEach(r => addTab('r:' + r.name, r.name));
   const actions = document.createElement('div');
   actions.id = 'report-actions';
-  actions.innerHTML = `<button id="btn-dl">↓ 下载 .md</button>
+  tabs.appendChild(actions);
+
+  if (state.editing && state.tab === 'transcript') {
+    actions.innerHTML = `<button id="btn-cancel">取消</button>
+      <button id="btn-save" class="primary">保存转写</button>`;
+    actions.querySelector('#btn-cancel').onclick = () => { state.editing = false; renderMeeting(); };
+    actions.querySelector('#btn-save').onclick = saveTranscript;
+    $('doc-md').innerHTML = '';
+    const ta = document.createElement('textarea');
+    ta.id = 'edit-area'; ta.value = m.transcript || '';
+    $('doc-md').appendChild(ta);
+    $('chat-ref').textContent = '对话引用：' + m.title;
+    return;
+  }
+
+  const extra = state.tab === 'transcript'
+    ? `<button id="btn-edit">✎ 编辑</button><button id="btn-proof">✦ AI 校对</button>` : '';
+  actions.innerHTML = `${extra}<button id="btn-dl">↓ 下载 .md</button>
     <select id="tpl-select"></select>
     <button id="btn-gen" class="primary">生成报告</button>`;
-  tabs.appendChild(actions);
   const sel = actions.querySelector('#tpl-select');
   (state.templates || []).forEach(t => {
     const o = document.createElement('option');
-    o.value = t.name; o.textContent = `${t.name} — ${t.desc}`;
+    o.value = t.name; o.textContent = t.name; o.title = t.desc;
     sel.appendChild(o);
   });
   actions.querySelector('#btn-gen').onclick = genReport;
@@ -291,6 +320,10 @@ async function renderMeeting() {
       : `/api/download/meeting/${mid}/report/${encodeURIComponent(state.tab.slice(2))}`;
     window.location.href = url;
   };
+  if (state.tab === 'transcript') {
+    actions.querySelector('#btn-edit').onclick = () => { state.editing = true; renderMeeting(); };
+    actions.querySelector('#btn-proof').onclick = proofreadTranscript;
+  }
 
   let content;
   if (state.tab === 'transcript')
@@ -301,6 +334,34 @@ async function renderMeeting() {
   }
   $('doc-md').innerHTML = md(content);
   $('chat-ref').textContent = '对话引用：' + m.title;
+}
+
+async function saveTranscript() {
+  const content = $('edit-area').value;
+  try {
+    await api(`/api/meetings/${encodeURIComponent(state.current)}/transcript`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    state.editing = false; toast('转写已保存');
+    await renderMeeting();
+  } catch (e) { toast('保存失败：' + e.message, 6000); }
+}
+
+async function proofreadTranscript() {
+  if (!confirm('AI 校对：用 claude 修正同音字、专有名词和标点，不改写说话内容。'
+    + '原始机器稿会自动备份。长转写可能需要几分钟，继续？')) return;
+  const btn = $('btn-proof');
+  btn.disabled = true; btn.textContent = '校对中…';
+  toast('AI 校对进行中，长转写可能需要几分钟，请勿关闭页面…', 9000);
+  try {
+    await api('/api/proofread/' + encodeURIComponent(state.current), { method: 'POST' });
+    toast('校对完成');
+    await renderMeeting();
+  } catch (e) {
+    toast('校对失败：' + e.message, 9000);
+    if ($('btn-proof')) { $('btn-proof').disabled = false; $('btn-proof').textContent = '✦ AI 校对'; }
+  }
 }
 
 function renderDocIfStale() {
@@ -443,6 +504,17 @@ $('btn-save-memory').onclick = async () => {
 /* ---------- 启动 ---------- */
 (async function init() {
   state.templates = await api('/api/templates');
+  const cfg = await api('/api/config');
+  $('model-select').value = cfg.whisper_model;
+  $('model-select').onchange = async e => {
+    try {
+      await api('/api/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whisper_model: e.target.value }),
+      });
+      toast(`转写模型已切换为 ${e.target.value}（对之后的转写生效）`);
+    } catch (err) { toast('切换失败：' + err.message, 6000); }
+  };
   await loadMeetings();
   setInterval(() => loadMeetings(), 8000); // 会议库轻量轮询
 })();

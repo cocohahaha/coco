@@ -19,8 +19,9 @@ MODEL_REPOS = {
 }
 
 DEFAULTS = {
-    "whisper_model": "large",   # large | turbo | tiny
+    "whisper_model": "turbo",   # turbo（快） | large（最准） | tiny（自检）
     "language": "zh",
+    "initial_prompt_extra": "",  # 追加到转写提示的专有名词/人名，提高识别准确率
     "audio_device": ":0",       # ffmpeg avfoundation 音频输入设备（coco devices 可查看）
     "claude_bin": "claude",
     "claude_extra_args": [],    # 例如 ["--model", "claude-sonnet-4-6"]

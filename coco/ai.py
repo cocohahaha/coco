@@ -16,6 +16,38 @@ class AIError(RuntimeError):
     pass
 
 
+PROOFREAD_PROMPT = (
+    "下面是一份 whisper 自动转写的会议记录，可能存在同音字错误、专有名词错误、"
+    "标点断句问题。请逐行校对：\n"
+    "1. 只修正明显的同音字/专有名词/标点错误，不改写说话内容，不增删信息\n"
+    "2. 严格保留所有 [时间戳] 和原有的行结构、行数\n"
+    "3. 保留文件头部的标题与元信息行原样不动\n"
+    "4. 全局记忆里给出的人名、品牌、术语写法以记忆为准\n"
+    "直接输出校对后的全文 Markdown，不要任何解释或开场白。"
+)
+
+
+def proofread(mtg: "Meeting") -> str:
+    """AI 校对转写：修同音字/专名/标点，备份原稿到 transcript.raw.md。"""
+    text = mtg.transcript_text()
+    if not text:
+        raise AIError(f"会议 {mtg.id} 还没有转写内容")
+    if len(text) > 60_000:
+        raise AIError("转写超过 6 万字，暂不支持整篇校对（可先编辑或分段处理）")
+    out = run_claude(
+        f"{_memory_block()}{PROOFREAD_PROMPT}\n\n<转写>\n{text}\n</转写>",
+        timeout=1200,
+    )
+    if len(out) < len(text) * 0.5:
+        raise AIError("校对输出异常（比原文短一半以上），已放弃，原稿未改动")
+    raw = mtg.path / "transcript.raw.md"
+    if not raw.exists():
+        raw.write_text(text, encoding="utf-8")  # 只备份最初的机器原稿
+    mtg.transcript_md.write_text(out.rstrip() + "\n", encoding="utf-8")
+    mtg.save_meta(proofread_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return out
+
+
 def run_claude(prompt: str, timeout: int = 900) -> str:
     cfg = load_config()
     cmd = [cfg["claude_bin"], "-p", "--output-format", "text",
