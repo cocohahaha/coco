@@ -8,7 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent  # 项目根目录（录音/）
 LIBRARY_DIR = ROOT / "library"
 BRIEFS_DIR = LIBRARY_DIR / "_briefs"
+TRACKING_DIR = LIBRARY_DIR / "_tracking"
+TRASH_DIR = LIBRARY_DIR / "_trash"
 MEMORY_FILE = ROOT / "memory" / "memory.md"
+LONGTERM_FILE = ROOT / "memory" / "longterm.md"  # AI 自动维护的长期记忆
 CONFIG_FILE = ROOT / "coco.config.json"
 
 # whisper 模型别名 -> HuggingFace 仓库
@@ -25,6 +28,8 @@ DEFAULTS = {
     "audio_device": ":0",       # ffmpeg avfoundation 音频输入设备（coco devices 可查看）
     "claude_bin": "claude",
     "claude_extra_args": [],    # 例如 ["--model", "claude-sonnet-4-6"]
+    "auto_memory": True,        # 转写完成后自动提取长期记忆
+
     "port": 8765,
     "hf_endpoint": "",          # 留空 = 自动探测；国内可设 https://hf-mirror.com
 }
@@ -59,6 +64,13 @@ def ensure_dirs() -> None:
         MEMORY_FILE.write_text(
             "# 全局记忆\n\n"
             "<!-- 这里的内容会注入每一次 AI 分析：人名、术语、公司背景、个人偏好等 -->\n",
+            encoding="utf-8",
+        )
+    if not LONGTERM_FILE.exists():
+        LONGTERM_FILE.write_text(
+            "# 长期记忆\n\n"
+            "<!-- coco 自动维护：每次转写完成后从会议中提取人物、项目、承诺、术语。"
+            "可手动编辑，下次更新会在此基础上合并。 -->\n",
             encoding="utf-8",
         )
 

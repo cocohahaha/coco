@@ -4,12 +4,17 @@ from __future__ import annotations
 import datetime as dt
 import os
 import subprocess
+import threading
 
-from .config import BRIEFS_DIR, MEMORY_FILE, load_config
-from .library import Meeting, meetings_on
-from .templates import BRIEF_PROMPT, CHAT_SYSTEM, TEMPLATES
+from .config import (BRIEFS_DIR, LONGTERM_FILE, MEMORY_FILE, TRACKING_DIR,
+                     load_config)
+from .library import Meeting, list_meetings, meetings_on
+from .templates import (BRIEF_PROMPT, CHAT_SYSTEM, LONGTERM_PROMPT,
+                        TRACK_PROMPT, TEMPLATES)
 
 MAX_CONTEXT_CHARS = 400_000  # 控制注入 claude 的转写总量
+MAX_LONGTERM_INJECT = 30_000  # 长期记忆注入分析时的长度上限
+MEMORY_LOCK = threading.Lock()  # 长期记忆读改写串行，避免并发转写互相覆盖
 
 
 class AIError(RuntimeError):
@@ -68,11 +73,17 @@ def run_claude(prompt: str, timeout: int = 900) -> str:
 
 
 def _memory_block() -> str:
+    parts = []
     if MEMORY_FILE.exists():
         text = MEMORY_FILE.read_text(encoding="utf-8").strip()
         if text:
-            return f"<全局记忆>\n{text}\n</全局记忆>\n\n"
-    return ""
+            parts.append(f"<全局记忆>\n{text}\n</全局记忆>")
+    if LONGTERM_FILE.exists():
+        text = LONGTERM_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            parts.append(f"<长期记忆 说明=\"从历史会议自动累积\">\n"
+                         f"{text[:MAX_LONGTERM_INJECT]}\n</长期记忆>")
+    return "\n\n".join(parts) + "\n\n" if parts else ""
 
 
 def _context_block(meetings: list[Meeting]) -> str:
@@ -116,6 +127,57 @@ def generate_report(mtg: Meeting, template: str) -> "tuple[str, str]":
     stamp = dt.datetime.now().strftime("%H%M")
     path = mtg.reports_dir / f"{template}-{stamp}.md"
     path.write_text(f"# {mtg.title} · {template}\n\n{content}\n", encoding="utf-8")
+    return str(path), content
+
+
+def update_longterm(mtg: Meeting, force: bool = False) -> str:
+    """从一场会议提取长期记忆并合并进 memory/longterm.md。
+
+    返回更新后的全文；跳过时返回空串。每场会议只提取一次（meta.memorized_at），
+    覆盖前自动备份到 longterm.bak.md。
+    """
+    if mtg.meta.get("memorized_at") and not force:
+        return ""
+    text = mtg.transcript_text()
+    if len(text) < 200:  # 过短（测试/空转写）没有提取价值
+        mtg.save_meta(memorized_at="skipped-too-short")
+        return ""
+    with MEMORY_LOCK:
+        old = (LONGTERM_FILE.read_text(encoding="utf-8")
+               if LONGTERM_FILE.exists() else "")
+        prompt = (
+            f"{LONGTERM_PROMPT}\n\n"
+            f"<当前长期记忆>\n{old.strip() or '（还是空的）'}\n</当前长期记忆>\n\n"
+            f"<新会议 id=\"{mtg.id}\">\n{text[:100_000]}\n</新会议>"
+        )
+        out = run_claude(prompt, timeout=1200)
+        if "## " not in out:
+            raise AIError("长期记忆输出格式异常，本次未更新")
+        if len(old) > 2000 and len(out) < len(old) * 0.3:
+            raise AIError("长期记忆输出比原有内容短太多，疑似丢失信息，本次未更新")
+        if old.strip():
+            LONGTERM_FILE.with_suffix(".bak.md").write_text(old, encoding="utf-8")
+        LONGTERM_FILE.write_text(out.rstrip() + "\n", encoding="utf-8")
+    mtg.save_meta(memorized_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return out
+
+
+def track(focus: str = "") -> "tuple[str, str]":
+    """跨会议追踪：承诺履行、表态变化、反复未决的问题。返回 (路径, 内容)。"""
+    meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    if len(meetings) < 2:
+        raise AIError("至少需要两场已转写的会议才能做跨会议追踪")
+    ctx = _context_block(list(reversed(meetings)))  # 按时间正序
+    focus_line = (f"\n本次追踪聚焦：{focus}。其余内容仅在与之相关时提及。\n"
+                  if focus.strip() else "")
+    prompt = f"{_memory_block()}{TRACK_PROMPT}{focus_line}\n\n{ctx}"
+    content = run_claude(prompt, timeout=1200)
+    TRACKING_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
+    name = f"{stamp}-{focus.strip()[:20]}" if focus.strip() else stamp
+    path = TRACKING_DIR / f"{name}.md"
+    title = f"# 跨会议追踪 · {focus.strip() or '全局'} · {stamp}"
+    path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
     return str(path), content
 
 

@@ -11,10 +11,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import ai
-from .config import (BRIEFS_DIR, MEMORY_FILE, ensure_dirs, load_config,
-                     save_config)
-from .library import (AUDIO_EXTS, Meeting, create_meeting, find_meeting,
-                      list_meetings)
+from .config import (BRIEFS_DIR, LONGTERM_FILE, MEMORY_FILE, TRACKING_DIR,
+                     ensure_dirs, load_config, save_config)
+from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
+                      find_meeting, list_meetings, search_library)
 from .recorder import Recorder
 from .templates import TEMPLATES
 from .transcriber import transcribe_meeting
@@ -36,12 +36,20 @@ def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
 
     def work():
         try:
+            if not mtg.path.exists():
+                raise FileNotFoundError("会议在排队期间被删除")
             with TRANSCRIBE_LOCK:
                 JOBS[jid].update(detail="转写中…")
                 transcribe_meeting(
                     mtg, model=model,
                     progress=lambda msg: JOBS[jid].update(detail=msg),
                 )
+            if load_config().get("auto_memory", True):
+                try:
+                    JOBS[jid].update(detail="提取长期记忆…")
+                    ai.update_longterm(mtg)
+                except Exception as e:  # 记忆失败不影响转写结果
+                    mtg.save_meta(memory_error=str(e))
             JOBS[jid].update(status="done", detail="转写完成")
         except Exception as e:
             JOBS[jid].update(status="error", detail=str(e))
@@ -87,6 +95,24 @@ def api_meeting(mid: str):
         for p in m.reports()
     ]
     return {**m.summary(), "transcript": m.transcript_text(), "report_list": reports}
+
+
+@app.delete("/api/meetings/{mid}")
+def api_delete_meeting(mid: str):
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    try:
+        dest = delete_meeting(m)
+    except RuntimeError as e:
+        _err(e)
+    return {"ok": True, "trash": str(dest)}
+
+
+@app.get("/api/search")
+def api_search(q: str = ""):
+    return search_library(q)
 
 
 @app.post("/api/upload")
@@ -190,12 +216,15 @@ def api_job(jid: str):
 class AskBody(BaseModel):
     question: str
     ids: list[str] = []
+    all: bool = False  # 跨全部已转写会议提问
 
 
 @app.post("/api/ask")
 def api_ask(body: AskBody):
     try:
-        if body.ids:
+        if body.all:
+            meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+        elif body.ids:
             meetings = [find_meeting(i) for i in body.ids]
         else:
             meetings = [m for m in list_meetings() if m.transcript_md.exists()][:1]
@@ -203,6 +232,19 @@ def api_ask(body: AskBody):
             raise ai.AIError("会议库中没有已转写的会议")
         return {"answer": ai.ask(body.question, meetings)}
     except (LookupError, ai.AIError) as e:
+        _err(e)
+
+
+class TrackBody(BaseModel):
+    focus: str = ""
+
+
+@app.post("/api/track")
+def api_track(body: TrackBody):
+    try:
+        path, content = ai.track(body.focus)
+        return {"path": path, "content": content, "name": Path(path).stem}
+    except ai.AIError as e:
         _err(e)
 
 
@@ -306,6 +348,13 @@ def dl_brief(date: str):
     return _md_download(BRIEFS_DIR / f"{date}.md", f"每日简报-{date}.md")
 
 
+@app.get("/api/download/tracking/{name}")
+def dl_tracking(name: str):
+    if "/" in name or ".." in name:
+        _err(ValueError("非法文件名"))
+    return _md_download(TRACKING_DIR / f"{name}.md", f"跨会议追踪-{name}.md")
+
+
 @app.get("/api/download/meeting/{mid}/transcript")
 def dl_transcript(mid: str):
     try:
@@ -336,17 +385,22 @@ def api_templates():
 @app.get("/api/memory")
 def api_memory():
     ensure_dirs()
-    return {"content": MEMORY_FILE.read_text(encoding="utf-8")}
+    return {"content": MEMORY_FILE.read_text(encoding="utf-8"),
+            "longterm": LONGTERM_FILE.read_text(encoding="utf-8")}
 
 
 class MemoryBody(BaseModel):
-    content: str
+    content: str | None = None
+    longterm: str | None = None
 
 
 @app.post("/api/memory")
 def api_memory_save(body: MemoryBody):
     ensure_dirs()
-    MEMORY_FILE.write_text(body.content, encoding="utf-8")
+    if body.content is not None:
+        MEMORY_FILE.write_text(body.content, encoding="utf-8")
+    if body.longterm is not None:
+        LONGTERM_FILE.write_text(body.longterm, encoding="utf-8")
     return {"ok": True}
 
 

@@ -10,7 +10,8 @@ from pathlib import Path
 
 from . import ai
 from .config import MEMORY_FILE, ensure_dirs, load_config, save_config
-from .library import (AUDIO_EXTS, create_meeting, find_meeting, list_meetings)
+from .library import (AUDIO_EXTS, create_meeting, delete_meeting,
+                      find_meeting, list_meetings, search_library)
 from .recorder import list_devices, record_blocking
 from .templates import TEMPLATES
 from .transcriber import transcribe_meeting
@@ -107,6 +108,57 @@ def cmd_memory(args):
     else:
         _p(MEMORY_FILE.read_text(encoding="utf-8"))
         _p(f"（编辑该文件即可维护记忆：{MEMORY_FILE}）")
+
+
+def cmd_delete(args):
+    mtg = find_meeting(args.key)
+    if not args.yes:
+        ans = input(f"删除「{mtg.id}」？移入回收站 library/_trash [y/N] ")
+        if ans.strip().lower() not in ("y", "yes"):
+            _p("已取消")
+            return
+    dest = delete_meeting(mtg)
+    _p(f"✓ 已移入回收站：{dest}")
+
+
+def cmd_search(args):
+    results = search_library(args.query)
+    if not results:
+        _p(f"没有匹配「{args.query}」的内容")
+        return
+    for r in results:
+        _p(f"\n● {r['id']}")
+        for m in r["matches"]:
+            _p(f"  [{m['where']}] {m['line']}")
+
+
+def cmd_track(args):
+    focus = args.focus or ""
+    _p(f"▶ 跨会议追踪（{focus or '全局'}）：承诺履行 / 表态变化 / 未决问题…")
+    path, content = ai.track(focus)
+    _p("\n" + content)
+    _p(f"\n✓ 已保存 → {path}")
+
+
+def cmd_memorize(args):
+    if args.all:
+        meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+        meetings.reverse()  # 按时间正序累积
+    else:
+        if not args.key:
+            _p("用法：coco memorize <会议> 或 coco memorize --all")
+            sys.exit(1)
+        meetings = [find_meeting(args.key)]
+    for m in meetings:
+        if m.meta.get("memorized_at") and not args.force:
+            _p(f"· 跳过（已提取过）：{m.id}")
+            continue
+        _p(f"▶ 提取长期记忆：{m.id} …")
+        try:
+            out = ai.update_longterm(m, force=args.force)
+            _p("✓ 已合并" if out else "· 跳过（转写过短）")
+        except ai.AIError as e:
+            _p(f"✗ {e}")
 
 
 def cmd_watch(args):
@@ -226,6 +278,25 @@ def main(argv=None):
     p = sub.add_parser("memory", help="查看/追加全局记忆")
     p.add_argument("add", nargs="?", help="要追加的记忆内容")
     p.set_defaults(func=cmd_memory)
+
+    p = sub.add_parser("delete", help="删除会议（移入回收站 library/_trash）")
+    p.add_argument("key", help="会议 id 或标题关键词")
+    p.add_argument("-y", "--yes", action="store_true", help="不再确认")
+    p.set_defaults(func=cmd_delete)
+
+    p = sub.add_parser("search", help="全文搜索所有转写和报告")
+    p.add_argument("query")
+    p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("track", help="跨会议追踪：承诺履行/表态变化/未决问题")
+    p.add_argument("focus", nargs="?", help="聚焦的人/项目/客户（留空=全局）")
+    p.set_defaults(func=cmd_track)
+
+    p = sub.add_parser("memorize", help="从会议提取长期记忆（转写完成后默认自动做）")
+    p.add_argument("key", nargs="?", help="会议 id 或标题关键词")
+    p.add_argument("--all", action="store_true", help="处理所有未提取过的会议")
+    p.add_argument("--force", action="store_true", help="已提取过的也重新提取")
+    p.set_defaults(func=cmd_memorize)
 
     p = sub.add_parser("watch", help="监控文件夹，新音频自动转写入库")
     p.add_argument("folder")

@@ -7,7 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .config import LIBRARY_DIR, ensure_dirs
+from .config import LIBRARY_DIR, TRASH_DIR, ensure_dirs
 
 AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
               ".opus", ".webm", ".mp4", ".mov", ".mkv", ".amr", ".wma"}
@@ -140,3 +140,43 @@ def find_meeting(key: str) -> Meeting:
 
 def meetings_on(date: str) -> list[Meeting]:
     return [m for m in list_meetings() if m.meta.get("created", "").startswith(date)]
+
+
+def delete_meeting(mtg: Meeting) -> Path:
+    """软删除：整个会议文件夹移入 library/_trash，可手动恢复。"""
+    if mtg.meta.get("status") == "transcribing":
+        raise RuntimeError("该会议正在转写中，等转写结束后再删除")
+    TRASH_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
+    dest = TRASH_DIR / f"{mtg.id}~{stamp}"
+    shutil.move(str(mtg.path), dest)
+    return dest
+
+
+def search_library(query: str, per_meeting: int = 4, limit: int = 50) -> list[dict]:
+    """在所有转写和报告里做不区分大小写的全文搜索。"""
+    q = query.strip().lower()
+    if not q:
+        return []
+    results = []
+    for m in list_meetings():
+        sources = []
+        if m.transcript_md.exists():
+            sources.append(("转写", m.transcript_md))
+        sources += [(p.stem, p) for p in m.reports()]
+        matches = []
+        for label, path in sources:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if q in line.lower():
+                    matches.append({"where": label, "line": line.strip()[:120]})
+                    if len(matches) >= per_meeting:
+                        break
+            if len(matches) >= per_meeting:
+                break
+        if matches:
+            results.append({"id": m.id, "title": m.title,
+                            "created": m.meta.get("created", ""),
+                            "matches": matches})
+        if len(results) >= limit:
+            break
+    return results

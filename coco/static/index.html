@@ -45,7 +45,8 @@
   #sidebar .section { font-size: 11px; color: var(--muted); letter-spacing: 1px;
     padding: 8px 8px 6px; text-transform: uppercase; }
   .mtg {
-    padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
+    padding: 9px 26px 9px 10px; border-radius: 8px; cursor: pointer;
+    margin-bottom: 2px; position: relative;
   }
   .mtg:hover { background: var(--soft); }
   .mtg.active { background: var(--ink); color: #fff; }
@@ -53,6 +54,19 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mtg .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .mtg.active .s { color: #cfcbc4; }
+  .mtg .del { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    display: none; border: none; background: none; color: var(--muted);
+    font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+  .mtg:hover .del { display: block; }
+  .mtg .del:hover { color: var(--rec); background: rgba(192,57,43,.08); border: none; }
+  .mtg.active .del { color: #cfcbc4; }
+  .mtg .hit { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mtg .hit i { color: var(--accent); font-style: normal; }
+  #search-box { width: 100%; font: inherit; font-size: 13px; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+    margin: 4px 0 6px; }
+  #search-box:focus { outline: none; border-color: var(--ink); }
 
   /* 中间内容 */
   #content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -122,6 +136,12 @@
   #modal { background: var(--panel); border-radius: 14px; width: 620px; max-width: 92vw;
     max-height: 84vh; display: flex; flex-direction: column; padding: 20px; }
   #modal h3 { font-size: 15px; margin-bottom: 10px; }
+  #mem-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  #mem-tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #mem-hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  #chat-opts { font-size: 12px; color: var(--muted); padding: 2px 16px 4px;
+    flex-shrink: 0; user-select: none; }
+  #chat-opts label { cursor: pointer; }
   #modal textarea { flex: 1; min-height: 320px; font: 13px/1.6 ui-monospace, monospace;
     padding: 12px; border: 1px solid var(--line); border-radius: 10px; resize: vertical; }
   #modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
@@ -144,6 +164,7 @@
   </select>
   <button id="btn-upload" class="primary">↑ 上传音频</button>
   <button id="btn-import">⌖ 本地路径</button>
+  <button id="btn-track">⛓ 追踪</button>
   <button id="btn-brief">☀ 每日简报</button>
   <button id="btn-memory">◈ 记忆</button>
   <input type="file" id="file-input" multiple accept="audio/*,video/*,.m4a,.mp3,.wav,.aiff,.flac,.ogg,.mp4,.mov,.webm,.amr">
@@ -151,6 +172,7 @@
 
 <main>
   <nav id="sidebar">
+    <input id="search-box" type="search" placeholder="🔍 搜索全部转写与报告…">
     <div class="section">会议库</div>
     <div id="mtg-list"></div>
   </nav>
@@ -168,9 +190,10 @@
   <aside id="chat">
     <div class="section">和 coco 对话</div>
     <div id="chat-log">
-      <div class="bubble coco">你好，我是 coco。选中左侧会议后，可以问我任何关于这场对话的问题：决策、情绪、行动项、隐藏的分歧……</div>
+      <div class="bubble coco">你好，我是 coco。选中左侧会议后，可以问我任何关于这场对话的问题：决策、情绪、行动项、隐藏的分歧……勾选「跨全部会议」还能问跨场次的问题，比如某人前后说法的变化。</div>
     </div>
     <div id="chat-ref"></div>
+    <div id="chat-opts"><label><input type="checkbox" id="chat-all"> 跨全部会议提问（承诺、变化、对比…）</label></div>
     <div id="chat-input-row">
       <textarea id="chat-input" placeholder="对这场会议提问…（回车发送）"></textarea>
       <button id="btn-send" class="primary">发送</button>
@@ -179,7 +202,12 @@
 </main>
 
 <div id="overlay"><div id="modal">
-  <h3>全局记忆（注入每一次 AI 分析）</h3>
+  <h3>记忆（注入每一次 AI 分析）</h3>
+  <div id="mem-tabs">
+    <button id="mem-tab-manual" class="on">手动记忆</button>
+    <button id="mem-tab-long">长期记忆（自动）</button>
+  </div>
+  <div id="mem-hint"></div>
   <textarea id="memory-text"></textarea>
   <div class="row">
     <button onclick="closeModal()">取消</button>
@@ -243,6 +271,11 @@ function md(src) {
 /* ---------- 会议库 ---------- */
 async function loadMeetings(keepCurrent = true) {
   state.meetings = await api('/api/meetings');
+  if (!state.searchQuery) renderMeetingList();
+  if (keepCurrent && state.current) renderDocIfStale();
+}
+
+function renderMeetingList() {
   const list = $('mtg-list');
   list.innerHTML = '';
   if (!state.meetings.length)
@@ -252,11 +285,61 @@ async function loadMeetings(keepCurrent = true) {
     div.className = 'mtg' + (state.current === m.id ? ' active' : '');
     const mark = { done: '', transcribing: '⏳ ', error: '⚠️ ', new: '· ' }[m.status] || '';
     div.innerHTML = `<div class="t">${mark}${esc(m.title)}</div>
-      <div class="s">${m.created.slice(0, 16).replace('T', ' ')} ${m.duration || ''}</div>`;
+      <div class="s">${m.created.slice(0, 16).replace('T', ' ')} ${m.duration || ''}</div>
+      <button class="del" title="删除（移入回收站）">✕</button>`;
     div.onclick = () => openMeeting(m.id);
+    div.querySelector('.del').onclick = e => { e.stopPropagation(); delMeeting(m); };
     list.appendChild(div);
   }
-  if (keepCurrent && state.current) renderDocIfStale();
+}
+
+async function delMeeting(m) {
+  if (!confirm(`删除「${m.title}」？\n整个会议（音频、转写、报告）会移入回收站 library/_trash，需要时可手动找回。`)) return;
+  try {
+    await api('/api/meetings/' + encodeURIComponent(m.id), { method: 'DELETE' });
+    toast('已移入回收站');
+    if (state.current === m.id) { state.current = null; showEmpty(); }
+    state.searchQuery ? doSearch() : loadMeetings();
+  } catch (e) { toast('删除失败：' + e.message, 6000); }
+}
+
+function showEmpty() {
+  $('empty').style.display = '';
+  $('mtg-head').style.display = 'none';
+  $('tabs').style.display = 'none';
+  $('doc').style.display = 'none';
+  updateChatRef();
+}
+
+/* ---------- 全局搜索 ---------- */
+let searchTimer;
+$('search-box').addEventListener('input', e => {
+  state.searchQuery = e.target.value.trim();
+  clearTimeout(searchTimer);
+  if (!state.searchQuery) { renderMeetingList(); return; }
+  searchTimer = setTimeout(doSearch, 350);
+});
+
+async function doSearch() {
+  const q = state.searchQuery;
+  if (!q) return;
+  const results = await api('/api/search?q=' + encodeURIComponent(q));
+  if (q !== state.searchQuery) return; // 输入已变化，丢弃过期结果
+  const list = $('mtg-list');
+  list.innerHTML = '';
+  if (!results.length) {
+    list.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted)">没有匹配结果</div>';
+    return;
+  }
+  for (const r of results) {
+    const div = document.createElement('div');
+    div.className = 'mtg' + (state.current === r.id ? ' active' : '');
+    const hits = r.matches.map(h =>
+      `<div class="hit">[${esc(h.where)}] ${esc(h.line)}</div>`).join('');
+    div.innerHTML = `<div class="t">${esc(r.title)}</div>${hits}`;
+    div.onclick = () => openMeeting(r.id);
+    list.appendChild(div);
+  }
 }
 
 async function openMeeting(id) {
@@ -297,7 +380,7 @@ async function renderMeeting() {
     const ta = document.createElement('textarea');
     ta.id = 'edit-area'; ta.value = m.transcript || '';
     $('doc-md').appendChild(ta);
-    $('chat-ref').textContent = '对话引用：' + m.title;
+    updateChatRef();
     return;
   }
 
@@ -390,19 +473,33 @@ async function genReport() {
 }
 
 /* ---------- 对话 ---------- */
+function updateChatRef() {
+  if ($('chat-all').checked) {
+    $('chat-ref').textContent = '对话引用：全部已转写会议';
+  } else if (state.current && state.currentData) {
+    $('chat-ref').textContent = '对话引用：' + state.currentData.title;
+  } else {
+    $('chat-ref').textContent = '';
+  }
+}
+$('chat-all').onchange = updateChatRef;
+
 async function send() {
   const q = $('chat-input').value.trim();
   if (!q) return;
   $('chat-input').value = '';
+  const all = $('chat-all').checked;
   const log = $('chat-log');
   log.insertAdjacentHTML('beforeend', `<div class="bubble user">${esc(q)}</div>`);
   const tip = document.createElement('div');
-  tip.className = 'bubble coco thinking'; tip.textContent = 'coco 思考中…';
+  tip.className = 'bubble coco thinking';
+  tip.textContent = all ? 'coco 翻阅全部会议中…' : 'coco 思考中…';
   log.appendChild(tip); log.scrollTop = log.scrollHeight;
   try {
     const r = await api('/api/ask', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q, ids: state.current ? [state.current] : [] }),
+      body: JSON.stringify({ question: q,
+        ids: !all && state.current ? [state.current] : [], all }),
     });
     tip.className = 'bubble coco'; tip.innerHTML = md(r.answer);
   } catch (e) { tip.className = 'bubble coco'; tip.textContent = '出错了：' + e.message; }
@@ -487,16 +584,58 @@ $('btn-brief').onclick = async () => {
   } catch (e) { toast(e.message, 6000); }
 };
 
+/* ---------- 跨会议追踪 ---------- */
+$('btn-track').onclick = async () => {
+  const focus = prompt('追踪焦点：某个人 / 项目 / 客户（留空 = 全局追踪承诺履行与表态变化）：', '');
+  if (focus === null) return;
+  toast('跨会议追踪分析中（汇总全部已转写会议，约需 1-3 分钟）…', 12000);
+  try {
+    const r = await api('/api/track', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ focus }),
+    });
+    $('empty').style.display = 'none';
+    $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
+    $('mtg-title').textContent = '跨会议追踪 · ' + (focus || '全局');
+    $('mtg-meta').innerHTML = '';
+    const dl = document.createElement('button');
+    dl.textContent = '↓ 下载 .md';
+    dl.onclick = () => { window.location.href = '/api/download/tracking/' + encodeURIComponent(r.name); };
+    $('mtg-meta').appendChild(dl);
+    $('doc-md').innerHTML = md(r.content);
+    state.current = null;
+  } catch (e) { toast(e.message, 8000); }
+};
+
+/* ---------- 记忆（手动 + 自动长期） ---------- */
+const MEM_HINTS = {
+  content: '人名、术语、公司背景、个人偏好。手动维护，注入每一次 AI 分析与校对。',
+  longterm: '人物、项目与客户、承诺与决定、术语。每次转写完成后 coco 自动提取合并，可手动修订。',
+};
+let memData = { content: '', longterm: '' }, memTab = 'content';
 function closeModal() { $('overlay').className = ''; }
+function setMemTab(tab) {
+  memData[memTab] = $('memory-text').value;
+  memTab = tab;
+  $('memory-text').value = memData[tab];
+  $('mem-hint').textContent = MEM_HINTS[tab];
+  $('mem-tab-manual').className = tab === 'content' ? 'on' : '';
+  $('mem-tab-long').className = tab === 'longterm' ? 'on' : '';
+}
+$('mem-tab-manual').onclick = () => setMemTab('content');
+$('mem-tab-long').onclick = () => setMemTab('longterm');
 $('btn-memory').onclick = async () => {
   const r = await api('/api/memory');
-  $('memory-text').value = r.content;
+  memData = { content: r.content, longterm: r.longterm };
+  $('memory-text').value = memData[memTab];
+  $('mem-hint').textContent = MEM_HINTS[memTab];
   $('overlay').className = 'show';
 };
 $('btn-save-memory').onclick = async () => {
+  memData[memTab] = $('memory-text').value;
   await api('/api/memory', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: $('memory-text').value }),
+    body: JSON.stringify(memData),
   });
   closeModal(); toast('记忆已保存');
 };
