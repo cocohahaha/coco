@@ -97,6 +97,13 @@ def cmd_brief(args):
     path, content = ai.daily_brief(date)
     _p("\n" + content)
     _p(f"\n✓ 已保存 → {path}")
+    if load_config().get("auto_memory", True):
+        try:
+            _p("▶ 简报并入长期记忆…")
+            ai.memorize_brief(Path(path), force=True)
+            _p("✓ 已合并")
+        except ai.AIError as e:
+            _p(f"✗ 记忆合并失败（简报本身已保存）：{e}")
 
 
 def cmd_memory(args):
@@ -159,6 +166,15 @@ def cmd_memorize(args):
             _p("✓ 已合并" if out else "· 跳过（转写过短）")
         except ai.AIError as e:
             _p(f"✗ {e}")
+    if args.all:
+        from .config import BRIEFS_DIR
+        for b in sorted(BRIEFS_DIR.glob("*.md")):
+            _p(f"▶ 合并每日简报：{b.stem} …")
+            try:
+                out = ai.memorize_brief(b, force=args.force)
+                _p("✓ 已合并" if out else "· 跳过（已合并过）")
+            except ai.AIError as e:
+                _p(f"✗ {e}")
 
 
 def cmd_watch(args):

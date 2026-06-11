@@ -130,6 +130,28 @@ def generate_report(mtg: Meeting, template: str) -> "tuple[str, str]":
     return str(path), content
 
 
+def _merge_longterm(source_id: str, text: str, kind: str = "会议转写") -> str:
+    """把一份材料（会议转写/每日简报）合并进 memory/longterm.md，返回新全文。"""
+    with MEMORY_LOCK:
+        old = (LONGTERM_FILE.read_text(encoding="utf-8")
+               if LONGTERM_FILE.exists() else "")
+        prompt = (
+            f"{LONGTERM_PROMPT}\n\n"
+            f"<当前长期记忆>\n{old.strip() or '（还是空的）'}\n</当前长期记忆>\n\n"
+            f"<新材料 类型=\"{kind}\" id=\"{source_id}\">\n"
+            f"{text[:100_000]}\n</新材料>"
+        )
+        out = run_claude(prompt, timeout=1200)
+        if "## " not in out:
+            raise AIError("长期记忆输出格式异常，本次未更新")
+        if len(old) > 2000 and len(out) < len(old) * 0.3:
+            raise AIError("长期记忆输出比原有内容短太多，疑似丢失信息，本次未更新")
+        if old.strip():
+            LONGTERM_FILE.with_suffix(".bak.md").write_text(old, encoding="utf-8")
+        LONGTERM_FILE.write_text(out.rstrip() + "\n", encoding="utf-8")
+    return out
+
+
 def update_longterm(mtg: Meeting, force: bool = False) -> str:
     """从一场会议提取长期记忆并合并进 memory/longterm.md。
 
@@ -142,23 +164,33 @@ def update_longterm(mtg: Meeting, force: bool = False) -> str:
     if len(text) < 200:  # 过短（测试/空转写）没有提取价值
         mtg.save_meta(memorized_at="skipped-too-short")
         return ""
-    with MEMORY_LOCK:
-        old = (LONGTERM_FILE.read_text(encoding="utf-8")
-               if LONGTERM_FILE.exists() else "")
-        prompt = (
-            f"{LONGTERM_PROMPT}\n\n"
-            f"<当前长期记忆>\n{old.strip() or '（还是空的）'}\n</当前长期记忆>\n\n"
-            f"<新会议 id=\"{mtg.id}\">\n{text[:100_000]}\n</新会议>"
-        )
-        out = run_claude(prompt, timeout=1200)
-        if "## " not in out:
-            raise AIError("长期记忆输出格式异常，本次未更新")
-        if len(old) > 2000 and len(out) < len(old) * 0.3:
-            raise AIError("长期记忆输出比原有内容短太多，疑似丢失信息，本次未更新")
-        if old.strip():
-            LONGTERM_FILE.with_suffix(".bak.md").write_text(old, encoding="utf-8")
-        LONGTERM_FILE.write_text(out.rstrip() + "\n", encoding="utf-8")
+    out = _merge_longterm(mtg.id, text)
     mtg.save_meta(memorized_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return out
+
+
+BRIEFS_MEMORIZED = LONGTERM_FILE.parent / ".briefs_memorized.json"
+
+
+def memorize_brief(path, force: bool = False) -> str:
+    """把一份每日简报合并进长期记忆。简报常含跨会议的行动项汇总与战略洞察。
+
+    已合并过的简报记录在 memory/.briefs_memorized.json，重复调用跳过（force 重做）。
+    """
+    import json as _json
+    from pathlib import Path as _Path
+    path = _Path(path)
+    done = set(_json.loads(BRIEFS_MEMORIZED.read_text(encoding="utf-8"))
+               if BRIEFS_MEMORIZED.exists() else [])
+    if path.name in done and not force:
+        return ""
+    text = path.read_text(encoding="utf-8")
+    if len(text) < 200:
+        return ""
+    out = _merge_longterm(f"每日简报-{path.stem}", text, kind="每日简报")
+    done.add(path.name)
+    BRIEFS_MEMORIZED.write_text(_json.dumps(sorted(done), ensure_ascii=False),
+                                encoding="utf-8")
     return out
 
 

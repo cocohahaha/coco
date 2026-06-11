@@ -355,6 +355,7 @@ async function renderMeeting() {
   $('empty').style.display = 'none';
   $('mtg-head').style.display = ''; $('tabs').style.display = 'flex'; $('doc').style.display = '';
   $('mtg-title').textContent = m.title;
+  $('mtg-meta').style.cssText = '';
   $('mtg-meta').textContent =
     `${m.created.slice(0, 16).replace('T', ' ')} · ${m.duration || '未转写'} · ${m.source}`;
   const tabs = $('tabs'); tabs.innerHTML = '';
@@ -563,26 +564,61 @@ function watchJob(jid, meetingId) {
   }, 3000);
 }
 
-/* ---------- 简报 / 记忆 ---------- */
-$('btn-brief').onclick = async () => {
-  toast('正在生成今日简报（汇总今天所有会议）…', 6000);
-  try {
-    const r = await api('/api/brief', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: '' }),
-    });
-    $('empty').style.display = 'none';
-    $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
-    $('mtg-title').textContent = '每日简报 · ' + r.date;
-    $('mtg-meta').innerHTML = '';
+/* ---------- 每日简报（含历史） ---------- */
+$('btn-brief').onclick = () => showBriefView();
+
+async function showBriefView(selDate) {
+  const briefs = await api('/api/briefs');
+  const dates = new Map(); // 日期 -> 简报内容（null = 有会议但未生成简报）
+  briefs.forEach(b => dates.set(b.date, b.content));
+  state.meetings.filter(m => m.has_transcript)
+    .forEach(m => { const d = m.created.slice(0, 10); if (!dates.has(d)) dates.set(d, null); });
+  const sorted = [...dates.keys()].sort().reverse();
+  if (!sorted.length) { toast('还没有任何已转写的会议'); return; }
+  const date = dates.has(selDate) ? selDate : sorted[0];
+
+  $('empty').style.display = 'none';
+  $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
+  $('mtg-title').textContent = '每日简报';
+  const meta = $('mtg-meta');
+  meta.innerHTML = '';
+  meta.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px';
+  const sel = document.createElement('select');
+  sorted.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d;
+    o.textContent = d + (dates.get(d) === null ? '（未生成）' : '');
+    if (d === date) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => showBriefView(sel.value);
+  meta.appendChild(sel);
+  const gen = document.createElement('button');
+  gen.textContent = dates.get(date) === null ? '生成简报' : '重新生成';
+  gen.onclick = async () => {
+    gen.disabled = true;
+    toast(`正在生成 ${date} 的简报（汇总当天所有会议）…`, 8000);
+    try {
+      await api('/api/brief', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      });
+      toast('简报已生成，将自动并入长期记忆');
+      showBriefView(date);
+    } catch (e) { toast(e.message, 6000); gen.disabled = false; }
+  };
+  meta.appendChild(gen);
+  if (dates.get(date) !== null) {
     const dl = document.createElement('button');
     dl.textContent = '↓ 下载 .md';
-    dl.onclick = () => { window.location.href = '/api/download/brief/' + r.date; };
-    $('mtg-meta').appendChild(dl);
-    $('doc-md').innerHTML = md(r.content);
-    state.current = null;
-  } catch (e) { toast(e.message, 6000); }
-};
+    dl.onclick = () => { window.location.href = '/api/download/brief/' + date; };
+    meta.appendChild(dl);
+  }
+  $('doc-md').innerHTML = dates.get(date) !== null
+    ? md(dates.get(date))
+    : '<p style="color:var(--muted)">这一天还没有简报。点「生成简报」汇总当天全部会议的行动项与洞察。</p>';
+  state.current = null;
+}
 
 /* ---------- 跨会议追踪 ---------- */
 $('btn-track').onclick = async () => {

@@ -271,9 +271,16 @@ class BriefBody(BaseModel):
 def api_brief(body: BriefBody):
     try:
         path, content = ai.daily_brief(body.date or None)
-        return {"path": path, "content": content, "date": Path(path).stem}
     except ai.AIError as e:
         _err(e)
+    if load_config().get("auto_memory", True):
+        def merge():
+            try:  # 简报刚重新生成，内容有变，强制重新合并
+                ai.memorize_brief(Path(path), force=True)
+            except Exception:
+                pass
+        threading.Thread(target=merge, daemon=True).start()
+    return {"path": path, "content": content, "date": Path(path).stem}
 
 
 @app.get("/api/briefs")
