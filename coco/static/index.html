@@ -279,6 +279,10 @@ async function loadMeetings(keepCurrent = true) {
 }
 
 function renderMeetingList() {
+  // 数据没变就不重建 DOM，避免 8 秒轮询导致 hover/✕ 按钮闪烁
+  const sig = JSON.stringify([state.meetings, state.current]);
+  if (sig === renderMeetingList._sig) return;
+  renderMeetingList._sig = sig;
   const list = $('mtg-list');
   list.innerHTML = '';
   if (!state.meetings.length)
@@ -328,6 +332,7 @@ async function doSearch() {
   if (!q) return;
   const results = await api('/api/search?q=' + encodeURIComponent(q));
   if (q !== state.searchQuery) return; // 输入已变化，丢弃过期结果
+  renderMeetingList._sig = null; // 列表被搜索结果占用，清空搜索时强制重绘
   const list = $('mtg-list');
   list.innerHTML = '';
   if (!results.length) {
@@ -370,7 +375,9 @@ async function renderMeeting() {
     tabs.appendChild(t);
   };
   addTab('transcript', '转写');
-  m.report_list.forEach(r => addTab('r:' + r.name, r.name));
+  // 页签把文件名的时间后缀转成可读时间：行动项-1355 → 行动项 13:55
+  m.report_list.forEach(r =>
+    addTab('r:' + r.name, r.name.replace(/-(\d{2})(\d{2})$/, ' $1:$2')));
   const actions = document.createElement('div');
   actions.id = 'report-actions';
   tabs.appendChild(actions);
@@ -432,7 +439,7 @@ async function renderMeeting() {
     content = r ? r.content : '';
   }
   $('doc-md').innerHTML = md(content);
-  $('chat-ref').textContent = '对话引用：' + m.title;
+  updateChatRef();
 }
 
 async function saveTranscript() {
@@ -480,8 +487,6 @@ async function genReport() {
       body: JSON.stringify({ id: state.current, template: tpl }),
     });
     toast('报告已生成');
-    state.tab = 'transcript';
-    await renderMeeting();
     state.tab = 'r:' + r.path.split('/').pop().replace('.md', '');
     await renderMeeting();
   } catch (e) { toast('生成失败：' + e.message, 6000); }
@@ -490,13 +495,16 @@ async function genReport() {
 
 /* ---------- 对话 ---------- */
 function updateChatRef() {
-  if ($('chat-all').checked) {
+  const all = $('chat-all').checked;
+  if (all) {
     $('chat-ref').textContent = '对话引用：全部已转写会议';
   } else if (state.current && state.currentData) {
     $('chat-ref').textContent = '对话引用：' + state.currentData.title;
   } else {
-    $('chat-ref').textContent = '';
+    $('chat-ref').textContent = '对话引用：最近一场会议';
   }
+  $('chat-input').placeholder = all
+    ? '向全部会议提问…（回车发送）' : '对这场会议提问…（回车发送）';
 }
 $('chat-all').onchange = updateChatRef;
 
@@ -611,7 +619,8 @@ async function showBriefView(selDate) {
   const gen = document.createElement('button');
   gen.textContent = dates.get(date) === null ? '生成简报' : '重新生成';
   gen.onclick = async () => {
-    gen.disabled = true;
+    const label = gen.textContent;
+    gen.disabled = true; gen.textContent = '生成中…';
     toast(`正在生成 ${date} 的简报（汇总当天所有会议）…`, 8000);
     try {
       await api('/api/brief', {
@@ -620,7 +629,7 @@ async function showBriefView(selDate) {
       });
       toast('简报已生成，将自动并入长期记忆');
       showBriefView(date);
-    } catch (e) { toast(e.message, 6000); gen.disabled = false; }
+    } catch (e) { toast(e.message, 6000); gen.disabled = false; gen.textContent = label; }
   };
   meta.appendChild(gen);
   if (dates.get(date) !== null) {
@@ -644,12 +653,16 @@ async function showBriefView(selDate) {
     ? md(dates.get(date))
     : '<p style="color:var(--muted)">这一天还没有简报。点「生成简报」汇总当天全部会议的行动项与洞察。</p>';
   state.current = null;
+  updateChatRef();
 }
 
 /* ---------- 跨会议追踪 ---------- */
 $('btn-track').onclick = async () => {
+  const btn = $('btn-track');
+  if (btn.disabled) return;
   const focus = prompt('追踪焦点：某个人 / 项目 / 客户（留空 = 全局追踪承诺履行与表态变化）：', '');
   if (focus === null) return;
+  btn.disabled = true; btn.textContent = '⛓ 追踪中…';
   toast('跨会议追踪分析中（汇总全部已转写会议，会议越多越久，可能需要数分钟）…', 12000);
   try {
     const r = await api('/api/track', {
@@ -660,6 +673,7 @@ $('btn-track').onclick = async () => {
     $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
     $('mtg-title').textContent = '跨会议追踪 · ' + (focus || '全局');
     $('mtg-meta').innerHTML = '';
+    $('mtg-meta').style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px';
     const dl = document.createElement('button');
     dl.textContent = '↓ 下载 .md';
     dl.onclick = () => { window.location.href = '/api/download/tracking/' + encodeURIComponent(r.name); };
@@ -677,7 +691,9 @@ $('btn-track').onclick = async () => {
     $('mtg-meta').appendChild(del);
     $('doc-md').innerHTML = md(r.content);
     state.current = null;
+    updateChatRef();
   } catch (e) { toast(e.message, 8000); }
+  finally { btn.disabled = false; btn.textContent = '⛓ 追踪'; }
 };
 
 /* ---------- 记忆（手动 + 自动长期） ---------- */
@@ -687,6 +703,8 @@ const MEM_HINTS = {
 };
 let memData = { content: '', longterm: '' }, memTab = 'content';
 function closeModal() { $('overlay').className = ''; }
+$('overlay').onclick = e => { if (e.target === $('overlay')) closeModal(); };
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function setMemTab(tab) {
   memData[memTab] = $('memory-text').value;
   memTab = tab;

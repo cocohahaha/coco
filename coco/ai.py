@@ -209,8 +209,20 @@ def track(focus: str = "") -> "tuple[str, str]":
     name = f"{stamp}-{focus.strip()[:20]}" if focus.strip() else stamp
     path = TRACKING_DIR / f"{name}.md"
     title = f"# 跨会议追踪 · {focus.strip() or '全局'} · {stamp}"
+    content = _dedupe_title(title, content)
     path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
     return str(path), content
+
+
+def _dedupe_title(title: str, content: str) -> str:
+    """claude 输出若以同主题的一级标题开头，去掉它，避免和拼接的规范标题重复。"""
+    stripped = content.lstrip("\n")
+    if stripped.startswith("# "):
+        first, _, rest = stripped.partition("\n")
+        topic = title.lstrip("# ").split("·")[0].strip()[:4]
+        if topic and topic in first:
+            return rest.lstrip("\n")
+    return content
 
 
 def daily_brief(date: str | None = None) -> "tuple[str, str]":
@@ -221,8 +233,9 @@ def daily_brief(date: str | None = None) -> "tuple[str, str]":
         raise AIError(f"{date} 没有已转写的会议")
     ctx = _context_block(list(reversed(meetings)))  # 按时间正序
     prompt = f"{_memory_block()}{BRIEF_PROMPT}\n\n日期：{date}\n\n{ctx}"
-    content = run_claude(prompt)
+    title = f"# 每日简报 · {date}"
+    content = _dedupe_title(title, run_claude(prompt))
     BRIEFS_DIR.mkdir(parents=True, exist_ok=True)
     path = BRIEFS_DIR / f"{date}.md"
-    path.write_text(f"# 每日简报 · {date}\n\n{content}\n", encoding="utf-8")
+    path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
     return str(path), content
