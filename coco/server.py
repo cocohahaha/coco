@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import shutil
 import threading
 import uuid
 from pathlib import Path
@@ -11,7 +12,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from . import ai
-from .config import (BRIEFS_DIR, LONGTERM_FILE, MEMORY_FILE, TRACKING_DIR,
+from .config import (BRIEFS_DIR, LONGTERM_FILE, LONGTERM_PLACEHOLDER,
+                     MEMORY_FILE, MEMORY_PLACEHOLDER, TRACKING_DIR, TRASH_DIR,
                      ensure_dirs, load_config, save_config)
 from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
@@ -28,6 +30,17 @@ TRANSCRIBE_LOCK = threading.Lock()  # 转写串行执行，避免多个模型同
 
 def _err(e: Exception, code: int = 400):
     raise HTTPException(status_code=code, detail=str(e))
+
+
+def _trash_file(path: Path, dest_stem: str) -> Path:
+    """单个 .md 文件软删除：移入回收站 library/_trash，可手动找回。"""
+    if not path.exists():
+        _err(FileNotFoundError(f"文件不存在：{path.name}"), 404)
+    TRASH_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
+    dest = TRASH_DIR / f"{dest_stem}~{stamp}.md"
+    shutil.move(str(path), dest)
+    return dest
 
 
 def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
@@ -107,6 +120,18 @@ def api_delete_meeting(mid: str):
         dest = delete_meeting(m)
     except RuntimeError as e:
         _err(e)
+    return {"ok": True, "trash": str(dest)}
+
+
+@app.delete("/api/meetings/{mid}/reports/{name}")
+def api_delete_report(mid: str, name: str):
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if "/" in name or ".." in name:
+        _err(ValueError("非法报告名"))
+    dest = _trash_file(m.reports_dir / f"{name}.md", f"报告~{m.id}~{name}")
     return {"ok": True, "trash": str(dest)}
 
 
@@ -248,6 +273,14 @@ def api_track(body: TrackBody):
         _err(e)
 
 
+@app.delete("/api/tracking/{name}")
+def api_delete_tracking(name: str):
+    if "/" in name or ".." in name:
+        _err(ValueError("非法文件名"))
+    dest = _trash_file(TRACKING_DIR / f"{name}.md", f"追踪~{name}")
+    return {"ok": True, "trash": str(dest)}
+
+
 class ReportBody(BaseModel):
     id: str
     template: str
@@ -291,6 +324,14 @@ def api_briefs():
         {"date": p.stem, "content": p.read_text(encoding="utf-8")}
         for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)
     ]
+
+
+@app.delete("/api/briefs/{date}")
+def api_delete_brief(date: str):
+    if "/" in date or ".." in date:
+        _err(ValueError("非法日期"))
+    dest = _trash_file(BRIEFS_DIR / f"{date}.md", f"每日简报~{date}")
+    return {"ok": True, "trash": str(dest)}
 
 
 # ---------- 配置 / 转写编辑 / 校对 ----------
@@ -371,6 +412,19 @@ def dl_transcript(mid: str):
     return _md_download(m.transcript_md, f"{m.title}-转写.md")
 
 
+MEMORY_FILES = {"content": (MEMORY_FILE, "全局记忆", MEMORY_PLACEHOLDER),
+                "longterm": (LONGTERM_FILE, "长期记忆", LONGTERM_PLACEHOLDER)}
+
+
+@app.get("/api/download/memory/{which}")
+def dl_memory(which: str):
+    if which not in MEMORY_FILES:
+        _err(ValueError("which 只能是 content 或 longterm"))
+    path, label, _ = MEMORY_FILES[which]
+    ensure_dirs()
+    return _md_download(path, f"{label}.md")
+
+
 @app.get("/api/download/meeting/{mid}/report/{name}")
 def dl_report(mid: str, name: str):
     try:
@@ -401,14 +455,44 @@ class MemoryBody(BaseModel):
     longterm: str | None = None
 
 
+def _backup_then_write(path: Path, new: str) -> bool:
+    """覆盖前把旧内容备份为同目录 .bak.md（单槽撤销，与自动合并一致）。
+
+    返回是否真的写了备份（内容没变化时不备份）。
+    """
+    old = path.read_text(encoding="utf-8") if path.exists() else ""
+    backed = bool(old.strip()) and old != new
+    if backed:
+        path.with_suffix(".bak.md").write_text(old, encoding="utf-8")
+    path.write_text(new, encoding="utf-8")
+    return backed
+
+
 @app.post("/api/memory")
 def api_memory_save(body: MemoryBody):
     ensure_dirs()
-    if body.content is not None:
-        MEMORY_FILE.write_text(body.content, encoding="utf-8")
-    if body.longterm is not None:
-        LONGTERM_FILE.write_text(body.longterm, encoding="utf-8")
+    with ai.MEMORY_LOCK:
+        if body.content is not None:
+            _backup_then_write(MEMORY_FILE, body.content)
+        if body.longterm is not None:
+            _backup_then_write(LONGTERM_FILE, body.longterm)
     return {"ok": True}
+
+
+class MemoryClearBody(BaseModel):
+    which: str  # content | longterm
+
+
+@app.post("/api/memory/clear")
+def api_memory_clear(body: MemoryClearBody):
+    if body.which not in MEMORY_FILES:
+        _err(ValueError("which 只能是 content 或 longterm"))
+    ensure_dirs()
+    path, _, placeholder = MEMORY_FILES[body.which]
+    with ai.MEMORY_LOCK:
+        backed = _backup_then_write(path, placeholder)
+    return {"ok": True, "content": placeholder,
+            "backup": str(path.with_suffix(".bak.md")) if backed else None}
 
 
 @app.exception_handler(Exception)

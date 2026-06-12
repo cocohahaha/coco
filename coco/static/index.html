@@ -210,6 +210,9 @@
   <div id="mem-hint"></div>
   <textarea id="memory-text"></textarea>
   <div class="row">
+    <button id="btn-dl-memory">↓ 下载 .md</button>
+    <button id="btn-clear-memory">✕ 清空</button>
+    <span style="flex:1"></span>
     <button onclick="closeModal()">取消</button>
     <button class="primary" id="btn-save-memory">保存</button>
   </div>
@@ -387,7 +390,8 @@ async function renderMeeting() {
 
   const extra = state.tab === 'transcript'
     ? `<button id="btn-edit">✎ 编辑</button><button id="btn-proof">✦ AI 校对</button>` : '';
-  actions.innerHTML = `${extra}<button id="btn-dl">↓ 下载 .md</button>
+  const delBtn = state.tab === 'transcript' ? '' : `<button id="btn-del-report">✕ 删除</button>`;
+  actions.innerHTML = `${extra}<button id="btn-dl">↓ 下载 .md</button>${delBtn}
     <select id="tpl-select"></select>
     <button id="btn-gen" class="primary">生成报告</button>`;
   const sel = actions.querySelector('#tpl-select');
@@ -407,6 +411,17 @@ async function renderMeeting() {
   if (state.tab === 'transcript') {
     actions.querySelector('#btn-edit').onclick = () => { state.editing = true; renderMeeting(); };
     actions.querySelector('#btn-proof').onclick = proofreadTranscript;
+  } else {
+    actions.querySelector('#btn-del-report').onclick = async () => {
+      const name = state.tab.slice(2);
+      if (!confirm(`删除报告「${name}」？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。`)) return;
+      try {
+        await api(`/api/meetings/${encodeURIComponent(state.current)}/reports/${encodeURIComponent(name)}`,
+          { method: 'DELETE' });
+        state.tab = 'transcript'; toast('报告已删除（回收站可找回）');
+        await renderMeeting();
+      } catch (e) { toast('删除失败：' + e.message, 6000); }
+    };
   }
 
   let content;
@@ -613,6 +628,17 @@ async function showBriefView(selDate) {
     dl.textContent = '↓ 下载 .md';
     dl.onclick = () => { window.location.href = '/api/download/brief/' + date; };
     meta.appendChild(dl);
+    const del = document.createElement('button');
+    del.textContent = '✕ 删除';
+    del.onclick = async () => {
+      if (!confirm(`删除 ${date} 的简报？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。`)) return;
+      try {
+        await api('/api/briefs/' + date, { method: 'DELETE' });
+        toast('简报已删除（回收站可找回）');
+        showBriefView(date);
+      } catch (e) { toast('删除失败：' + e.message, 6000); }
+    };
+    meta.appendChild(del);
   }
   $('doc-md').innerHTML = dates.get(date) !== null
     ? md(dates.get(date))
@@ -638,6 +664,17 @@ $('btn-track').onclick = async () => {
     dl.textContent = '↓ 下载 .md';
     dl.onclick = () => { window.location.href = '/api/download/tracking/' + encodeURIComponent(r.name); };
     $('mtg-meta').appendChild(dl);
+    const del = document.createElement('button');
+    del.textContent = '✕ 删除';
+    del.onclick = async () => {
+      if (!confirm('删除这份追踪报告？\n会移入回收站 library/_trash，可手动找回。')) return;
+      try {
+        await api('/api/tracking/' + encodeURIComponent(r.name), { method: 'DELETE' });
+        toast('追踪报告已删除（回收站可找回）');
+        showEmpty();
+      } catch (e) { toast('删除失败：' + e.message, 6000); }
+    };
+    $('mtg-meta').appendChild(del);
     $('doc-md').innerHTML = md(r.content);
     state.current = null;
   } catch (e) { toast(e.message, 8000); }
@@ -673,7 +710,25 @@ $('btn-save-memory').onclick = async () => {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(memData),
   });
-  closeModal(); toast('记忆已保存');
+  closeModal(); toast('记忆已保存（原内容备份为 .bak.md）');
+};
+$('btn-dl-memory').onclick = () => {
+  window.location.href = '/api/download/memory/' + memTab;  // 下载的是已保存的文件
+};
+$('btn-clear-memory').onclick = async () => {
+  const label = memTab === 'content' ? '手动记忆' : '长期记忆';
+  let msg = `清空${label}？\n原内容会备份为 memory/ 下的 .bak.md，可手动找回。`;
+  if (memTab === 'longterm') msg += '\n之后可用命令「coco memorize --all --force」从全部会议重新提取。';
+  if (!confirm(msg)) return;
+  try {
+    const r = await api('/api/memory/clear', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ which: memTab }),
+    });
+    memData[memTab] = r.content;
+    $('memory-text').value = r.content;
+    toast(label + '已清空（原内容备份为 .bak.md）');
+  } catch (e) { toast('清空失败：' + e.message, 6000); }
 };
 
 /* ---------- 启动 ---------- */
