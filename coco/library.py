@@ -45,6 +45,19 @@ class Meeting:
         return self.meta.get("title", self.id)
 
     @property
+    def date(self) -> str:
+        """有效日期（YYYY-MM-DD）：手动校准的 meta.date 优先，否则取创建日，
+        再不行从文件夹名前缀推断。用于显示、排序、按日筛选与每日简报分组。"""
+        d = self.meta.get("date")
+        if d:
+            return d
+        created = self.meta.get("created", "")
+        if created:
+            return created[:10]
+        m = re.match(r"\d{4}-\d{2}-\d{2}", self.id)
+        return m.group(0) if m else ""
+
+    @property
     def audio_file(self) -> Path | None:
         for f in sorted(self.path.iterdir()):
             if f.suffix.lower() in AUDIO_EXTS:
@@ -79,10 +92,14 @@ class Meeting:
             "id": self.id,
             "title": self.title,
             "created": m.get("created", ""),
+            "date": self.date,
             "duration": m.get("duration", ""),
             "source": m.get("source", ""),
+            "language": m.get("language", ""),  # 转写时识别/使用的语种
             "status": m.get("status", "new"),  # new|transcribing|done|error
             "has_transcript": self.transcript_md.exists(),
+            "has_raw": (self.path / "transcript.raw.md").exists(),  # 人名校正前原稿，供前端「恢复」入口
+            "names_fixed_at": m.get("names_fixed_at", ""),
             "reports": [p.stem for p in self.reports()],
         }
 
@@ -117,9 +134,11 @@ def create_meeting(title: str, audio_path: Path | None = None,
 def list_meetings() -> list[Meeting]:
     ensure_dirs()
     out = []
-    for p in sorted(LIBRARY_DIR.iterdir(), reverse=True):
+    for p in LIBRARY_DIR.iterdir():
         if p.is_dir() and not p.name.startswith("_") and (p / "meta.json").exists():
             out.append(Meeting(p))
+    # 按有效日期倒序（手动校准录音日期后顺序随之调整），同日再按创建时间、id
+    out.sort(key=lambda m: (m.date, m.meta.get("created", ""), m.id), reverse=True)
     return out
 
 
@@ -139,7 +158,7 @@ def find_meeting(key: str) -> Meeting:
 
 
 def meetings_on(date: str) -> list[Meeting]:
-    return [m for m in list_meetings() if m.meta.get("created", "").startswith(date)]
+    return [m for m in list_meetings() if m.date == date]
 
 
 def delete_meeting(mtg: Meeting) -> Path:

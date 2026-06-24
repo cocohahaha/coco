@@ -8,6 +8,9 @@ logs/
 library/
 memory/
 coco.config.json
+# 个人工作稿（对齐文档、会议笔记等，含真实人名/内容）
+alignment-*.md
+*-notes.md
 
 # 系统
 .DS_Store

@@ -2,13 +2,20 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
+import re
 import shutil
+import sys
+import tempfile
 import threading
+import traceback
 import uuid
+import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import ai
@@ -92,9 +99,25 @@ def index():
 
 # ---------- 会议库 ----------
 
+def _active_job_detail(meeting_id: str) -> str | None:
+    """按 meeting_id 反查正在运行的转写任务的阶段文字（刷新后丢了 jid 也能拿到进度）。"""
+    for j in JOBS.values():
+        if j.get("meeting_id") == meeting_id and j.get("status") == "running":
+            return j.get("detail")
+    return None
+
+
 @app.get("/api/meetings")
 def api_meetings():
-    return [m.summary() for m in list_meetings()]
+    out = []
+    for m in list_meetings():
+        s = m.summary()
+        if s["status"] == "transcribing":
+            detail = _active_job_detail(m.id)
+            if detail:
+                s["job_detail"] = detail
+        out.append(s)
+    return out
 
 
 @app.get("/api/meetings/{mid}")
@@ -107,7 +130,8 @@ def api_meeting(mid: str):
         {"name": p.stem, "content": p.read_text(encoding="utf-8")}
         for p in m.reports()
     ]
-    return {**m.summary(), "transcript": m.transcript_text(), "report_list": reports}
+    return {**m.summary(), "transcript": m.transcript_text(), "report_list": reports,
+            "job_detail": _active_job_detail(mid)}
 
 
 @app.delete("/api/meetings/{mid}")
@@ -147,8 +171,17 @@ async def api_upload(file: UploadFile = File(...), title: str = Form(""),
     if suffix not in AUDIO_EXTS:
         _err(ValueError(f"不支持的文件类型：{suffix}"))
     ensure_dirs()
-    tmp = Path("/tmp") / f"coco_upload_{uuid.uuid4().hex[:6]}{suffix}"
-    tmp.write_bytes(await file.read())
+    tmp = Path(tempfile.gettempdir()) / f"coco_upload_{uuid.uuid4().hex[:6]}{suffix}"
+    try:  # 分块流式落盘，避免把整段大音视频一次性读入内存
+        with tmp.open("wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+    except OSError as e:
+        tmp.unlink(missing_ok=True)  # 中途失败清理残留的半截临时文件
+        _err(RuntimeError(f"写入临时文件失败（磁盘空间不足？）：{e}"), 500)
     mtg = create_meeting(title or Path(file.filename).stem,
                          audio_path=tmp, source="上传", move=True)
     jid = _start_transcribe_job(mtg, model or None)
@@ -334,29 +367,72 @@ def api_delete_brief(date: str):
     return {"ok": True, "trash": str(dest)}
 
 
-# ---------- 配置 / 转写编辑 / 校对 ----------
+# ---------- 配置 / 转写编辑 / 人名校正 / 报告编辑 ----------
 
 @app.get("/api/config")
 def api_config():
-    return {"whisper_model": load_config()["whisper_model"]}
+    cfg = load_config()
+    return {"whisper_model": cfg["whisper_model"], "language": cfg.get("language", "auto")}
 
 
 class ConfigBody(BaseModel):
-    whisper_model: str
+    whisper_model: str | None = None
+    language: str | None = None
+
+
+def _valid_lang(v: str) -> bool:
+    return v == "auto" or (v.isalpha() and 2 <= len(v) <= 3)
 
 
 @app.post("/api/config")
 def api_config_save(body: ConfigBody):
-    if body.whisper_model not in ("turbo", "large"):
-        _err(ValueError("模型只能是 turbo 或 large"))
     cfg = load_config()
-    cfg["whisper_model"] = body.whisper_model
+    if body.whisper_model is not None:
+        if body.whisper_model not in ("turbo", "large"):
+            _err(ValueError("模型只能是 turbo 或 large"))
+        cfg["whisper_model"] = body.whisper_model
+    if body.language is not None:
+        if not _valid_lang(body.language):
+            _err(ValueError("语言只能是 auto 或 ISO 码（如 zh、en、fr）"))
+        cfg["language"] = body.language
     save_config(cfg)
-    return {"ok": True, "whisper_model": body.whisper_model}
+    return {"ok": True, "whisper_model": cfg["whisper_model"],
+            "language": cfg.get("language", "auto")}
 
 
 class TranscriptBody(BaseModel):
     content: str
+
+
+class MeetingMetaBody(BaseModel):
+    title: str | None = None
+    date: str | None = None  # YYYY-MM-DD，手动校准录音日期
+
+
+@app.post("/api/meetings/{mid}/meta")
+def api_save_meeting_meta(mid: str, body: MeetingMetaBody):
+    """修改会议标题 / 校准录音日期（不重命名文件夹，id 保持稳定）。"""
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    updates: dict = {}
+    if body.title is not None:
+        t = body.title.strip()
+        if not t:
+            _err(ValueError("标题不能为空"))
+        updates["title"] = t
+    if body.date is not None:
+        d = body.date.strip()
+        try:
+            dt.date.fromisoformat(d)  # 同时校验格式与是否真实日期
+        except ValueError:
+            _err(ValueError("日期格式应为 YYYY-MM-DD 且是有效日期"))
+        updates["date"] = d
+    if not updates:
+        _err(ValueError("没有要更新的字段"))
+    m.save_meta(**updates)
+    return {"ok": True, **m.summary()}
 
 
 @app.post("/api/meetings/{mid}/transcript")
@@ -367,19 +443,96 @@ def api_save_transcript(mid: str, body: TranscriptBody):
         _err(e, 404)
     if not body.content.strip():
         _err(ValueError("内容为空，未保存"))
-    m.transcript_md.write_text(body.content.rstrip() + "\n", encoding="utf-8")
-    m.save_meta(edited_at=dt.datetime.now().isoformat(timespec="seconds"))
+    with ai.TRANSCRIPT_LOCK:
+        m.transcript_md.write_text(body.content.rstrip() + "\n", encoding="utf-8")
+        m.save_meta(edited_at=dt.datetime.now().isoformat(timespec="seconds"))
     return {"ok": True}
 
 
-@app.post("/api/proofread/{mid}")
-def api_proofread(mid: str):
+@app.post("/api/fix-names/{mid}")
+def api_fix_names(mid: str):
     try:
         m = find_meeting(mid)
-        content = ai.proofread(m)
+        content = ai.fix_names(m)
         return {"content": content}
     except (LookupError, ai.AIError) as e:
         _err(e)
+
+
+@app.post("/api/meetings/{mid}/restore-raw")
+def api_restore_raw(mid: str):
+    """恢复人名校正前的原稿（transcript.raw.md → transcript.md）。"""
+    try:
+        m = find_meeting(mid)
+        content = ai.restore_raw(m)
+        return {"content": content}
+    except (LookupError, ai.AIError) as e:
+        _err(e)
+
+
+FIX_ALL_LOCK = threading.Lock()  # 全库人名校正一次只允许一个在跑
+
+
+def _start_fix_all_job() -> str:
+    jid = uuid.uuid4().hex[:8]
+    JOBS[jid] = {"status": "running", "detail": "准备校正…", "meeting_id": None}
+
+    def work():
+        if not FIX_ALL_LOCK.acquire(blocking=False):
+            JOBS[jid].update(status="error", detail="已有一个全库校正在进行中，请等它结束")
+            return
+        try:
+            stats = ai.fix_all_names(progress=lambda msg: JOBS[jid].update(detail=msg))
+            detail = (f"完成：{stats['meetings']} 场，修正转写 {stats['transcripts']}、"
+                      f"报告 {stats['reports']}")
+            if stats["errors"]:
+                detail += f"，{len(stats['errors'])} 项跳过"
+            JOBS[jid].update(status="done", detail=detail, stats=stats)
+        except Exception as e:
+            JOBS[jid].update(status="error", detail=str(e))
+        finally:
+            FIX_ALL_LOCK.release()
+
+    threading.Thread(target=work, daemon=True).start()
+    return jid
+
+
+class FixAllBody(BaseModel):
+    confirm: bool = False
+
+
+@app.post("/api/fix-all-names")
+def api_fix_all_names(body: FixAllBody = FixAllBody()):
+    """全库按长期记忆校正人名（转写+报告）。破坏性操作：必须 confirm=true 才执行，
+    否则只返回将影响的会议数量（预览），避免误调/冒烟测试改动真实数据。"""
+    ready = [m for m in list_meetings() if m.transcript_md.exists()]
+    if not body.confirm:
+        return {"preview": True, "meeting_count": len(ready),
+                "detail": f"将按记忆校正 {len(ready)} 场会议的转写与报告（需 confirm=true 执行）"}
+    return {"job": _start_fix_all_job()}
+
+
+class ReportEditBody(BaseModel):
+    content: str
+
+
+@app.post("/api/meetings/{mid}/reports/{name}")
+def api_save_report(mid: str, name: str, body: ReportEditBody):
+    """保存编辑后的报告正文（覆盖原 .md，不改文件名）。"""
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if "/" in name or ".." in name:
+        _err(ValueError("非法报告名"))
+    path = m.reports_dir / f"{name}.md"
+    if not path.exists():
+        _err(FileNotFoundError(f"报告不存在：{name}"), 404)
+    if not body.content.strip():
+        _err(ValueError("内容为空，未保存"))
+    path.write_text(body.content.rstrip() + "\n", encoding="utf-8")
+    m.save_meta(report_edited_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return {"ok": True}
 
 
 # ---------- 下载（.md 导出） ----------
@@ -434,6 +587,105 @@ def dl_report(mid: str, name: str):
     if "/" in name or ".." in name:
         _err(ValueError("非法报告名"))
     return _md_download(m.reports_dir / f"{name}.md", f"{m.title}-{name}.md")
+
+
+# ---------- 批量导出（多个 .md 打包 zip） ----------
+
+def _report_label(name: str) -> str:
+    # 行动项-1355 → 行动项 13:55，与页签显示一致
+    return re.sub(r"-(\d{2})(\d{2})$", r" \1:\2", name)
+
+
+@app.get("/api/export/manifest")
+def api_export_manifest():
+    """列出全部可导出的 .md，供导出弹窗逐个勾选。"""
+    meetings = []
+    for m in list_meetings():
+        files = []
+        if m.transcript_md.exists():
+            files.append({"type": "transcript", "name": "", "label": "转写"})
+        for p in m.reports():
+            files.append({"type": "report", "name": p.stem,
+                          "label": _report_label(p.stem)})
+        if files:
+            meetings.append({"id": m.id, "title": m.title,
+                             "date": m.date, "files": files})
+    briefs = ([{"name": p.stem, "label": p.stem}
+               for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)]
+              if BRIEFS_DIR.exists() else [])
+    tracking = ([{"name": p.stem, "label": p.stem}
+                 for p in sorted(TRACKING_DIR.glob("*.md"), reverse=True)]
+                if TRACKING_DIR.exists() else [])
+    return {"meetings": meetings, "briefs": briefs, "tracking": tracking}
+
+
+def _safe_seg(s: str) -> str:
+    """清洗成 zip 内安全的单段文件/目录名（去掉分隔符与首尾点）。"""
+    return re.sub(r"[\\/]+", "_", s).strip().strip(".") or "未命名"
+
+
+def _resolve_export_item(it: "ExportItem") -> "tuple[Path | None, str]":
+    """把一条导出项安全解析为 (磁盘路径, zip 内相对路径)。非法项返回 (None, '')。
+
+    所有 name 都禁止包含路径分隔符与 ..，会议路径只通过 find_meeting 解析已存在的会议，
+    杜绝路径穿越。
+    """
+    name = it.name or ""
+    if "/" in name or "\\" in name or ".." in name:
+        return None, ""
+    if it.type in ("transcript", "report"):
+        try:
+            m = find_meeting(it.id)
+        except LookupError:
+            return None, ""
+        folder = _safe_seg(f"{m.date}-{m.title}")
+        if it.type == "transcript":
+            return m.transcript_md, f"{folder}/转写.md"
+        return m.reports_dir / f"{name}.md", f"{folder}/{_safe_seg(_report_label(name))}.md"
+    if it.type == "brief":
+        return BRIEFS_DIR / f"{name}.md", f"每日简报/{_safe_seg(name)}.md"
+    if it.type == "tracking":
+        return TRACKING_DIR / f"{name}.md", f"跨会议追踪/{_safe_seg(name)}.md"
+    return None, ""
+
+
+class ExportItem(BaseModel):
+    type: str  # transcript | report | brief | tracking
+    id: str = ""
+    name: str = ""
+
+
+class ExportBody(BaseModel):
+    items: list[ExportItem]
+
+
+@app.post("/api/export")
+def api_export(body: ExportBody):
+    """把选中的多个 .md 打包成 zip 返回。"""
+    if not body.items:
+        _err(ValueError("没有选择任何文件"))
+    buf = io.BytesIO()
+    used: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for it in body.items:
+            path, arc = _resolve_export_item(it)
+            if path is None or not path.exists():
+                continue
+            base, n = arc, 1
+            while arc in used:  # 不同会议可能产生同名 arc，避免覆盖
+                n += 1
+                stem, dot, ext = base.rpartition(".")
+                arc = f"{stem}-{n}.{ext}" if dot else f"{base}-{n}"
+            used.add(arc)
+            zf.write(path, arcname=arc)
+    if not used:
+        _err(ValueError("选中的文件都不存在"))
+    buf.seek(0)
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    fname = f"coco-导出-{stamp}.zip"
+    disp = f"attachment; filename=coco-export-{stamp}.zip; filename*=UTF-8''{quote(fname)}"
+    return StreamingResponse(buf, media_type="application/zip",
+                             headers={"Content-Disposition": disp})
 
 
 # ---------- 模板 / 记忆 ----------
@@ -497,4 +749,7 @@ def api_memory_clear(body: MemoryClearBody):
 
 @app.exception_handler(Exception)
 def on_error(request, exc):
-    return JSONResponse(status_code=500, content={"detail": str(exc)})
+    # 堆栈打到终端供本人排查；只回固定文案给前端，不泄漏内部路径/异常细节
+    traceback.print_exc(file=sys.stderr)
+    return JSONResponse(status_code=500,
+                        content={"detail": "服务器内部错误，请查看运行 coco 的终端日志"})

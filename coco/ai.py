@@ -15,42 +15,108 @@ from .templates import (BRIEF_PROMPT, CHAT_SYSTEM, LONGTERM_PROMPT,
 MAX_CONTEXT_CHARS = 400_000  # 控制注入 claude 的转写总量
 MAX_LONGTERM_INJECT = 30_000  # 长期记忆注入分析时的长度上限
 MEMORY_LOCK = threading.Lock()  # 长期记忆读改写串行，避免并发转写互相覆盖
+TRANSCRIPT_LOCK = threading.Lock()  # transcript.md 写入串行（人名校正/手动保存/恢复原稿）
 
 
 class AIError(RuntimeError):
     pass
 
 
-PROOFREAD_PROMPT = (
-    "下面是一份 whisper 自动转写的会议记录，可能存在同音字错误、专有名词错误、"
-    "标点断句问题。请逐行校对：\n"
-    "1. 只修正明显的同音字/专有名词/标点错误，不改写说话内容，不增删信息\n"
-    "2. 严格保留所有 [时间戳] 和原有的行结构、行数\n"
-    "3. 保留文件头部的标题与元信息行原样不动\n"
-    "4. 全局记忆里给出的人名、品牌、术语写法以记忆为准\n"
-    "直接输出校对后的全文 Markdown，不要任何解释或开场白。"
+NAME_FIX_PROMPT = (
+    "下面是一份会议转写或基于它生成的分析报告。请只做一件事：统一并修正其中的【人名】写法。\n"
+    "1. 以下面给出的全局记忆 / 长期记忆中出现的人名写法为准；记忆里没有的人名，"
+    "在全篇内部统一为最可能正确、最一致的一种写法\n"
+    "2. 只改人名（中文名、英文名、音译名），其他任何字词、标点、内容一律保持原样\n"
+    "3. 严格保留所有 [时间戳]、原有的行结构与行数；文件头部的标题与元信息行原样不动\n"
+    "4. 不增删信息、不改写说话内容、不做任何润色\n"
+    "直接输出处理后的全文 Markdown，不要任何解释或开场白。"
 )
 
 
-def proofread(mtg: "Meeting") -> str:
-    """AI 校对转写：修同音字/专名/标点，备份原稿到 transcript.raw.md。"""
+def _run_name_fix(text: str, what: str = "转写") -> str:
+    """对一段文本（转写或报告）做人名校正，以记忆中的人名为准；返回校正后文本（含尾换行）。
+
+    只改人名，长度与行数应基本不变；偏差过大视为模型跑偏，抛错放弃（调用方据此保护原文）。
+    """
+    if not text.strip():
+        raise AIError("内容为空，无需校正")
+    if len(text) > 80_000:
+        raise AIError("内容超过 8 万字，暂不支持一次性校正")
+    out = run_claude(
+        f"{_memory_block()}{NAME_FIX_PROMPT}\n\n<{what}>\n{text}\n</{what}>",
+        timeout=1200,
+    )
+    ratio = len(out) / max(len(text), 1)
+    if not 0.8 <= ratio <= 1.2:
+        raise AIError("人名校正输出与原文长度差异过大，疑似改动了正文，已放弃")
+    if abs(out.count("\n") - text.count("\n")) > 2:
+        raise AIError("人名校正改变了行数，疑似破坏了结构，已放弃")
+    return out.rstrip() + "\n"
+
+
+def fix_names(mtg: "Meeting") -> str:
+    """单场：以记忆中的人名为准校正该会议【转写】，原稿备份到 transcript.raw.md（仅首次）。"""
     text = mtg.transcript_text()
     if not text:
         raise AIError(f"会议 {mtg.id} 还没有转写内容")
-    if len(text) > 60_000:
-        raise AIError("转写超过 6 万字，暂不支持整篇校对（可先编辑或分段处理）")
-    out = run_claude(
-        f"{_memory_block()}{PROOFREAD_PROMPT}\n\n<转写>\n{text}\n</转写>",
-        timeout=1200,
-    )
-    if len(out) < len(text) * 0.5:
-        raise AIError("校对输出异常（比原文短一半以上），已放弃，原稿未改动")
+    fixed = _run_name_fix(text, "转写")
+    with TRANSCRIPT_LOCK:
+        # 校正耗时较长，期间转写若被手动编辑或重新转写，放弃写回，避免用旧快照覆盖新内容
+        if mtg.transcript_text() != text:
+            raise AIError("转写在校正期间被改动过，已放弃写回，原稿未被覆盖")
+        raw = mtg.path / "transcript.raw.md"
+        if not raw.exists():
+            raw.write_text(text, encoding="utf-8")  # 只备份最初的机器原稿
+        mtg.transcript_md.write_text(fixed, encoding="utf-8")
+        mtg.save_meta(names_fixed_at=dt.datetime.now().isoformat(timespec="seconds"))
+    return fixed
+
+
+def fix_all_names(meetings=None, progress=lambda msg: None) -> dict:
+    """全库：以长期记忆中的人名为准，原地校正所有会议的【转写与报告】里的人名。
+
+    原文自动备份（转写→transcript.raw.md；报告→<name>.md.bak，均仅首次）。
+    单项失败只记录并跳过，不中断整批。返回统计 {meetings, transcripts, reports, errors}。
+    meetings 参数仅供测试限定范围，正常调用为 None=全部已转写会议。
+    """
+    from .library import list_meetings
+    targets = (meetings if meetings is not None
+               else [m for m in list_meetings() if m.transcript_md.exists()])
+    stats = {"meetings": 0, "transcripts": 0, "reports": 0, "errors": []}
+    n = len(targets)
+    for i, m in enumerate(targets, 1):
+        progress(f"校正中 {i}/{n}：{m.title}")
+        try:  # 转写：复用单场逻辑（含备份与并发保护）
+            fix_names(m)
+            stats["transcripts"] += 1
+        except AIError as e:
+            stats["errors"].append(f"{m.title}·转写：{e}")
+        for rp in m.reports():  # 报告：原地改名，原报告备份为 <name>.md.bak（不被 reports() 收录）
+            try:
+                rtext = rp.read_text(encoding="utf-8")
+                rfixed = _run_name_fix(rtext, "报告")
+                bak = rp.with_name(rp.name + ".bak")
+                if not bak.exists():
+                    bak.write_text(rtext, encoding="utf-8")
+                rp.write_text(rfixed, encoding="utf-8")
+                stats["reports"] += 1
+            except AIError as e:
+                stats["errors"].append(f"{m.title}·报告{rp.stem}：{e}")
+        stats["meetings"] += 1
+    return stats
+
+
+def restore_raw(mtg: "Meeting") -> str:
+    """恢复人名校正前的原稿：把 transcript.raw.md 写回 transcript.md 并移除备份。"""
     raw = mtg.path / "transcript.raw.md"
     if not raw.exists():
-        raw.write_text(text, encoding="utf-8")  # 只备份最初的机器原稿
-    mtg.transcript_md.write_text(out.rstrip() + "\n", encoding="utf-8")
-    mtg.save_meta(proofread_at=dt.datetime.now().isoformat(timespec="seconds"))
-    return out
+        raise AIError("没有可恢复的原稿（transcript.raw.md 不存在）")
+    original = raw.read_text(encoding="utf-8")
+    with TRANSCRIPT_LOCK:
+        mtg.transcript_md.write_text(original.rstrip() + "\n", encoding="utf-8")
+        raw.unlink()  # 原稿已回到 transcript.md，移除备份，前端「恢复」按钮随之消失
+        mtg.save_meta(names_fixed_at="")
+    return original
 
 
 def run_claude(prompt: str, timeout: int = 900) -> str:
@@ -126,6 +192,10 @@ def generate_report(mtg: Meeting, template: str) -> "tuple[str, str]":
     mtg.reports_dir.mkdir(exist_ok=True)
     stamp = dt.datetime.now().strftime("%H%M")
     path = mtg.reports_dir / f"{template}-{stamp}.md"
+    n = 2
+    while path.exists():  # 同模板同分钟重复生成时让位，避免静默覆盖上一份
+        path = mtg.reports_dir / f"{template}-{stamp}-{n}.md"
+        n += 1
     path.write_text(f"# {mtg.title} · {template}\n\n{content}\n", encoding="utf-8")
     return str(path), content
 

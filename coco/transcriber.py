@@ -22,7 +22,10 @@ def transcribe_file(audio: Path, model: str | None = None,
     """转写音频/视频文件，返回 {text, segments, duration, model}。"""
     cfg = load_config()
     model = model or cfg["whisper_model"]
-    language = language or cfg["language"] or None
+    # 语言：显式参数 > 配置；"auto" 或留空 = 交给 Whisper 自动识别
+    lang = language if language is not None else cfg.get("language")
+    if not lang or lang == "auto":
+        lang = None
     setup_hf_endpoint(cfg)
     repo = resolve_model_repo(model)
 
@@ -31,15 +34,25 @@ def transcribe_file(audio: Path, model: str | None = None,
 
     progress("转写中…")
     kwargs = {}
-    if language == "zh":
+    if lang == "zh":
         prompt = "以下是普通话的句子，请用简体中文输出。"
         if cfg.get("initial_prompt_extra"):
             prompt += "本次对话可能涉及：" + cfg["initial_prompt_extra"]
         kwargs["initial_prompt"] = prompt
+    elif cfg.get("initial_prompt_extra"):
+        # 非中文/自动识别时也注入专有名词，但不强制语言
+        kwargs["initial_prompt"] = cfg["initial_prompt_extra"]
+    # 可选 beam search：更准但更慢。0 / 未设 = 贪心解码
+    try:
+        beam = int(cfg.get("beam_size") or 0)
+    except (TypeError, ValueError):
+        beam = 0
+    if beam > 0:
+        kwargs["beam_size"] = beam
     result = mlx_whisper.transcribe(
         str(audio),
         path_or_hf_repo=repo,
-        language=language,
+        language=lang,
         verbose=None,
         # 长音频防复读/幻觉：不把上一段输出当作下一段的条件
         condition_on_previous_text=False,
@@ -57,7 +70,7 @@ def transcribe_file(audio: Path, model: str | None = None,
         "segments": segments,
         "duration": duration,
         "model": model,
-        "language": result.get("language", language),
+        "language": result.get("language", lang),
     }
 
 
@@ -83,6 +96,7 @@ def transcribe_meeting(mtg: Meeting, model: str | None = None,
         f"- 日期：{mtg.meta.get('created', '')}",
         f"- 时长：{_fmt_ts(result['duration'])}",
         f"- 来源：{mtg.meta.get('source', '')}（{result['model']} 转写）",
+        f"- 语言：{result.get('language') or '自动'}",
         "",
         "## 转写",
         "",
@@ -94,6 +108,7 @@ def transcribe_meeting(mtg: Meeting, model: str | None = None,
         status="done",
         duration=_fmt_ts(result["duration"]),
         whisper_model=result["model"],
+        language=result.get("language") or "auto",
         transcribed_at=dt.datetime.now().isoformat(timespec="seconds"),
         error=None,
     )
