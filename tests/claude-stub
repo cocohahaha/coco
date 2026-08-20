@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""claude CLI 桩：按提示词类型返回可通过 coco 校验的固定输出，供冒烟测试。"""
+import re
+import sys
+
+data = sys.stdin.read()
+if "统一并修正其中的【人名与专有名词】" in data:
+    m = re.search(r"<(转写|报告)>\n(.*)\n</\1>", data, re.S)
+    sys.stdout.write((m.group(2) if m else data) + "\n")
+elif "维护一份「词表」" in data:
+    print("# 词表\n\n## 人名\n- 林炜（误写：林伟）｜产品负责人\n\n"
+          "## 专有名词\n- 智舱（误写：置仓）｜车机项目\n- GEO｜生成引擎优化")
+elif "长期记忆文件" in data:
+    print("# 长期记忆\n\n## 人物\n- **林炜**：产品负责人，主推智舱二期\n- 张三：IT 部门\n\n"
+          "## 项目与客户\n- 智舱项目：二期排期讨论中\n\n"
+          "## 承诺与决定\n- 林炜 承诺 8/25 前给出二期排期 [test] 状态：进行中\n\n"
+          "## 术语与说法\n- 智舱：车机智能座舱项目")
+else:
+    print("# 模拟标题\n\n## 分析\n- 这是 stub claude 的输出，用于验证链路")
