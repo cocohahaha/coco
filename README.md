@@ -112,6 +112,11 @@ coco.config.json       配置（首次 coco config 修改后生成）
 
 环境变量 `COCO_ROOT` 可把数据根目录指到别处（测试或多套数据隔离）。
 
+## 开发自检
+
+改代码后运行 `.venv/bin/python tests/smoke.py`：在临时 COCO_ROOT 下用 stub claude
+跑 40 项接口断言，不碰真实数据、不消耗模型额度。
+
 ## 注意事项
 
 - 首次录音时 macOS 会弹窗请求终端的麦克风权限，需允许。
