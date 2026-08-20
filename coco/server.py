@@ -875,7 +875,10 @@ def api_glossary_extract():
 # ---------- 知识底座 ----------
 
 def _section_items(text: str) -> dict[str, list[str]]:
-    """把 Markdown 按「## 章节」切分，取每节的条目行（- / * 开头）。"""
+    """把 Markdown 按「## 章节」切分，取每节的【顶层】条目行（无缩进的 - / *）。
+
+    缩进的子条目（如人物名下的时间线补充）属于父条目，不单独计数。
+    """
     out: dict[str, list[str]] = {}
     section = ""
     for line in text.splitlines():
@@ -883,8 +886,8 @@ def _section_items(text: str) -> dict[str, list[str]]:
         if s.startswith("## "):
             section = s[3:].strip()
             out.setdefault(section, [])
-        elif section and (s.startswith("- ") or s.startswith("* ")):
-            out[section].append(s[2:].strip())
+        elif section and (line.startswith("- ") or line.startswith("* ")):
+            out[section].append(line[2:].strip())
     return out
 
 
