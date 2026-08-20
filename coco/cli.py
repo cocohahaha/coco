@@ -9,11 +9,11 @@ import time
 from pathlib import Path
 
 from . import ai
-from .config import MEMORY_FILE, ensure_dirs, load_config, save_config
+from .config import GLOSSARY_FILE, MEMORY_FILE, ensure_dirs, load_config, save_config
 from .library import (AUDIO_EXTS, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
 from .recorder import list_devices, record_blocking
-from .templates import TEMPLATES
+from .templates import TEMPLATES, TRACK_MODES
 from .transcriber import transcribe_meeting
 
 
@@ -141,10 +141,68 @@ def cmd_search(args):
 
 def cmd_track(args):
     focus = args.focus or ""
-    _p(f"▶ 跨会议追踪（{focus or '全局'}）：承诺履行 / 表态变化 / 未决问题…")
-    path, content = ai.track(focus)
+    meetings = [find_meeting(r) for r in args.refs] if args.refs else None
+    _p(f"▶ 跨会议洞察 · {args.mode}（{focus or '全局'}）"
+       f"{f'，限定 {len(meetings)} 场' if meetings else ''}…")
+    path, content = ai.track(focus, mode=args.mode, meetings=meetings)
     _p("\n" + content)
     _p(f"\n✓ 已保存 → {path}")
+
+
+def cmd_prep(args):
+    _p(f"▶ 会前调查：{args.topic}"
+       + ("（含联网公开信息，可能需要几分钟）…" if args.web else "…"))
+    path, content = ai.prep(args.topic, people=args.who or "",
+                            goal=args.goal or "", use_web=args.web)
+    _p("\n" + content)
+    _p(f"\n✓ 已保存 → {path}")
+
+
+def cmd_glossary(args):
+    ensure_dirs()
+    if args.extract:
+        _p("▶ 从长期记忆与最近转写中提炼词表…")
+        ai.extract_glossary(progress=_p)
+        _p(f"✓ 已合并 → {GLOSSARY_FILE}（原文备份 .bak.md）")
+        return
+    if args.add:
+        with GLOSSARY_FILE.open("a", encoding="utf-8") as f:
+            f.write(f"- {args.add}\n")
+        _p(f"✓ 已记入词表：{args.add}")
+    else:
+        _p(GLOSSARY_FILE.read_text(encoding="utf-8"))
+        _p(f"（编辑该文件即可维护词表：{GLOSSARY_FILE}）")
+
+
+def cmd_import(args):
+    """导入已有文字材料（txt/md/srt/vtt/json），不转写直接入库。"""
+    from .ingest import TEXT_EXTS, import_transcript_file
+    paths = []
+    for f in args.files:
+        p = Path(f).expanduser()
+        if p.is_dir():
+            paths += [x for x in sorted(p.iterdir())
+                      if x.suffix.lower() in TEXT_EXTS and not x.name.startswith(".")]
+        elif p.exists():
+            paths.append(p)
+        else:
+            _p(f"✗ 文件不存在：{p}")
+    for p in paths:
+        if p.suffix.lower() not in TEXT_EXTS:
+            _p(f"✗ 跳过（不是文字材料，音频请用 coco transcribe）：{p.name}")
+            continue
+        try:
+            mtg = import_transcript_file(p, title=args.title if len(paths) == 1 else None)
+        except Exception as e:
+            _p(f"✗ {p.name} 导入失败：{e}")
+            continue
+        _p(f"✓ 已导入：{mtg.id}")
+        if load_config().get("auto_memory", True):
+            try:
+                ai.update_longterm(mtg)
+                _p("  ✓ 已并入长期记忆")
+            except ai.AIError as e:
+                _p(f"  ✗ 记忆合并失败（材料本身已入库）：{e}")
 
 
 def cmd_memorize(args):
@@ -304,9 +362,30 @@ def main(argv=None):
     p.add_argument("query")
     p.set_defaults(func=cmd_search)
 
-    p = sub.add_parser("track", help="跨会议追踪：承诺履行/表态变化/未决问题")
+    p = sub.add_parser("track", help="跨会议洞察：追踪/深层信号/调研综合")
     p.add_argument("focus", nargs="?", help="聚焦的人/项目/客户（留空=全局）")
+    p.add_argument("--mode", default="追踪", choices=list(TRACK_MODES),
+                   help="分析模式（默认：追踪）")
+    p.add_argument("--refs", nargs="*", help="限定分析这几场会议（默认全部）")
     p.set_defaults(func=cmd_track)
+
+    p = sub.add_parser("prep", help="会前调查：汇总历史会议与记忆生成会前简报")
+    p.add_argument("topic", help="会议主题")
+    p.add_argument("--who", help="参会人（逗号分隔）")
+    p.add_argument("--goal", help="我这次的目标")
+    p.add_argument("--web", action="store_true", help="联网搜索参会人/公司公开信息")
+    p.set_defaults(func=cmd_prep)
+
+    p = sub.add_parser("glossary", help="查看/追加/提炼词表（人名与专有名词）")
+    p.add_argument("add", nargs="?", help="要追加的词条，如「智舱（误写：置仓）｜车机项目」")
+    p.add_argument("--extract", action="store_true",
+                   help="AI 从长期记忆与最近转写中提炼词表")
+    p.set_defaults(func=cmd_glossary)
+
+    p = sub.add_parser("import", help="导入已有文字材料（txt/md/srt/vtt/json）入库")
+    p.add_argument("files", nargs="+", help="文件或文件夹")
+    p.add_argument("--title", help="标题（单文件时生效，默认用文件名）")
+    p.set_defaults(func=cmd_import)
 
     p = sub.add_parser("memorize", help="从会议提取长期记忆（转写完成后默认自动做）")
     p.add_argument("key", nargs="?", help="会议 id 或标题关键词")

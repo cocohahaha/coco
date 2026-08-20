@@ -19,13 +19,15 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import ai
-from .config import (BRIEFS_DIR, LONGTERM_FILE, LONGTERM_PLACEHOLDER,
-                     MEMORY_FILE, MEMORY_PLACEHOLDER, TRACKING_DIR, TRASH_DIR,
+from .config import (BRIEFS_DIR, GLOSSARY_FILE, GLOSSARY_PLACEHOLDER,
+                     LONGTERM_FILE, LONGTERM_PLACEHOLDER, MEMORY_FILE,
+                     MEMORY_PLACEHOLDER, PREP_DIR, TRACKING_DIR, TRASH_DIR,
                      ensure_dirs, load_config, save_config)
+from .ingest import TEXT_EXTS, import_text, import_transcript_file
 from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
 from .recorder import Recorder
-from .templates import TEMPLATES
+from .templates import TEMPLATES, TRACK_MODES
 from .transcriber import transcribe_meeting
 
 app = FastAPI(title="coco", docs_url=None, redoc_url=None)
@@ -164,11 +166,25 @@ def api_search(q: str = ""):
     return search_library(q)
 
 
+def _post_import_memory(mtg: Meeting) -> None:
+    """文字材料导入后台并入长期记忆（转写件走转写任务里的同一步骤）。"""
+    if not load_config().get("auto_memory", True):
+        return
+
+    def work():
+        try:
+            ai.update_longterm(mtg)
+        except Exception as e:
+            mtg.save_meta(memory_error=str(e))
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 @app.post("/api/upload")
 async def api_upload(file: UploadFile = File(...), title: str = Form(""),
                      model: str = Form("")):
     suffix = Path(file.filename or "audio").suffix.lower()
-    if suffix not in AUDIO_EXTS:
+    if suffix not in AUDIO_EXTS and suffix not in TEXT_EXTS:
         _err(ValueError(f"不支持的文件类型：{suffix}"))
     ensure_dirs()
     tmp = Path(tempfile.gettempdir()) / f"coco_upload_{uuid.uuid4().hex[:6]}{suffix}"
@@ -182,8 +198,17 @@ async def api_upload(file: UploadFile = File(...), title: str = Form(""),
     except OSError as e:
         tmp.unlink(missing_ok=True)  # 中途失败清理残留的半截临时文件
         _err(RuntimeError(f"写入临时文件失败（磁盘空间不足？）：{e}"), 500)
-    mtg = create_meeting(title or Path(file.filename).stem,
-                         audio_path=tmp, source="上传", move=True)
+    name = title or Path(file.filename).stem
+    if suffix in TEXT_EXTS:  # 已有文字材料：不转写直接入库
+        try:
+            mtg = import_transcript_file(tmp, title=name, source="文本导入")
+        except Exception as e:
+            _err(ValueError(f"解析失败：{e}"))
+        finally:
+            tmp.unlink(missing_ok=True)
+        _post_import_memory(mtg)
+        return {"meeting_id": mtg.id, "job": None, "text": True}
+    mtg = create_meeting(name, audio_path=tmp, source="上传", move=True)
     jid = _start_transcribe_job(mtg, model or None)
     return {"meeting_id": mtg.id, "job": jid}
 
@@ -196,27 +221,59 @@ class ImportBody(BaseModel):
 
 @app.post("/api/import")
 def api_import(body: ImportBody):
-    """导入本地文件或文件夹（文件夹则批量导入其中所有音频/视频）。"""
+    """导入本地文件或文件夹（文件夹则批量导入其中所有音频/视频/文字材料）。"""
     p = Path(body.path.strip().strip("'\"")).expanduser()
     if not p.exists():
         _err(FileNotFoundError(f"路径不存在：{p}"))
+    ok_exts = AUDIO_EXTS | TEXT_EXTS
     if p.is_dir():
         files = [f for f in sorted(p.iterdir())
-                 if f.suffix.lower() in AUDIO_EXTS and not f.name.startswith(".")]
+                 if f.suffix.lower() in ok_exts and not f.name.startswith(".")]
         if not files:
-            _err(ValueError(f"文件夹里没有可识别的音频/视频文件：{p}"))
+            _err(ValueError(f"文件夹里没有可识别的音频/视频/文字文件：{p}"))
     else:
-        if p.suffix.lower() not in AUDIO_EXTS:
+        if p.suffix.lower() not in ok_exts:
             _err(ValueError(f"不支持的文件类型：{p.suffix}"))
         files = [p]
     ensure_dirs()
     imported = []
     for f in files:
-        mtg = create_meeting(body.title if (body.title and len(files) == 1) else f.stem,
-                             audio_path=f, source="本地导入")
-        imported.append({"meeting_id": mtg.id,
-                         "job": _start_transcribe_job(mtg, body.model or None)})
+        title = body.title if (body.title and len(files) == 1) else f.stem
+        if f.suffix.lower() in TEXT_EXTS:
+            try:
+                mtg = import_transcript_file(f, title=title, source="文本导入")
+            except Exception as e:
+                imported.append({"error": f"{f.name}：{e}"})
+                continue
+            _post_import_memory(mtg)
+            imported.append({"meeting_id": mtg.id, "job": None, "text": True})
+        else:
+            mtg = create_meeting(title, audio_path=f, source="本地导入")
+            imported.append({"meeting_id": mtg.id,
+                             "job": _start_transcribe_job(mtg, body.model or None)})
     return {"imported": imported, "count": len(imported)}
+
+
+class ImportTextBody(BaseModel):
+    content: str
+    title: str = ""
+    date: str = ""  # 可选 YYYY-MM-DD，材料的原始日期
+
+
+@app.post("/api/import-text")
+def api_import_text(body: ImportTextBody):
+    """粘贴文字材料入库：聊天记录、邮件、他人纪要等私人上下文。"""
+    if body.date:
+        try:
+            dt.date.fromisoformat(body.date)
+        except ValueError:
+            _err(ValueError("日期格式应为 YYYY-MM-DD"))
+    try:
+        mtg = import_text(body.content, body.title, date=body.date)
+    except ValueError as e:
+        _err(e)
+    _post_import_memory(mtg)
+    return {"meeting_id": mtg.id}
 
 
 # ---------- 录音 ----------
@@ -295,15 +352,62 @@ def api_ask(body: AskBody):
 
 class TrackBody(BaseModel):
     focus: str = ""
+    mode: str = "追踪"  # 追踪 | 深层信号 | 调研综合
+    ids: list[str] = []  # 留空 = 全部已转写会议
 
 
 @app.post("/api/track")
 def api_track(body: TrackBody):
     try:
-        path, content = ai.track(body.focus)
+        meetings = [find_meeting(i) for i in body.ids] if body.ids else None
+        path, content = ai.track(body.focus, mode=body.mode, meetings=meetings)
+        return {"path": path, "content": content, "name": Path(path).stem}
+    except (LookupError, ai.AIError) as e:
+        _err(e)
+
+
+@app.get("/api/track-modes")
+def api_track_modes():
+    return [{"name": k, "desc": v[1]} for k, v in TRACK_MODES.items()]
+
+
+# ---------- 会前调查 ----------
+
+class PrepBody(BaseModel):
+    topic: str
+    people: str = ""
+    goal: str = ""
+    web: bool = False  # 是否联网搜索公开信息
+
+
+@app.post("/api/prep")
+def api_prep(body: PrepBody):
+    try:
+        path, content = ai.prep(body.topic, body.people, body.goal,
+                                use_web=body.web)
         return {"path": path, "content": content, "name": Path(path).stem}
     except ai.AIError as e:
         _err(e)
+
+
+@app.get("/api/preps")
+def api_preps():
+    return ai.list_preps()
+
+
+@app.delete("/api/preps/{name}")
+def api_delete_prep(name: str):
+    if "/" in name or ".." in name:
+        _err(ValueError("非法文件名"))
+    dest = _trash_file(PREP_DIR / f"{name}.md", f"会前调查~{name}")
+    return {"ok": True, "trash": str(dest)}
+
+
+@app.get("/api/download/prep/{name}")
+def dl_prep(name: str):
+    if "/" in name or ".." in name:
+        _err(ValueError("非法文件名"))
+    return _md_download(PREP_DIR / f"{name}.md", f"会前调查-{name}.md")
 
 
 @app.delete("/api/tracking/{name}")
@@ -566,13 +670,14 @@ def dl_transcript(mid: str):
 
 
 MEMORY_FILES = {"content": (MEMORY_FILE, "全局记忆", MEMORY_PLACEHOLDER),
-                "longterm": (LONGTERM_FILE, "长期记忆", LONGTERM_PLACEHOLDER)}
+                "longterm": (LONGTERM_FILE, "长期记忆", LONGTERM_PLACEHOLDER),
+                "glossary": (GLOSSARY_FILE, "词表", GLOSSARY_PLACEHOLDER)}
 
 
 @app.get("/api/download/memory/{which}")
 def dl_memory(which: str):
     if which not in MEMORY_FILES:
-        _err(ValueError("which 只能是 content 或 longterm"))
+        _err(ValueError("which 只能是 content、longterm 或 glossary"))
     path, label, _ = MEMORY_FILES[which]
     ensure_dirs()
     return _md_download(path, f"{label}.md")
@@ -616,7 +721,11 @@ def api_export_manifest():
     tracking = ([{"name": p.stem, "label": p.stem}
                  for p in sorted(TRACKING_DIR.glob("*.md"), reverse=True)]
                 if TRACKING_DIR.exists() else [])
-    return {"meetings": meetings, "briefs": briefs, "tracking": tracking}
+    preps = ([{"name": p.stem, "label": p.stem}
+              for p in sorted(PREP_DIR.glob("*.md"), reverse=True)]
+             if PREP_DIR.exists() else [])
+    return {"meetings": meetings, "briefs": briefs, "tracking": tracking,
+            "preps": preps}
 
 
 def _safe_seg(s: str) -> str:
@@ -645,12 +754,14 @@ def _resolve_export_item(it: "ExportItem") -> "tuple[Path | None, str]":
     if it.type == "brief":
         return BRIEFS_DIR / f"{name}.md", f"每日简报/{_safe_seg(name)}.md"
     if it.type == "tracking":
-        return TRACKING_DIR / f"{name}.md", f"跨会议追踪/{_safe_seg(name)}.md"
+        return TRACKING_DIR / f"{name}.md", f"跨会议洞察/{_safe_seg(name)}.md"
+    if it.type == "prep":
+        return PREP_DIR / f"{name}.md", f"会前调查/{_safe_seg(name)}.md"
     return None, ""
 
 
 class ExportItem(BaseModel):
-    type: str  # transcript | report | brief | tracking
+    type: str  # transcript | report | brief | tracking | prep
     id: str = ""
     name: str = ""
 
@@ -699,12 +810,14 @@ def api_templates():
 def api_memory():
     ensure_dirs()
     return {"content": MEMORY_FILE.read_text(encoding="utf-8"),
-            "longterm": LONGTERM_FILE.read_text(encoding="utf-8")}
+            "longterm": LONGTERM_FILE.read_text(encoding="utf-8"),
+            "glossary": GLOSSARY_FILE.read_text(encoding="utf-8")}
 
 
 class MemoryBody(BaseModel):
     content: str | None = None
     longterm: str | None = None
+    glossary: str | None = None
 
 
 def _backup_then_write(path: Path, new: str) -> bool:
@@ -728,23 +841,82 @@ def api_memory_save(body: MemoryBody):
             _backup_then_write(MEMORY_FILE, body.content)
         if body.longterm is not None:
             _backup_then_write(LONGTERM_FILE, body.longterm)
+        if body.glossary is not None:
+            _backup_then_write(GLOSSARY_FILE, body.glossary)
     return {"ok": True}
 
 
 class MemoryClearBody(BaseModel):
-    which: str  # content | longterm
+    which: str  # content | longterm | glossary
 
 
 @app.post("/api/memory/clear")
 def api_memory_clear(body: MemoryClearBody):
     if body.which not in MEMORY_FILES:
-        _err(ValueError("which 只能是 content 或 longterm"))
+        _err(ValueError("which 只能是 content、longterm 或 glossary"))
     ensure_dirs()
     path, _, placeholder = MEMORY_FILES[body.which]
     with ai.MEMORY_LOCK:
         backed = _backup_then_write(path, placeholder)
     return {"ok": True, "content": placeholder,
             "backup": str(path.with_suffix(".bak.md")) if backed else None}
+
+
+@app.post("/api/glossary/extract")
+def api_glossary_extract():
+    """AI 从长期记忆与最近转写中提炼词表（人名/专有名词），合并进 glossary.md。"""
+    try:
+        content = ai.extract_glossary()
+    except ai.AIError as e:
+        _err(e)
+    return {"ok": True, "glossary": content}
+
+
+# ---------- 知识底座 ----------
+
+def _section_items(text: str) -> dict[str, list[str]]:
+    """把 Markdown 按「## 章节」切分，取每节的条目行（- / * 开头）。"""
+    out: dict[str, list[str]] = {}
+    section = ""
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("## "):
+            section = s[3:].strip()
+            out.setdefault(section, [])
+        elif section and (s.startswith("- ") or s.startswith("* ")):
+            out[section].append(s[2:].strip())
+    return out
+
+
+@app.get("/api/knowledge")
+def api_knowledge():
+    """知识底座总览：统计 + 长期记忆 + 词表（供底座页面渲染）。"""
+    ensure_dirs()
+    longterm = LONGTERM_FILE.read_text(encoding="utf-8")
+    glossary = GLOSSARY_FILE.read_text(encoding="utf-8")
+    sections = _section_items(longterm)
+    from .glossary import glossary_stats
+    gs = glossary_stats(glossary)
+    persons = sections.get("人物", [])
+    # 人物条目通常是「**张三**：备注」或「张三：备注」，取名字部分做点选提问
+    names = []
+    for p in persons:
+        n = re.split(r"[:：（(]", p.replace("*", ""), 1)[0].strip()
+        if 0 < len(n) <= 20:
+            names.append(n)
+    meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    return {
+        "stats": {
+            "meetings": len(meetings),
+            "persons": len(persons),
+            "projects": len(sections.get("项目与客户", [])),
+            "promises": len(sections.get("承诺与决定", [])),
+            "glossary": gs["names"] + gs["terms"],
+        },
+        "person_names": names,
+        "longterm": longterm,
+        "glossary": glossary,
+    }
 
 
 @app.exception_handler(Exception)

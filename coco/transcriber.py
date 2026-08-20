@@ -33,15 +33,20 @@ def transcribe_file(audio: Path, model: str | None = None,
     import mlx_whisper  # 延迟导入：加载 mlx 较慢
 
     progress("转写中…")
+    # 专有名词提示 = 词表里的正确写法 + 配置里手填的补充，提高人名/术语识别率
+    from .glossary import initial_prompt_terms
+    terms = "、".join(t for t in
+                     [initial_prompt_terms(), cfg.get("initial_prompt_extra", "")]
+                     if t)
     kwargs = {}
     if lang == "zh":
         prompt = "以下是普通话的句子，请用简体中文输出。"
-        if cfg.get("initial_prompt_extra"):
-            prompt += "本次对话可能涉及：" + cfg["initial_prompt_extra"]
+        if terms:
+            prompt += "本次对话可能涉及：" + terms
         kwargs["initial_prompt"] = prompt
-    elif cfg.get("initial_prompt_extra"):
+    elif terms:
         # 非中文/自动识别时也注入专有名词，但不强制语言
-        kwargs["initial_prompt"] = cfg["initial_prompt_extra"]
+        kwargs["initial_prompt"] = terms
     # 可选 beam search：更准但更慢。0 / 未设 = 贪心解码
     try:
         beam = int(cfg.get("beam_size") or 0)

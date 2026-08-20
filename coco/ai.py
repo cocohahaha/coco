@@ -6,15 +6,16 @@ import os
 import subprocess
 import threading
 
-from .config import (BRIEFS_DIR, LONGTERM_FILE, MEMORY_FILE, TRACKING_DIR,
-                     load_config)
+from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE,
+                     PREP_DIR, TRACKING_DIR, load_config)
 from .library import Meeting, list_meetings, meetings_on
-from .templates import (BRIEF_PROMPT, CHAT_SYSTEM, LONGTERM_PROMPT,
-                        TRACK_PROMPT, TEMPLATES)
+from .templates import (BRIEF_PROMPT, CHAT_SYSTEM, GLOSSARY_PROMPT,
+                        LONGTERM_PROMPT, PREP_PROMPT, PREP_WEB_HINT,
+                        TRACK_MODES, TRACK_PROMPT, TEMPLATES)
 
 MAX_CONTEXT_CHARS = 400_000  # 控制注入 claude 的转写总量
 MAX_LONGTERM_INJECT = 30_000  # 长期记忆注入分析时的长度上限
-MEMORY_LOCK = threading.Lock()  # 长期记忆读改写串行，避免并发转写互相覆盖
+MEMORY_LOCK = threading.Lock()  # 记忆/词表读改写串行，避免并发转写互相覆盖
 TRANSCRIPT_LOCK = threading.Lock()  # transcript.md 写入串行（人名校正/手动保存/恢复原稿）
 
 
@@ -23,10 +24,13 @@ class AIError(RuntimeError):
 
 
 NAME_FIX_PROMPT = (
-    "下面是一份会议转写或基于它生成的分析报告。请只做一件事：统一并修正其中的【人名】写法。\n"
-    "1. 以下面给出的全局记忆 / 长期记忆中出现的人名写法为准；记忆里没有的人名，"
-    "在全篇内部统一为最可能正确、最一致的一种写法\n"
-    "2. 只改人名（中文名、英文名、音译名），其他任何字词、标点、内容一律保持原样\n"
+    "下面是一份会议转写或基于它生成的分析报告。"
+    "请只做一件事：统一并修正其中的【人名与专有名词】写法。\n"
+    "1. 依据优先级：词表（正确写法与已知误写的对照）＞ 全局记忆/长期记忆中出现的写法；"
+    "都没有的名字，在全篇内部统一为最可能正确、最一致的一种写法\n"
+    "2. 只改人名（中文名、英文名、音译名）和词表里出现的专有名词"
+    "（公司/品牌/产品/项目名、术语的同音字误写），"
+    "其他任何字词、标点、内容一律保持原样\n"
     "3. 严格保留所有 [时间戳]、原有的行结构与行数；文件头部的标题与元信息行原样不动\n"
     "4. 不增删信息、不改写说话内容、不做任何润色\n"
     "直接输出处理后的全文 Markdown，不要任何解释或开场白。"
@@ -119,10 +123,13 @@ def restore_raw(mtg: "Meeting") -> str:
     return original
 
 
-def run_claude(prompt: str, timeout: int = 900) -> str:
+def run_claude(prompt: str, timeout: int = 900,
+               allowed_tools: "list[str] | None" = None) -> str:
     cfg = load_config()
     cmd = [cfg["claude_bin"], "-p", "--output-format", "text",
            *cfg.get("claude_extra_args", [])]
+    if allowed_tools:  # 例如会前调查联网检索：["WebSearch", "WebFetch"]
+        cmd += ["--allowedTools", ",".join(allowed_tools)]
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     try:
         proc = subprocess.run(
@@ -140,6 +147,13 @@ def run_claude(prompt: str, timeout: int = 900) -> str:
 
 def _memory_block() -> str:
     parts = []
+    if GLOSSARY_FILE.exists():
+        text = GLOSSARY_FILE.read_text(encoding="utf-8").strip()
+        from .glossary import glossary_stats
+        s = glossary_stats(text)
+        if s["names"] or s["terms"]:  # 只有空模板时不注入
+            parts.append(f"<词表 说明=\"人名与专有名词的标准写法\">\n"
+                         f"{text[:10_000]}\n</词表>")
     if MEMORY_FILE.exists():
         text = MEMORY_FILE.read_text(encoding="utf-8").strip()
         if text:
@@ -264,21 +278,42 @@ def memorize_brief(path, force: bool = False) -> str:
     return out
 
 
-def track(focus: str = "") -> "tuple[str, str]":
-    """跨会议追踪：承诺履行、表态变化、反复未决的问题。返回 (路径, 内容)。"""
-    meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+def track(focus: str = "", mode: str = "追踪",
+          meetings: "list[Meeting] | None" = None) -> "tuple[str, str]":
+    """跨会议洞察。mode：追踪 / 深层信号 / 调研综合（见 templates.TRACK_MODES）。
+
+    meetings=None 时取全部已转写会议；否则只分析给定会议（如侧边栏勾选的访谈）。
+    返回 (路径, 内容)。
+    """
+    if mode not in TRACK_MODES:
+        raise AIError(f"未知洞察模式：{mode}（可用：{'、'.join(TRACK_MODES)}）")
+    if meetings is None:
+        meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    else:
+        uniq = {}  # 去重：同一会议被引用两次不构成“跨会议”
+        for m in meetings:
+            if m.transcript_md.exists():
+                uniq.setdefault(m.id, m)
+        meetings = sorted(uniq.values(),
+                          key=lambda m: (m.date, m.meta.get("created", ""), m.id),
+                          reverse=True)
     if len(meetings) < 2:
-        raise AIError("至少需要两场已转写的会议才能做跨会议追踪")
+        raise AIError("至少需要两场已转写的会议才能做跨会议洞察")
     ctx = _context_block(list(reversed(meetings)))  # 按时间正序
-    focus_line = (f"\n本次追踪聚焦：{focus}。其余内容仅在与之相关时提及。\n"
+    focus_line = (f"\n本次分析聚焦：{focus}。其余内容仅在与之相关时提及。\n"
                   if focus.strip() else "")
-    prompt = f"{_memory_block()}{TRACK_PROMPT}{focus_line}\n\n{ctx}"
+    prompt = f"{_memory_block()}{TRACK_MODES[mode][0]}{focus_line}\n\n{ctx}"
     content = run_claude(prompt, timeout=1200)
     TRACKING_DIR.mkdir(parents=True, exist_ok=True)
+    from .library import _slug
     stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
-    name = f"{stamp}-{focus.strip()[:20]}" if focus.strip() else stamp
+    name = f"{stamp}-{mode}" + (f"-{_slug(focus)[:20]}" if focus.strip() else "")
     path = TRACKING_DIR / f"{name}.md"
-    title = f"# 跨会议追踪 · {focus.strip() or '全局'} · {stamp}"
+    n = 2
+    while path.exists():  # 同分钟重复分析让位，避免静默覆盖上一份
+        path = TRACKING_DIR / f"{name}-{n}.md"
+        n += 1
+    title = f"# 跨会议洞察 · {mode} · {focus.strip() or '全局'} · {stamp}"
     content = _dedupe_title(title, content)
     path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
     return str(path), content
@@ -293,6 +328,112 @@ def _dedupe_title(title: str, content: str) -> str:
         if topic and topic in first:
             return rest.lstrip("\n")
     return content
+
+
+# ---------- 会前调查 ----------
+
+def _split_words(s: str) -> list[str]:
+    """把「张三,李四」「智舱 复盘」等输入拆成关键词列表（≥2 字符）。"""
+    import re
+    return [w for w in re.split(r"[、,，;；/\s]+", s) if len(w.strip()) >= 2]
+
+
+def _related_meetings(keywords: list[str], top: int = 6) -> list[Meeting]:
+    """按关键词命中次数挑出最相关的历史会议；一场没命中就退回最近几场。"""
+    ready = [m for m in list_meetings() if m.transcript_md.exists()]
+    if not keywords:
+        return ready[:3]
+    scored = []
+    for m in ready:
+        text = (m.title + "\n" + m.transcript_text()).lower()
+        score = sum(text.count(k.lower()) for k in keywords)
+        if score:
+            scored.append((score, m))
+    scored.sort(key=lambda x: -x[0])
+    hits = [m for _, m in scored[:top]]
+    return hits if hits else ready[:3]
+
+
+def prep(topic: str, people: str = "", goal: str = "",
+         use_web: bool = False) -> "tuple[str, str]":
+    """会前调查：汇总历史会议+记忆（可选联网公开信息），生成会前简报。
+
+    返回 (路径, 内容)。保存到 library/_prep/。
+    """
+    topic = topic.strip()
+    if not topic:
+        raise AIError("请先填写会议主题")
+    keywords = _split_words(people) + _split_words(topic)
+    meetings = _related_meetings(keywords)
+    ctx = _context_block(list(reversed(meetings))) if meetings else "（会议库为空）"
+    head = [f"会议主题：{topic}"]
+    if people.strip():
+        head.append(f"参会人：{people.strip()}")
+    if goal.strip():
+        head.append(f"我的目标：{goal.strip()}")
+    prompt_text = PREP_PROMPT.format(web_hint=PREP_WEB_HINT if use_web else "")
+    prompt = (f"{_memory_block()}{prompt_text}\n\n<本次会议>\n"
+              + "\n".join(head) + "\n</本次会议>\n\n"
+              f"<历史会议 说明=\"按相关度挑选\">\n{ctx}\n</历史会议>")
+    content = run_claude(
+        prompt, timeout=1800,
+        allowed_tools=["WebSearch", "WebFetch"] if use_web else None,
+    )
+    PREP_DIR.mkdir(parents=True, exist_ok=True)
+    from .library import _slug
+    stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
+    path = PREP_DIR / f"{stamp}-{_slug(topic)[:24]}.md"
+    n = 2
+    while path.exists():
+        path = PREP_DIR / f"{stamp}-{_slug(topic)[:24]}-{n}.md"
+        n += 1
+    title = f"# 会前调查 · {topic} · {stamp}"
+    content = _dedupe_title(title, content)
+    src = "、".join(m.id for m in meetings) or "无"
+    path.write_text(f"{title}\n\n> 参考会议：{src}\n\n{content}\n", encoding="utf-8")
+    return str(path), content
+
+
+def list_preps() -> list[dict]:
+    if not PREP_DIR.exists():
+        return []
+    return [{"name": p.stem, "content": p.read_text(encoding="utf-8")}
+            for p in sorted(PREP_DIR.glob("*.md"), reverse=True)]
+
+
+# ---------- 词表提炼 ----------
+
+def extract_glossary(progress=lambda msg: None) -> str:
+    """从长期记忆与最近的转写中提炼人名/专有名词，合并进 memory/glossary.md。
+
+    覆盖前自动备份 glossary.bak.md；输出校验失败则不写入。返回新全文。
+    """
+    materials = []
+    if LONGTERM_FILE.exists():
+        lt = LONGTERM_FILE.read_text(encoding="utf-8").strip()
+        if lt:
+            materials.append(f"<长期记忆>\n{lt[:MAX_LONGTERM_INJECT]}\n</长期记忆>")
+    recent = [m for m in list_meetings() if m.transcript_md.exists()][:6]
+    for m in recent:
+        materials.append(f"<转写片段 id=\"{m.id}\">\n"
+                         f"{m.transcript_text()[:8_000]}\n</转写片段>")
+    if not materials:
+        raise AIError("还没有可提炼的材料（长期记忆和会议库都是空的）")
+    progress("提炼词表中…")
+    with MEMORY_LOCK:
+        from .config import ensure_dirs
+        ensure_dirs()
+        old = GLOSSARY_FILE.read_text(encoding="utf-8")
+        prompt = (f"{GLOSSARY_PROMPT}\n\n<当前词表>\n{old.strip()}\n</当前词表>\n\n"
+                  + "\n\n".join(materials))
+        out = run_claude(prompt, timeout=1200)
+        if "## 人名" not in out or "## 专有名词" not in out:
+            raise AIError("词表输出缺少「## 人名 / ## 专有名词」章节，本次未更新")
+        if len(old) > 1000 and len(out) < len(old) * 0.6:
+            raise AIError("词表输出比原有内容短太多，疑似丢失词条，本次未更新")
+        GLOSSARY_FILE.with_suffix(".bak.md").write_text(old, encoding="utf-8")
+        GLOSSARY_FILE.write_text(out.rstrip() + "\n", encoding="utf-8")
+    return out
 
 
 def daily_brief(date: str | None = None) -> "tuple[str, str]":

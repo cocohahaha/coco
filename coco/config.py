@@ -5,13 +5,16 @@ import json
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent  # 项目根目录（录音/）
+# 项目根目录：默认为代码所在目录；COCO_ROOT 环境变量可覆盖（测试/多套数据用）
+ROOT = Path(os.environ.get("COCO_ROOT") or Path(__file__).resolve().parent.parent)
 LIBRARY_DIR = ROOT / "library"
 BRIEFS_DIR = LIBRARY_DIR / "_briefs"
 TRACKING_DIR = LIBRARY_DIR / "_tracking"
+PREP_DIR = LIBRARY_DIR / "_prep"  # 会前调查简报
 TRASH_DIR = LIBRARY_DIR / "_trash"
 MEMORY_FILE = ROOT / "memory" / "memory.md"
 LONGTERM_FILE = ROOT / "memory" / "longterm.md"  # AI 自动维护的长期记忆
+GLOSSARY_FILE = ROOT / "memory" / "glossary.md"  # 词表：人名 + 专有名词
 CONFIG_FILE = ROOT / "coco.config.json"
 
 # whisper 模型别名 -> HuggingFace 仓库
@@ -29,6 +32,14 @@ LONGTERM_PLACEHOLDER = (
     "# 长期记忆\n\n"
     "<!-- coco 自动维护：每次转写完成后从会议中提取人物、项目、承诺、术语。"
     "可手动编辑，下次更新会在此基础上合并。 -->\n"
+)
+GLOSSARY_PLACEHOLDER = (
+    "# 词表\n\n"
+    "<!-- 人名与专有名词的标准写法。每行一条：\n"
+    "- 正确写法（误写：错1、错2）｜备注\n"
+    "「正确写法」会注入转写提示提高识别率；整个词表会作为人名与术语校正、AI 分析的依据。 -->\n\n"
+    "## 人名\n\n"
+    "## 专有名词\n"
 )
 
 DEFAULTS = {
@@ -75,6 +86,8 @@ def ensure_dirs() -> None:
         MEMORY_FILE.write_text(MEMORY_PLACEHOLDER, encoding="utf-8")
     if not LONGTERM_FILE.exists():
         LONGTERM_FILE.write_text(LONGTERM_PLACEHOLDER, encoding="utf-8")
+    if not GLOSSARY_FILE.exists():
+        GLOSSARY_FILE.write_text(GLOSSARY_PLACEHOLDER, encoding="utf-8")
 
 
 def setup_hf_endpoint(cfg: dict | None = None) -> None:
