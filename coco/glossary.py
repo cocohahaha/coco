@@ -14,23 +14,21 @@ import re
 
 from .config import GLOSSARY_FILE, ensure_dirs
 
-# 条目行：- 正确写法（误写：a、b）｜备注   （括号/竖线均兼容全半角，误写与备注可省略）
-_ENTRY = re.compile(
-    r"^[-*]\s*(?P<term>[^（(｜|]+?)"
-    r"(?:[（(]\s*误写[:：]\s*(?P<wrong>[^）)]*)[）)])?"
-    r"\s*(?:[｜|](?P<note>.*))?$"
-)
+_WRONG = re.compile(r"[（(]\s*误写[:：]\s*([^）)]*)[）)]")  # （误写：a、b），全半角兼容
 
 
 def read_glossary() -> str:
     ensure_dirs()
-    return GLOSSARY_FILE.read_text(encoding="utf-8")
+    # 外部编辑器可能以非 UTF-8 保存；宽容读取，绝不让词表问题拖垮转写
+    return GLOSSARY_FILE.read_text(encoding="utf-8", errors="replace")
 
 
 def parse_glossary(text: str | None = None) -> dict:
     """解析词表 → {"人名": [{term, wrong, note}], "专有名词": [...]}。
 
-    未识别的章节名归入「专有名词」，保证手写标题不规范时词条也不丢。
+    对手写格式宽容：`- 林炜（产品负责人）`（普通括号归入备注）、`- **张三**`、
+    缺竖线/缺误写都能解析；分隔线、超长的说明性句子不算词条。
+    未识别的章节名归入「专有名词」。
     """
     text = read_glossary() if text is None else text
     text = re.sub(r"<!--.*?-->", "", text, flags=re.S)  # 注释里的格式示例不算词条
@@ -45,16 +43,24 @@ def parse_glossary(text: str | None = None) -> dict:
             elif head and not head.startswith("词表"):
                 section = "专有名词"
             continue
-        m = _ENTRY.match(line)
-        if not m:
+        if not (line.startswith("- ") or line.startswith("* ")):
             continue
-        term = m.group("term").strip()
-        if not term:
+        body = line[2:].strip().replace("**", "")
+        m = _WRONG.search(body)
+        wrong = ([w.strip() for w in re.split(r"[、,，/；;]", m.group(1)) if w.strip()]
+                 if m else [])
+        body = _WRONG.sub("", body)
+        parts = re.split(r"[｜|]", body, maxsplit=1)
+        term = parts[0].strip()
+        note = parts[1].strip() if len(parts) > 1 else ""
+        pm = re.match(r"(.+?)[（(]([^）)]*)[）)]\s*$", term)
+        if pm:  # 普通括号注释归入备注：- 林炜（产品负责人）
+            term = pm.group(1).strip()
+            note = f"{pm.group(2).strip()} {note}".strip()
+        term = term.strip(" -—·*＝=~～")
+        if not term or len(term) > 30:  # 空行/分隔线/说明性长句不算词条
             continue
-        wrong = [w.strip() for w in re.split(r"[、,，/；;]", m.group("wrong") or "")
-                 if w.strip()]
-        out[section].append({"term": term, "wrong": wrong,
-                             "note": (m.group("note") or "").strip()})
+        out[section].append({"term": term, "wrong": wrong, "note": note})
     return out
 
 

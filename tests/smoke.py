@@ -135,5 +135,46 @@ check("搜索", len(c.get("/api/search", params={"q": "痛点"}).json()) >= 1)
 check("配置读取", c.get("/api/config").status_code == 200)
 check("全库校正预览（不执行）", c.post("/api/fix-all-names", json={}).json().get("preview") is True)
 
+# 13. 词表解析宽容性：普通括号、粗体、分隔线、说明性长句、混合括号
+from coco.glossary import parse_glossary
+g = parse_glossary(
+    "# 词表\n## 人名\n- 林炜（产品负责人）\n- **张三**\n- ---\n"
+    "- 这是一条很长的说明文字，不应该被当成词条收进词表里面去，明显超过了三十个字符\n"
+    "## 专有名词\n- 智舱（误写：置仓)｜车机\n")
+check("词表宽容解析",
+      [e["term"] for e in g["人名"]] == ["林炜", "张三"]
+      and g["人名"][0]["note"] == "产品负责人"
+      and g["专有名词"][0]["wrong"] == ["置仓"], str(g))
+
+# 14. VTT 说话人标签保留
+vtt = "WEBVTT\n\n00:01.000 --> 00:03.000\n<v 林炜>排期下周给。</v>\n"
+r = c.post("/api/upload", files={"file": ("带说话人.vtt", vtt.encode(), "text/plain")})
+check("上传 vtt", r.status_code == 200, r.text[:120])
+d = c.get(f"/api/meetings/{r.json()['meeting_id']}").json()
+check("VTT 说话人保留", "林炜：排期下周给。" in d["transcript"], d["transcript"][-80:])
+
+# 15. GBK 编码文字材料导入不乱码
+gbk_file = ROOT / "gbk笔记.txt"
+gbk_file.write_bytes("老王：这个季度回款有问题，供应商在催。".encode("gb18030"))
+r = c.post("/api/import", json={"path": str(gbk_file)})
+check("GBK 导入", r.status_code == 200, r.text[:150])
+d = c.get(f"/api/meetings/{r.json()['imported'][0]['meeting_id']}").json()
+check("GBK 解码正确", "回款有问题" in d["transcript"], d["transcript"][-60:])
+
+# 16. Whisper 导出目录：音频+同名多格式转写 → 只建一个会议、音频归档
+pair = ROOT / "whisper-export"
+pair.mkdir()
+(pair / "rec1.srt").write_text(
+    "1\n00:00:01,000 --> 00:00:02,000\n试点先跑两周。\n", encoding="utf-8")
+(pair / "rec1.txt").write_text("试点先跑两周。", encoding="utf-8")
+(pair / "rec1.m4a").write_bytes(b"fake-audio")
+r = c.post("/api/import", json={"path": str(pair)})
+ok = (r.status_code == 200 and r.json()["count"] == 1
+      and r.json()["imported"][0].get("text") is True)
+check("同名音频+转写只建一场", ok, r.text[:200])
+from coco.library import find_meeting
+m = find_meeting(r.json()["imported"][0]["meeting_id"])
+check("配套音频已归档", m.audio_file is not None and m.audio_file.name == "audio.m4a")
+
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

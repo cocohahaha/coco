@@ -15,6 +15,7 @@ AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
 
 def _slug(title: str) -> str:
     s = re.sub(r"[\\/:*?\"<>|\s]+", "-", title.strip())
+    s = re.sub(r"\.{2,}", "-", s)  # ".." 会被下载/删除接口的路径穿越防护拒绝
     return s.strip("-")[:60] or "未命名"
 
 

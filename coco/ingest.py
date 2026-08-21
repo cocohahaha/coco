@@ -51,7 +51,10 @@ def _parse_subtitles(raw: str) -> list[dict]:
         if not m:
             continue
         text = " ".join(lines[ti + 1:]).strip()
-        text = re.sub(r"<[^>]+>", "", text)  # 去掉 VTT 内联标签如 <c>、<00:00:01.000>
+        # WebVTT 说话人标签保留为「名字：」前缀（Teams 等导出依赖它标注说话人）
+        text = re.sub(r"<v(?:\.[^\s>]+)*\s+([^>]+)>", r"\1：", text)
+        text = re.sub(r"</?v[^>]*>", "", text)
+        text = re.sub(r"<[^>]+>", "", text)  # 其余内联标签如 <c>、<00:00:01.000>
         if text:
             segments.append({"start": round(_ts_to_seconds(m.group(1)), 2),
                              "end": round(_ts_to_seconds(m.group(2)), 2),
@@ -135,12 +138,33 @@ def _write_meeting(mtg: Meeting, data: dict, fmt: str, source_label: str) -> Non
                   error=None)
 
 
+def read_text_any(path: Path) -> str:
+    """按 UTF-8 → UTF-16(带BOM) → GB18030 → Big5 依次尝试解码。
+
+    微信/QQ 导出的聊天记录常是 GBK；用 errors=replace 硬吞会导入满屏乱码，
+    再被自动记忆合并进长期记忆，遗害深远，所以宁可多试几种编码。
+    """
+    data = path.read_bytes()
+    encs = ["utf-8-sig"]
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        encs.append("utf-16")
+    encs += ["gb18030", "big5"]
+    for enc in encs:
+        try:
+            return data.decode(enc)
+        except (UnicodeDecodeError, ValueError):
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def import_transcript_file(path: Path, title: str | None = None,
-                           source: str = "文本导入") -> Meeting:
-    """从已有的文字材料文件建会议（无音频、不转写）。原文件复制进会议文件夹留档。"""
-    raw = path.read_text(encoding="utf-8", errors="replace")
+                           source: str = "文本导入",
+                           audio_path: Path | None = None) -> Meeting:
+    """从已有的文字材料文件建会议（不转写）。原文件复制进会议文件夹留档；
+    audio_path 提供时把配套音频一并归档（如 Whisper 导出目录：音频+现成转写）。"""
+    raw = read_text_any(path)
     data = build_imported(raw, path.suffix)
-    mtg = create_meeting(title or path.stem, source=source)
+    mtg = create_meeting(title or path.stem, source=source, audio_path=audio_path)
     try:
         shutil.copy2(path, mtg.path / f"source{path.suffix.lower()}")
     except OSError:

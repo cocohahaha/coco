@@ -1163,10 +1163,12 @@ function showPrepView(preps, selName) {
 }
 
 $('btn-prep-go').onclick = async () => {
+  if ($('btn-prep').disabled) { toast('已有一个会前调查在进行中，请等它结束'); return; }
   const topic = $('prep-topic').value.trim();
   if (!topic) { toast('请先填写会议主题'); return; }
   const body = { topic, people: $('prep-people').value.trim(),
     goal: $('prep-goal').value.trim(), web: $('prep-web').checked };
+  $('prep-web').checked = false;  // 联网是逐次选择，不悄悄延续到下一次
   closePrep();
   const btn = $('btn-prep');
   btn.disabled = true; btn.textContent = '◎ 调查中…';
@@ -1237,7 +1239,12 @@ async function showKnowledge() {
 }
 
 async function runExtractGlossary(btn, after) {
-  if (!confirm('让 AI 从长期记忆与最近的转写中提炼人名/专有名词，合并进词表？\n原词表会自动备份为 glossary.bak.md。')) return;
+  // 弹窗里有未保存的词表编辑时，提炼基于磁盘版本、完成后会刷新文本框——先拦一道
+  if ($('overlay').className === 'show' && memTab === 'glossary'
+      && $('memory-text').value !== memLoaded.glossary) {
+    if (!confirm('词表文本框里有未保存的编辑。提炼基于已保存的版本，完成后会刷新文本框，'
+      + '未保存的编辑将丢失。\n建议先点「保存」。仍要继续提炼？')) return;
+  } else if (!confirm('让 AI 从长期记忆与最近的转写中提炼人名/专有名词，合并进词表？\n原词表会自动备份为 glossary.bak.md。')) return;
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = '提炼中…';
   toast('提炼词表中（约 30-90 秒）…', 8000);

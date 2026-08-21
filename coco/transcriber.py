@@ -33,16 +33,22 @@ def transcribe_file(audio: Path, model: str | None = None,
     import mlx_whisper  # 延迟导入：加载 mlx 较慢
 
     progress("转写中…")
-    # 专有名词提示 = 词表里的正确写法 + 配置里手填的补充，提高人名/术语识别率
-    from .glossary import initial_prompt_terms
-    terms = "、".join(t for t in
-                     [initial_prompt_terms(), cfg.get("initial_prompt_extra", "")]
-                     if t)
+    # 专有名词提示 = 词表里的正确写法 + 配置里手填的补充，提高人名/术语识别率。
+    # 词表读取失败绝不拖垮转写。
+    try:
+        from .glossary import initial_prompt_terms
+        gterms = initial_prompt_terms()
+    except Exception:
+        gterms = ""
+    terms = "、".join(t for t in [gterms, cfg.get("initial_prompt_extra", "")] if t)
+    # whisper 提示窗只保留【最后】约 223 个 token：控制总长，且中文指令放末尾，
+    # 溢出时先丢词表开头、不丢「简体中文」指令
+    if len(terms) > 160:
+        terms = terms[:160].rsplit("、", 1)[0]
     kwargs = {}
     if lang == "zh":
-        prompt = "以下是普通话的句子，请用简体中文输出。"
-        if terms:
-            prompt += "本次对话可能涉及：" + terms
+        prompt = (f"本次对话可能涉及：{terms}。" if terms else "")
+        prompt += "以下是普通话的句子，请用简体中文输出。"
         kwargs["initial_prompt"] = prompt
     elif terms:
         # 非中文/自动识别时也注入专有名词，但不强制语言

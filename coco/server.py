@@ -175,7 +175,10 @@ def _post_import_memory(mtg: Meeting) -> None:
         try:
             ai.update_longterm(mtg)
         except Exception as e:
-            mtg.save_meta(memory_error=str(e))
+            try:  # 会议可能在排队期间被删除，记录失败本身也不能抛
+                mtg.save_meta(memory_error=str(e))
+            except Exception:
+                pass
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -219,6 +222,35 @@ class ImportBody(BaseModel):
     model: str = ""
 
 
+# 同一录音的多种转写格式并存时（Whisper 导出目录），按信息量选一种，避免重复建会议
+_TEXT_PREF = {".json": 0, ".srt": 1, ".vtt": 2, ".md": 3, ".markdown": 4, ".txt": 5}
+
+
+def _plan_folder_import(files: "list[Path]") -> "list[tuple[Path, Path | None]]":
+    """把文件夹里的文件规划成导入项 [(主文件, 配套音频)]。
+
+    同名（同 stem）规则：多种文字格式只留信息量最高的一种；
+    文字 + 同名音频视为「音频 + 现成转写」，用文字建会议、音频归档，不再转写。
+    """
+    best_text: dict[str, Path] = {}
+    for f in files:
+        sfx = f.suffix.lower()
+        if sfx in TEXT_EXTS:
+            cur = best_text.get(f.stem)
+            if cur is None or _TEXT_PREF[sfx] < _TEXT_PREF[cur.suffix.lower()]:
+                best_text[f.stem] = f
+    audio_by_stem = {f.stem: f for f in files if f.suffix.lower() in AUDIO_EXTS}
+    plan = []
+    for f in files:
+        sfx = f.suffix.lower()
+        if sfx in TEXT_EXTS:
+            if best_text[f.stem] is f:
+                plan.append((f, audio_by_stem.get(f.stem)))
+        elif f.stem not in best_text:  # 有同名转写的音频不再单独转写
+            plan.append((f, None))
+    return plan
+
+
 @app.post("/api/import")
 def api_import(body: ImportBody):
     """导入本地文件或文件夹（文件夹则批量导入其中所有音频/视频/文字材料）。"""
@@ -231,19 +263,27 @@ def api_import(body: ImportBody):
                  if f.suffix.lower() in ok_exts and not f.name.startswith(".")]
         if not files:
             _err(ValueError(f"文件夹里没有可识别的音频/视频/文字文件：{p}"))
+        plan = _plan_folder_import(files)
     else:
         if p.suffix.lower() not in ok_exts:
             _err(ValueError(f"不支持的文件类型：{p.suffix}"))
-        files = [p]
+        plan = [(p, None)]
     ensure_dirs()
     imported = []
-    for f in files:
-        title = body.title if (body.title and len(files) == 1) else f.stem
+    single = len(plan) == 1
+    for f, audio in plan:
+        title = body.title if (body.title and single) else f.stem
         if f.suffix.lower() in TEXT_EXTS:
             try:
-                mtg = import_transcript_file(f, title=title, source="文本导入")
+                mtg = import_transcript_file(f, title=title, source="文本导入",
+                                             audio_path=audio)
             except Exception as e:
-                imported.append({"error": f"{f.name}：{e}"})
+                if audio is not None:  # 文字解析失败但有同名音频：退回正常转写
+                    mtg = create_meeting(title, audio_path=audio, source="本地导入")
+                    imported.append({"meeting_id": mtg.id,
+                                     "job": _start_transcribe_job(mtg, body.model or None)})
+                else:
+                    imported.append({"error": f"{f.name}：{e}"})
                 continue
             _post_import_memory(mtg)
             imported.append({"meeting_id": mtg.id, "job": None, "text": True})
@@ -657,7 +697,7 @@ def dl_brief(date: str):
 def dl_tracking(name: str):
     if "/" in name or ".." in name:
         _err(ValueError("非法文件名"))
-    return _md_download(TRACKING_DIR / f"{name}.md", f"跨会议追踪-{name}.md")
+    return _md_download(TRACKING_DIR / f"{name}.md", f"跨会议洞察-{name}.md")
 
 
 @app.get("/api/download/meeting/{mid}/transcript")

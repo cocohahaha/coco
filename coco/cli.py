@@ -141,7 +141,10 @@ def cmd_search(args):
 
 def cmd_track(args):
     focus = args.focus or ""
-    meetings = [find_meeting(r) for r in args.refs] if args.refs else None
+    # --refs 用逗号分隔的单参数：nargs='*' 会把跟在后面的 focus 位置参数也吞进去
+    refs = [r.strip() for r in (args.refs or "").replace("，", ",").split(",")
+            if r.strip()]
+    meetings = [find_meeting(r) for r in refs] if refs else None
     _p(f"▶ 跨会议洞察 · {args.mode}（{focus or '全局'}）"
        f"{f'，限定 {len(meetings)} 场' if meetings else ''}…")
     path, content = ai.track(focus, mode=args.mode, meetings=meetings)
@@ -166,8 +169,10 @@ def cmd_glossary(args):
         _p(f"✓ 已合并 → {GLOSSARY_FILE}（原文备份 .bak.md）")
         return
     if args.add:
+        old = GLOSSARY_FILE.read_text(encoding="utf-8") if GLOSSARY_FILE.exists() else ""
         with GLOSSARY_FILE.open("a", encoding="utf-8") as f:
-            f.write(f"- {args.add}\n")
+            # 文件若无结尾换行，先补一个，避免新词条接到上一行尾部
+            f.write(("" if not old or old.endswith("\n") else "\n") + f"- {args.add}\n")
         _p(f"✓ 已记入词表：{args.add}")
     else:
         _p(GLOSSARY_FILE.read_text(encoding="utf-8"))
@@ -181,8 +186,12 @@ def cmd_import(args):
     for f in args.files:
         p = Path(f).expanduser()
         if p.is_dir():
-            paths += [x for x in sorted(p.iterdir())
-                      if x.suffix.lower() in TEXT_EXTS and not x.name.startswith(".")]
+            entries = [x for x in sorted(p.iterdir()) if not x.name.startswith(".")]
+            paths += [x for x in entries if x.suffix.lower() in TEXT_EXTS]
+            audio = [x for x in entries if x.suffix.lower() in AUDIO_EXTS]
+            if audio:  # 静默丢音频会让人误以为都导入了
+                _p(f"· 跳过 {len(audio)} 个音频/视频（转写请用 coco transcribe，"
+                   f"或在网页版「⌖ 导入」里粘贴该文件夹路径）")
         elif p.exists():
             paths.append(p)
         else:
@@ -366,7 +375,7 @@ def main(argv=None):
     p.add_argument("focus", nargs="?", help="聚焦的人/项目/客户（留空=全局）")
     p.add_argument("--mode", default="追踪", choices=list(TRACK_MODES),
                    help="分析模式（默认：追踪）")
-    p.add_argument("--refs", nargs="*", help="限定分析这几场会议（默认全部）")
+    p.add_argument("--refs", help="限定分析这几场会议，逗号分隔（默认全部）")
     p.set_defaults(func=cmd_track)
 
     p = sub.add_parser("prep", help="会前调查：汇总历史会议与记忆生成会前简报")
