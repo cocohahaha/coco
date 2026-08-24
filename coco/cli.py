@@ -106,6 +106,14 @@ def cmd_brief(args):
             _p(f"✗ 记忆合并失败（简报本身已保存）：{e}")
 
 
+def cmd_weekly(args):
+    start, end, week = ai.week_bounds(args.date)
+    _p(f"▶ 生成 {week}（{start} ~ {end}）周报…")
+    path, content = ai.weekly_brief(args.date)
+    _p("\n" + content)
+    _p(f"\n✓ 已保存 → {path}")
+
+
 def cmd_memory(args):
     ensure_dirs()
     if args.add:
@@ -357,6 +365,10 @@ def main(argv=None):
     p = sub.add_parser("brief", help="生成每日简报")
     p.add_argument("date", nargs="?", help="日期 YYYY-MM-DD（默认今天）")
     p.set_defaults(func=cmd_brief)
+
+    p = sub.add_parser("weekly", help="生成周报（date 所在的周一~周日，默认本周）")
+    p.add_argument("date", nargs="?", help="该周内任意一天 YYYY-MM-DD（默认今天）")
+    p.set_defaults(func=cmd_weekly)
 
     p = sub.add_parser("memory", help="查看/追加全局记忆")
     p.add_argument("add", nargs="?", help="要追加的记忆内容")

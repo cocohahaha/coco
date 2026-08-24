@@ -135,6 +135,20 @@ check("搜索", len(c.get("/api/search", params={"q": "痛点"}).json()) >= 1)
 check("配置读取", c.get("/api/config").status_code == 200)
 check("全库校正预览（不执行）", c.post("/api/fix-all-names", json={}).json().get("preview") is True)
 
+# 12.5 周报
+from coco.ai import week_bounds
+s_, e_, w_ = week_bounds("2026-08-19")
+check("周界计算", (s_, e_, w_) == ("2026-08-17", "2026-08-23", "2026-W34"), f"{s_} {e_} {w_}")
+r = c.post("/api/weekly", json={"date": "2026-08-19"})
+check("生成周报", r.status_code == 200 and r.json()["week"] == "2026-W34", r.text[:150])
+wl = c.get("/api/weeklies").json()
+check("周报列表", any(w["week"] == "2026-W34" and w["content"] for w in wl), str([w["week"] for w in wl]))
+check("周报下载", c.get("/api/download/weekly/2026-W34").status_code == 200)
+check("无会议的周 400", c.post("/api/weekly", json={"date": "2000-01-03"}).status_code == 400)
+check("周报删除", c.delete("/api/weeklies/2026-W34").status_code == 200)
+man2 = c.get("/api/export/manifest").json()
+check("导出清单含周报字段", "weeklies" in man2)
+
 # 13. 词表解析宽容性：普通括号、粗体、分隔线、说明性长句、混合括号
 from coco.glossary import parse_glossary
 g = parse_glossary(

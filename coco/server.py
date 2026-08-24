@@ -22,7 +22,7 @@ from . import ai
 from .config import (BRIEFS_DIR, GLOSSARY_FILE, GLOSSARY_PLACEHOLDER,
                      LONGTERM_FILE, LONGTERM_PLACEHOLDER, MEMORY_FILE,
                      MEMORY_PLACEHOLDER, PREP_DIR, TRACKING_DIR, TRASH_DIR,
-                     ensure_dirs, load_config, save_config)
+                     WEEKLY_DIR, ensure_dirs, load_config, save_config)
 from .ingest import TEXT_EXTS, import_text, import_transcript_file
 from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
@@ -511,6 +511,55 @@ def api_delete_brief(date: str):
     return {"ok": True, "trash": str(dest)}
 
 
+# ---------- 周报 ----------
+
+class WeeklyBody(BaseModel):
+    date: str = ""  # 该周内任意一天（YYYY-MM-DD），留空=本周
+
+
+@app.post("/api/weekly")
+def api_weekly(body: WeeklyBody):
+    try:
+        path, content = ai.weekly_brief(body.date or None)
+    except ValueError:
+        _err(ValueError("日期格式应为 YYYY-MM-DD"))
+    except ai.AIError as e:
+        _err(e)
+    return {"path": path, "content": content, "week": Path(path).stem}
+
+
+@app.get("/api/weeklies")
+def api_weeklies():
+    """已有周报列表 + 会议库覆盖到的全部周（未生成的标 null，供补生成）。"""
+    weeks: dict[str, "str | None"] = {}
+    if WEEKLY_DIR.exists():
+        for p in sorted(WEEKLY_DIR.glob("*.md"), reverse=True):
+            weeks[p.stem] = p.read_text(encoding="utf-8")
+    for m in list_meetings():
+        if m.transcript_md.exists() and m.date:
+            _, _, wk = ai.week_bounds(m.date)
+            weeks.setdefault(wk, None)
+    return [{"week": w, "content": weeks[w], "range": "%s ~ %s" % ai.week_bounds(
+        # 由周名反推该周周一：ISO 周第 1 天
+        dt.date.fromisocalendar(int(w[:4]), int(w[6:]), 1).isoformat())[:2]}
+        for w in sorted(weeks, reverse=True)]
+
+
+@app.delete("/api/weeklies/{week}")
+def api_delete_weekly(week: str):
+    if "/" in week or ".." in week:
+        _err(ValueError("非法周名"))
+    dest = _trash_file(WEEKLY_DIR / f"{week}.md", f"周报~{week}")
+    return {"ok": True, "trash": str(dest)}
+
+
+@app.get("/api/download/weekly/{week}")
+def dl_weekly(week: str):
+    if "/" in week or ".." in week:
+        _err(ValueError("非法周名"))
+    return _md_download(WEEKLY_DIR / f"{week}.md", f"周报-{week}.md")
+
+
 # ---------- 配置 / 转写编辑 / 人名校正 / 报告编辑 ----------
 
 @app.get("/api/config")
@@ -764,8 +813,11 @@ def api_export_manifest():
     preps = ([{"name": p.stem, "label": p.stem}
               for p in sorted(PREP_DIR.glob("*.md"), reverse=True)]
              if PREP_DIR.exists() else [])
+    weeklies = ([{"name": p.stem, "label": p.stem}
+                 for p in sorted(WEEKLY_DIR.glob("*.md"), reverse=True)]
+                if WEEKLY_DIR.exists() else [])
     return {"meetings": meetings, "briefs": briefs, "tracking": tracking,
-            "preps": preps}
+            "preps": preps, "weeklies": weeklies}
 
 
 def _safe_seg(s: str) -> str:
@@ -797,11 +849,13 @@ def _resolve_export_item(it: "ExportItem") -> "tuple[Path | None, str]":
         return TRACKING_DIR / f"{name}.md", f"跨会议洞察/{_safe_seg(name)}.md"
     if it.type == "prep":
         return PREP_DIR / f"{name}.md", f"会前调查/{_safe_seg(name)}.md"
+    if it.type == "weekly":
+        return WEEKLY_DIR / f"{name}.md", f"周报/{_safe_seg(name)}.md"
     return None, ""
 
 
 class ExportItem(BaseModel):
-    type: str  # transcript | report | brief | tracking | prep
+    type: str  # transcript | report | brief | tracking | prep | weekly
     id: str = ""
     name: str = ""
 

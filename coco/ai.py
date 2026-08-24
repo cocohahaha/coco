@@ -8,11 +8,11 @@ import subprocess
 import threading
 
 from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE,
-                     PREP_DIR, TRACKING_DIR, load_config)
+                     PREP_DIR, TRACKING_DIR, WEEKLY_DIR, load_config)
 from .library import Meeting, list_meetings, meetings_on
 from .templates import (BRIEF_PROMPT, CHAT_SYSTEM, GLOSSARY_PROMPT,
                         LONGTERM_PROMPT, PREP_PROMPT, PREP_WEB_HINT,
-                        TRACK_MODES, TEMPLATES)
+                        TRACK_MODES, TEMPLATES, WEEKLY_PROMPT)
 
 MAX_CONTEXT_CHARS = 400_000  # 控制注入 claude 的转写总量
 MAX_LONGTERM_INJECT = 30_000  # 长期记忆注入分析时的长度上限
@@ -499,5 +499,38 @@ def daily_brief(date: str | None = None) -> "tuple[str, str]":
     content = _dedupe_title(title, run_claude(prompt))
     BRIEFS_DIR.mkdir(parents=True, exist_ok=True)
     path = BRIEFS_DIR / f"{date}.md"
+    path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
+    return str(path), content
+
+
+# ---------- 周报 ----------
+
+def week_bounds(date: str | None = None) -> "tuple[str, str, str]":
+    """返回 date 所在 ISO 周的 (周一, 周日, 周名)，如 ('2026-08-17','2026-08-23','2026-W34')。"""
+    d = dt.date.fromisoformat(date) if date else dt.date.today()
+    monday = d - dt.timedelta(days=d.weekday())
+    sunday = monday + dt.timedelta(days=6)
+    year, week, _ = d.isocalendar()
+    return monday.isoformat(), sunday.isoformat(), f"{year}-W{week:02d}"
+
+
+def weekly_brief(date: str | None = None) -> "tuple[str, str]":
+    """汇总某周（date 所在的周一~周日，默认本周）全部会议生成周报。
+
+    返回 (路径, 内容)。保存为 library/_weekly/<YYYY-Wnn>.md。
+    """
+    start, end, week = week_bounds(date)
+    meetings = [m for m in list_meetings()
+                if m.transcript_md.exists() and start <= m.date <= end]
+    if not meetings:
+        raise AIError(f"{week}（{start} ~ {end}）没有已转写的会议")
+    # 按时间正序；限制单场长度，避免一场长会挤掉整周的其他会议
+    ctx = _context_block(list(reversed(meetings)), per_meeting=60_000)
+    prompt = (f"{_memory_block()}{WEEKLY_PROMPT}\n\n"
+              f"本周：{week}（{start} ~ {end}），共 {len(meetings)} 场\n\n{ctx}")
+    title = f"# 周报 · {week}（{start[5:]} ~ {end[5:]}）"
+    content = _dedupe_title(title, run_claude(prompt, timeout=1200))
+    WEEKLY_DIR.mkdir(parents=True, exist_ok=True)
+    path = WEEKLY_DIR / f"{week}.md"
     path.write_text(f"{title}\n\n{content}\n", encoding="utf-8")
     return str(path), content

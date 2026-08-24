@@ -1041,8 +1041,22 @@ function watchJob(jid, meetingId) {
   }, 3000);
 }
 
-/* ---------- 每日简报（含历史） ---------- */
+/* ---------- 每日简报 / 周报（含历史） ---------- */
 $('btn-brief').onclick = () => showBriefView();
+
+function briefModeSwitch(meta, mode) {
+  // 日报/周报切换按钮，插在 meta 行最前
+  const wrap = document.createElement('span');
+  wrap.style.cssText = 'display:flex;gap:4px;margin-right:6px';
+  [['day', '日报'], ['week', '周报']].forEach(([m, label]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (m === mode) { b.style.background = 'var(--ink)'; b.style.color = '#fff'; }
+    b.onclick = () => { if (m !== mode) (m === 'day' ? showBriefView() : showWeeklyView()); };
+    wrap.appendChild(b);
+  });
+  meta.appendChild(wrap);
+}
 
 async function showBriefView(selDate) {
   const briefs = await api('/api/briefs');
@@ -1059,7 +1073,8 @@ async function showBriefView(selDate) {
   $('mtg-title').textContent = '每日简报';
   const meta = $('mtg-meta');
   meta.innerHTML = '';
-  meta.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px';
+  meta.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap';
+  briefModeSwitch(meta, 'day');
   const sel = document.createElement('select');
   sorted.forEach(d => {
     const o = document.createElement('option');
@@ -1106,6 +1121,70 @@ async function showBriefView(selDate) {
   $('doc-md').innerHTML = dates.get(date) !== null
     ? md(dates.get(date))
     : '<p style="color:var(--muted)">这一天还没有简报。点「生成简报」汇总当天全部会议的行动项与洞察。</p>';
+  state.current = null;
+  updateChatRef();
+}
+
+/* ---------- 周报 ---------- */
+async function showWeeklyView(selWeek) {
+  const weeks = await api('/api/weeklies');  // [{week, content|null, range}]
+  if (!weeks.length) { toast('还没有任何已转写的会议'); return; }
+  const cur = weeks.find(w => w.week === selWeek) || weeks[0];
+
+  $('empty').style.display = 'none';
+  $('mtg-head').style.display = ''; $('tabs').style.display = 'none'; $('doc').style.display = '';
+  $('mtg-title').textContent = '周报';
+  const meta = $('mtg-meta');
+  meta.innerHTML = '';
+  meta.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap';
+  briefModeSwitch(meta, 'week');
+  const sel = document.createElement('select');
+  weeks.forEach(w => {
+    const o = document.createElement('option');
+    o.value = w.week;
+    o.textContent = `${w.week}（${w.range}）` + (w.content === null ? '（未生成）' : '');
+    if (w.week === cur.week) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => showWeeklyView(sel.value);
+  meta.appendChild(sel);
+  const gen = document.createElement('button');
+  gen.textContent = cur.content === null ? '生成周报' : '重新生成';
+  gen.onclick = async () => {
+    const label = gen.textContent;
+    gen.disabled = true; gen.textContent = '生成中…';
+    toast(`正在生成 ${cur.week} 周报（汇总整周会议，可能需要几分钟）…`, 10000);
+    try {
+      // 用该周周一作为日期定位这一周
+      await api('/api/weekly', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: cur.range.slice(0, 10) }),
+      });
+      toast('周报已生成');
+      showWeeklyView(cur.week);
+    } catch (e) { toast(e.message, 8000); gen.disabled = false; gen.textContent = label; }
+  };
+  meta.appendChild(gen);
+  if (cur.content !== null) {
+    const dl = document.createElement('button');
+    dl.textContent = '↓ 下载 .md';
+    dl.onclick = () => { window.location.href = '/api/download/weekly/' + encodeURIComponent(cur.week); };
+    meta.appendChild(dl);
+    const del = document.createElement('button');
+    del.textContent = '✕ 删除';
+    del.onclick = async () => {
+      if (!confirm(`删除 ${cur.week} 的周报？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。`)) return;
+      try {
+        await api('/api/weeklies/' + encodeURIComponent(cur.week), { method: 'DELETE' });
+        toast('周报已删除（回收站可找回）');
+        showWeeklyView(cur.week);
+      } catch (e) { toast('删除失败：' + e.message, 6000); }
+    };
+    meta.appendChild(del);
+  }
+  $('doc-md').innerHTML = cur.content !== null
+    ? md(cur.content)
+    : '<p style="color:var(--muted)">这一周还没有周报。点「生成周报」汇总整周会议：主线、决定、行动项总账、表态变化、下周建议。</p>';
   state.current = null;
   updateChatRef();
 }
@@ -1461,6 +1540,8 @@ async function openExport() {
   }
   if (mm.briefs.length) groups.push({ title: '每日简报',
     items: mm.briefs.map(b => ({ spec: { type: 'brief', name: b.name }, label: b.label, meta: '' })) });
+  if ((mm.weeklies || []).length) groups.push({ title: '周报',
+    items: mm.weeklies.map(w => ({ spec: { type: 'weekly', name: w.name }, label: w.label, meta: '' })) });
   if (mm.tracking.length) groups.push({ title: '跨会议洞察',
     items: mm.tracking.map(t => ({ spec: { type: 'tracking', name: t.name }, label: t.label, meta: '' })) });
   if ((mm.preps || []).length) groups.push({ title: '会前调查',

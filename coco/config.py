@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(os.environ.get("COCO_ROOT") or Path(__file__).resolve().parent.parent)
 LIBRARY_DIR = ROOT / "library"
 BRIEFS_DIR = LIBRARY_DIR / "_briefs"
+WEEKLY_DIR = LIBRARY_DIR / "_weekly"  # 周报
 TRACKING_DIR = LIBRARY_DIR / "_tracking"
 PREP_DIR = LIBRARY_DIR / "_prep"  # 会前调查简报
 TRASH_DIR = LIBRARY_DIR / "_trash"
