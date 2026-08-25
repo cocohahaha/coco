@@ -1,4 +1,6 @@
-mlx-whisper>=0.4
 fastapi>=0.110
 uvicorn>=0.29
 python-multipart>=0.0.9
+# 转写引擎（二选一，按平台自动选择；装不上也不影响文字稿导入与分析）
+mlx-whisper>=0.4; sys_platform == "darwin" and platform_machine == "arm64"
+faster-whisper>=1.1; sys_platform != "darwin" or platform_machine != "arm64"

@@ -18,11 +18,17 @@ LONGTERM_FILE = ROOT / "memory" / "longterm.md"  # AI 自动维护的长期记�
 GLOSSARY_FILE = ROOT / "memory" / "glossary.md"  # 词表：人名 + 专有名词
 CONFIG_FILE = ROOT / "coco.config.json"
 
-# whisper 模型别名 -> HuggingFace 仓库
+# whisper 模型别名 -> HuggingFace 仓库（mlx-whisper，Apple Silicon）
 MODEL_REPOS = {
     "large": "mlx-community/whisper-large-v3-mlx",
     "turbo": "mlx-community/whisper-large-v3-turbo",
     "tiny": "mlx-community/whisper-tiny",  # 仅用于快速自检
+}
+# 同一套别名在 faster-whisper（Windows / Linux / Intel Mac，CTranslate2）下的仓库
+FASTER_MODEL_REPOS = {
+    "large": "Systran/faster-whisper-large-v3",
+    "turbo": "deepdml/faster-whisper-large-v3-turbo-ct2",
+    "tiny": "Systran/faster-whisper-tiny",
 }
 
 MEMORY_PLACEHOLDER = (
@@ -45,6 +51,7 @@ GLOSSARY_PLACEHOLDER = (
 
 DEFAULTS = {
     "whisper_model": "turbo",   # turbo（快） | large（最准） | tiny（自检）
+    "transcribe_backend": "auto",  # auto | mlx | faster | none（none = 只导入文字稿，不转写）
     "language": "zh",           # 默认中文；可在界面手动换语言或填 auto 自动识别/其他 ISO 码
     "initial_prompt_extra": "",  # 追加到转写提示的专有名词/人名，提高识别准确率
     "beam_size": 0,             # 0 = 贪心（快）。设 5 启用 beam search：更准但更慢
@@ -75,8 +82,9 @@ def save_config(cfg: dict) -> None:
     )
 
 
-def resolve_model_repo(name: str) -> str:
-    return MODEL_REPOS.get(name, name)  # 允许直接传 HF 仓库名
+def resolve_model_repo(name: str, backend: str = "mlx") -> str:
+    table = FASTER_MODEL_REPOS if backend == "faster" else MODEL_REPOS
+    return table.get(name, name)  # 允许直接传 HF 仓库名
 
 
 def ensure_dirs() -> None:

@@ -1,7 +1,8 @@
 """导入已有的文字材料，不经转写直接入库（归集私人上下文）。
 
-支持：纯文本 / Markdown（.txt / .md / .markdown）、字幕（.srt / .vtt）、
+支持：纯文本 / Markdown（.txt / .md / .markdown）、Word（.docx）、字幕（.srt / .vtt）、
 Whisper 风格 JSON（.json），以及直接粘贴的文本（聊天记录、邮件、他人纪要等）。
+腾讯会议 / 飞书妙记 / 讯飞听见等工具导出的 txt / docx / srt 文字稿都可以直接导入。
 带时间轴的材料渲染成与本地转写一致的 `[mm:ss] 文本` 形态，
 之后的报告、对话、简报、追踪、长期记忆全部照常工作。
 """
@@ -16,7 +17,8 @@ from pathlib import Path
 from .library import Meeting, create_meeting
 from .transcriber import _fmt_ts
 
-TEXT_EXTS = {".txt", ".md", ".markdown", ".srt", ".vtt", ".json"}
+TEXT_EXTS = {".txt", ".md", ".markdown", ".docx", ".srt", ".vtt", ".json"}
+BINARY_TEXT_EXTS = {".docx"}  # 不是纯文本，需专门解析
 
 
 def _ts_to_seconds(ts: str) -> float:
@@ -88,6 +90,40 @@ def _parse_json(raw: str) -> dict:
     return {"segments": segments, "text": text}
 
 
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+def read_docx_text(path: Path) -> str:
+    """从 .docx 提取正文文字（标准库解析 word/document.xml，不依赖 python-docx）。
+
+    段落按行输出，表格里的段落按文档顺序一并带出（会议软件导出的说话人表格）。
+    """
+    import zipfile
+    import xml.etree.ElementTree as ET
+    try:
+        with zipfile.ZipFile(path) as z:
+            xml = z.read("word/document.xml")
+    except (zipfile.BadZipFile, KeyError):
+        raise ValueError("不是有效的 Word 文档（.docx 应是包含 word/document.xml 的压缩包；"
+                         "旧版 .doc 请先另存为 .docx）")
+    root = ET.fromstring(xml)
+    paras = []
+    for para in root.iter(f"{_W}p"):
+        buf = []
+        for el in para.iter():
+            if el.tag == f"{_W}t":
+                buf.append(el.text or "")
+            elif el.tag == f"{_W}tab":
+                buf.append("\t")
+            elif el.tag in (f"{_W}br", f"{_W}cr"):
+                buf.append("\n")
+        paras.append("".join(buf).strip())
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(paras)).strip()
+    if not text:
+        raise ValueError("Word 文档里没有文字内容")
+    return text
+
+
 def build_imported(raw: str, ext: str) -> dict:
     """按扩展名把原始文字材料规整成 {segments, text}。"""
     ext = ext.lower()
@@ -101,7 +137,7 @@ def build_imported(raw: str, ext: str) -> dict:
         if not r["text"]:
             r["text"] = "\n".join(s["text"] for s in r["segments"])
         return r
-    # .txt / .md / .markdown —— 纯文本原样使用
+    # .txt / .md / .markdown / .docx（已抽出文字）—— 纯文本原样使用
     text = raw.strip()
     if not text:
         raise ValueError("文件内容为空")
@@ -162,7 +198,8 @@ def import_transcript_file(path: Path, title: str | None = None,
                            audio_path: Path | None = None) -> Meeting:
     """从已有的文字材料文件建会议（不转写）。原文件复制进会议文件夹留档；
     audio_path 提供时把配套音频一并归档（如 Whisper 导出目录：音频+现成转写）。"""
-    raw = read_text_any(path)
+    raw = (read_docx_text(path) if path.suffix.lower() == ".docx"
+           else read_text_any(path))
     data = build_imported(raw, path.suffix)
     mtg = create_meeting(title or path.stem, source=source, audio_path=audio_path)
     try:

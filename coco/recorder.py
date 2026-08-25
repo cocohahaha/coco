@@ -5,16 +5,36 @@
 """
 from __future__ import annotations
 
+import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 from .config import load_config
 
+RECORD_UNSUPPORTED = (
+    "网页录音目前只支持 macOS（ffmpeg avfoundation）。"
+    "请用系统自带的录音机 / 会议软件录好后，把音频文件上传或导入。"
+)
+
+
+def record_supported() -> bool:
+    """当前系统能否用网页/CLI 录音：macOS 且装了 ffmpeg。"""
+    return sys.platform == "darwin" and shutil.which("ffmpeg") is not None
+
+
+def _check_supported() -> None:
+    if sys.platform != "darwin":
+        raise RuntimeError(RECORD_UNSUPPORTED)
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError("找不到 ffmpeg，无法录音：brew install ffmpeg")
+
 
 def list_devices() -> str:
     """返回 ffmpeg avfoundation 设备列表（人类可读文本）。"""
+    _check_supported()
     proc = subprocess.run(
         ["ffmpeg", "-hide_banner", "-f", "avfoundation",
          "-list_devices", "true", "-i", ""],
@@ -49,6 +69,7 @@ class Recorder:
     def start(self, out: Path, title: str, device: str | None = None) -> None:
         if self.active:
             raise RuntimeError("已有录音在进行中")
+        _check_supported()
         device = device or load_config()["audio_device"]
         self.proc = subprocess.Popen(
             _ffmpeg_cmd(out, device),
@@ -88,6 +109,7 @@ class Recorder:
 
 def record_blocking(out: Path, device: str | None = None) -> Path:
     """CLI 用：前台录音直到 Ctrl+C。"""
+    _check_supported()
     device = device or load_config()["audio_device"]
     proc = subprocess.Popen(_ffmpeg_cmd(out, device), stdin=subprocess.DEVNULL)
     start = time.time()

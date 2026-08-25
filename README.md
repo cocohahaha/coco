@@ -9,6 +9,9 @@ coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://y
 音频不出本机（Whisper 本地转写），分析通过你已登录的 `claude` CLI 完成，
 不需要额外 API key，没有云端账号，没有订阅。
 
+支持 macOS 与 Windows。没有本地转写引擎的机器也能用：把录音用任何工具转成文字稿
+（txt / docx / srt），上传进来，分析功能一样完整。
+
 ## 它适合谁
 
 - **顾问 / FDE / 售前**：进入一家新公司，访谈十个人，各说各话——
@@ -41,20 +44,23 @@ coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://y
 | 方式 | 说明 |
 |---|---|
 | ● 录音 | 本机麦克风直接录，停止后自动转写 |
-| 拖拽 / ↑ 上传 | 音频、视频、或已有的文字材料，多选、排队转写 |
+| 拖拽 / ↑ 上传 | 音频、视频、或已有的文字材料（txt / docx / srt 等文字稿直接入库），多选、排队转写 |
 | ⌖ 导入 · 本地路径 | 粘贴文件或文件夹路径，文件夹=批量；音频+同名转写（Whisper 导出目录）自动配对，只建一场会议 |
 | ⌖ 导入 · 粘贴文本 | 聊天记录、邮件、他人纪要直接贴进来，可标注材料原始日期 |
 | `coco watch` | 监控文件夹，新音频自动转写（接语音备忘录、Plaud 导出目录） |
 
-文字材料支持 txt / md / srt / vtt / json（Whisper 风格），不转写直接入库；
+文字材料支持 txt / md / docx / srt / vtt / json（Whisper 风格），不转写直接入库——
+腾讯会议、飞书妙记、讯飞听见等工具导出的文字稿可以原样上传；
 带时间轴的渲染成与本地转写一致的 `[mm:ss]` 形态，VTT 的说话人标签保留；
 自动识别 UTF-8 / UTF-16 / GB18030 / Big5 编码，微信、QQ 导出不乱码。
 **入库即入记忆**：所有材料和转写一样，自动并入长期记忆、参与所有跨会议分析。
 
 ### 转写与校正
 
-- **本地 Whisper**（mlx-whisper，Apple Silicon 原生加速）：turbo 快（45 分钟会议约 2 分钟）、
-  large 最准；顶栏随时切换模型与语言（中文默认，支持多语种与自动识别）
+- **本地 Whisper**：Apple Silicon 用 mlx-whisper（原生加速，turbo 转 45 分钟会议约 2 分钟）；
+  Windows / Linux / Intel Mac 用 faster-whisper（有 NVIDIA 显卡走 CUDA，否则 CPU，慢但可用）。
+  turbo 快、large 最准；顶栏随时切换模型与语言（中文默认，支持多语种与自动识别）
+- 两个引擎都没装的机器不能转写音频，但可以导入文字稿；界面会自动收起录音与模型选项
 - **词表**（`memory/glossary.md`）：人名与专有名词的标准写法，格式
   `- 正确写法（误写：错1、错2）｜备注`。正确写法注入转写提示；
   「✦ 提炼词表」让 AI 从你的会议历史里自动归集人名和术语的同音字误写对照
@@ -108,7 +114,10 @@ coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://y
 
 ## 安装与启动
 
-**前提**：Apple Silicon Mac · Python 3.10+ · [claude CLI](https://claude.com/claude-code) 已安装并登录（`claude` 命令可用）
+**共同前提**：Python 3.10+ · [claude CLI](https://claude.com/claude-code) 已安装并登录
+（终端里 `claude` 命令可用；分析全部经它完成）。Web 界面只监听 127.0.0.1，不对外网开放。
+
+### macOS
 
 ```bash
 git clone https://github.com/cocohahaha/coco.git
@@ -120,20 +129,40 @@ python3 -m venv .venv
 ```
 
 以后每次启动：双击 `coco.command`，或再跑 `./run.sh`（重复运行不会重复起服务）。
-首次转写会自动下载 Whisper 模型（turbo 约 1.6GB，large 约 3GB；国内网络自动切 hf-mirror）。
-首次录音时 macOS 会请求麦克风权限。
+Apple Silicon 自动装 mlx-whisper；首次转写会自动下载 Whisper 模型（turbo 约 1.6GB，large 约 3GB；
+国内网络自动切 hf-mirror）。首次录音时 macOS 会请求麦克风权限。
 
-Web 界面只监听 127.0.0.1，不对外网开放。
+### Windows
+
+1. 安装 [Python 3.10+](https://www.python.org/downloads/)（安装时勾选 **Add python.exe to PATH**）
+2. 安装 [Git for Windows](https://git-scm.com/download/win)（claude CLI 在 Windows 上依赖它）
+3. 安装并登录 [claude CLI](https://claude.com/claude-code)：在终端运行一次 `claude`，按提示登录
+4. 下载本仓库（`git clone` 或 GitHub 页面「Code → Download ZIP」解压），**双击 `run.bat`**
+
+首次双击会自动创建虚拟环境并安装依赖（含 faster-whisper 转写引擎，几百 MB，需要几分钟），
+然后启动服务并打开浏览器。以后每次双击 `run.bat` 即可；关闭那个黑色窗口就是停止服务。
+命令行用 `bin\coco.cmd`（用法与下文 `coco` 一致）。
+
+**Windows 上的典型用法：已有录音 → 文字稿 → 上传 → 分析**
+
+大多数人不需要在自己电脑上跑 Whisper：录音用腾讯会议、飞书妙记、讯飞听见、
+手机录音 App 等工具转成文字稿，导出为 **txt / docx / srt**，然后拖进 coco 窗口或点「↑ 上传」。
+文字稿不经转写直接入库，纪要、行动项、会前调查、跨会议洞察、长期记忆等全部功能照常使用。
+若 faster-whisper 安装失败，`run.bat` 会自动退回只装核心依赖，界面会收起录音与模型选项，
+这条文字稿路线不受影响。
+
+要在 Windows 本机转写音频：faster-whisper 装好后直接上传音频即可；没有 NVIDIA 显卡时走 CPU，
+45 分钟会议 turbo 模型大约需要 10–30 分钟（取决于 CPU）。网页录音目前只支持 macOS。
 
 ## 命令行
 
-界面能做的 CLI 都能做（建议 `alias coco="<项目路径>/bin/coco"`）：
+界面能做的 CLI 都能做（macOS 建议 `alias coco="<项目路径>/bin/coco"`；Windows 用 `bin\coco.cmd`）：
 
 | 命令 | 作用 |
 |---|---|
 | `coco transcribe <文件…>` | 导入音频/视频转写（`--model turbo/large`） |
-| `coco import <文件/文件夹…>` | 导入文字材料（txt/md/srt/vtt/json），不转写直接入库 |
-| `coco record [标题]` | 麦克风录音，Ctrl+C 停止后自动转写 |
+| `coco import <文件/文件夹…>` | 导入文字材料（txt/md/docx/srt/vtt/json），不转写直接入库 |
+| `coco record [标题]` | 麦克风录音，Ctrl+C 停止后自动转写（仅 macOS） |
 | `coco watch <文件夹>` | 监控文件夹，新音频自动转写 |
 | `coco list` / `coco show <会议>` | 查看会议库 / 某条转写 |
 | `coco ask "问题" [会议…]` | 对会议内容提问 |
@@ -168,6 +197,7 @@ coco.config.json       配置
 ```
 
 常用配置（`coco config 键 值`）：`whisper_model`、`language`、`beam_size`（5=更准更慢）、
+`transcribe_backend`（auto / mlx / faster / none；none = 只导文字稿不转写）、
 `auto_memory`（false 关闭自动记忆）、`claude_extra_args`（如指定模型）、`hf_endpoint`。
 环境变量 `COCO_ROOT` 可把数据根目录指到别处（多套数据隔离）。
 
@@ -177,7 +207,9 @@ coco.config.json       配置
 - Whisper 的防复读机制使词表提示主要作用于音频开头，全文同音字纠错靠「校正」完成
 - 会前调查的「联网搜索」会把检索词发给搜索引擎——只在需要公开情报时勾选；
   其余一切功能均不联网（模型下载除外）
-- 仅支持 Apple Silicon Mac（转写引擎是 mlx-whisper）
+- 网页录音仅 macOS；Windows 请用系统录音机或会议软件录好后上传
+- Windows 无 NVIDIA 显卡时本机转写走 CPU，速度明显慢于 Mac；推荐先用其他工具转成文字稿再导入
+- 文字稿不支持 PDF 与旧版 .doc，请先另存为 txt 或 docx
 
 ## 开发自检
 
@@ -185,9 +217,19 @@ coco.config.json       配置
 .venv/bin/python tests/smoke.py
 ```
 
-在临时 `COCO_ROOT` 下用 stub claude 跑 40+ 项接口断言，不碰真实数据、不消耗模型额度。
+在临时 `COCO_ROOT` 下用 stub claude 跑 74 项接口断言，不碰真实数据、不消耗模型额度
+（Windows：`.venv\Scripts\python tests\smoke.py`）。
 
 ## 更新日记
+
+### 2026-08-25 · Windows 支持
+- **Windows 可用**：`run.bat` 一键装环境并启动；`bin\coco.cmd` 命令行；claude CLI 按 PATHEXT 定位、
+  子进程强制 UTF-8，中文提示词不再受 GBK 影响
+- **转写引擎抽象**：Apple Silicon 用 mlx-whisper，其他平台用 faster-whisper（CUDA / CPU 自动选择）；
+  两者都没有时音频上传直接给出「先转文字稿再导入」的指引，不再留下失败的空会议
+- **docx 导入**：腾讯会议 / 飞书妙记 / 讯飞听见导出的 Word 文字稿可直接上传（标准库解析，无新依赖）
+- 界面按本机能力自适应：非 macOS 收起录音按钮，无引擎时收起模型/语言选项并提示文字稿路线
+- 冒烟测试增至 74 项，覆盖无引擎、docx、录音不支持、混合文件夹等 Windows 典型情况
 
 ### 2026-08-24
 - **周报**：汇总一整周的主线、决定、行动项总账、表态变化与下周建议；

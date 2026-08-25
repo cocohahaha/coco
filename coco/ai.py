@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
+import shutil
 import subprocess
 import threading
 
@@ -124,21 +125,35 @@ def restore_raw(mtg: "Meeting") -> str:
     return original
 
 
+def resolve_claude_bin(cfg: dict | None = None) -> str:
+    """定位 claude CLI 可执行文件。
+
+    Windows 上 npm 装的是 claude.cmd、官方安装器是 claude.exe——CreateProcess 不查 PATHEXT，
+    直接传 "claude" 会报找不到；shutil.which 会按 PATHEXT 补全扩展名。找不到时原样返回，
+    让 subprocess 抛 FileNotFoundError 走统一的错误提示。
+    """
+    cfg = cfg or load_config()
+    raw = cfg.get("claude_bin") or "claude"
+    return shutil.which(raw) or raw
+
+
 def run_claude(prompt: str, timeout: int = 900,
                allowed_tools: "list[str] | None" = None) -> str:
     cfg = load_config()
-    cmd = [cfg["claude_bin"], "-p", "--output-format", "text",
+    cmd = [resolve_claude_bin(cfg), "-p", "--output-format", "text",
            *cfg.get("claude_extra_args", [])]
     if allowed_tools:  # 例如会前调查联网检索：["WebSearch", "WebFetch"]
         cmd += ["--allowedTools", ",".join(allowed_tools)]
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     try:
         proc = subprocess.run(
-            cmd, input=prompt, capture_output=True, text=True,
-            timeout=timeout, env=env,
+            cmd, input=prompt, capture_output=True, timeout=timeout, env=env,
+            # 显式 UTF-8：Windows 默认按 GBK 编解码管道，中文提示词会乱码甚至抛 UnicodeError
+            text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
-        raise AIError(f"找不到 claude CLI（{cfg['claude_bin']}），请确认已安装并登录")
+        raise AIError(f"找不到 claude CLI（{cfg['claude_bin']}），请确认已安装并登录："
+                      "https://claude.com/claude-code")
     except subprocess.TimeoutExpired:
         raise AIError(f"claude 响应超时（>{timeout}s）")
     if proc.returncode != 0:

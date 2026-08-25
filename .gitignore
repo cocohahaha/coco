@@ -11,6 +11,8 @@ coco.config.json
 # 个人工作稿（对齐文档、会议笔记等，含真实人名/内容）
 alignment-*.md
 *-notes.md
+# 根目录下生成的报告 HTML（含真实会议内容）
+/*.html
 
 # 系统
 .DS_Store

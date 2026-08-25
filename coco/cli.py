@@ -12,18 +12,28 @@ from . import ai
 from .config import GLOSSARY_FILE, MEMORY_FILE, ensure_dirs, load_config, save_config
 from .library import (AUDIO_EXTS, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
-from .recorder import list_devices, record_blocking
+from .recorder import (RECORD_UNSUPPORTED, list_devices, record_blocking,
+                       record_supported)
 from .templates import TEMPLATES, TRACK_MODES
-from .transcriber import transcribe_meeting
+from .transcriber import NO_ENGINE_HINT, detect_backend, transcribe_meeting
 
 
 def _p(msg: str) -> None:
     print(msg, flush=True)
 
 
+def _need_transcriber() -> None:
+    """要转写音频的命令先确认本机有引擎，没有就直接说明文字稿路线并退出。"""
+    if not detect_backend():
+        raise RuntimeError(NO_ENGINE_HINT)
+
+
 # ---------- 子命令 ----------
 
 def cmd_record(args):
+    if not record_supported():  # 建会议之前就拦，不留空条目
+        raise RuntimeError(RECORD_UNSUPPORTED)
+    _need_transcriber()
     title = args.title or f"录音-{dt.datetime.now().strftime('%H%M')}"
     mtg = create_meeting(title, source="录音")
     out = mtg.path / "audio.wav"
@@ -35,6 +45,7 @@ def cmd_record(args):
 
 
 def cmd_transcribe(args):
+    _need_transcriber()
     for f in args.files:
         src = Path(f).expanduser()
         if not src.exists():
@@ -188,7 +199,7 @@ def cmd_glossary(args):
 
 
 def cmd_import(args):
-    """导入已有文字材料（txt/md/srt/vtt/json），不转写直接入库。"""
+    """导入已有文字材料（txt/md/docx/srt/vtt/json），不转写直接入库。"""
     from .ingest import TEXT_EXTS, import_transcript_file
     paths = []
     for f in args.files:
@@ -253,12 +264,14 @@ def cmd_memorize(args):
 
 
 def cmd_watch(args):
+    _need_transcriber()
     folder = Path(args.folder).expanduser()
     if not folder.is_dir():
         _p(f"✗ 不是文件夹：{folder}")
         sys.exit(1)
     state_file = folder / ".coco_seen.json"
-    seen = set(json.loads(state_file.read_text()) if state_file.exists() else [])
+    seen = set(json.loads(state_file.read_text(encoding="utf-8"))
+               if state_file.exists() else [])
     if not state_file.exists():
         # 首次运行：已有的旧文件不处理，只盯之后新增的
         seen = {f.name for f in folder.iterdir()
@@ -295,11 +308,50 @@ def cmd_devices(args):
     _p("\n麦克风用 \":N\"（冒号+音频设备号），当前配置见 coco config")
 
 
+def _port_listening(port: int) -> bool:
+    import socket
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _is_coco(url: str) -> bool:
+    """端口在监听，但得确认是 coco 而不是别的程序占着（否则会打开一个错误页面还说成功）。"""
+    import json as _json
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"{url}/api/config", timeout=3) as r:
+            return "whisper_model" in _json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return False
+
+
 def cmd_web(args):
+    import threading
+    import webbrowser
+    port = args.port or load_config()["port"]
+    url = f"http://127.0.0.1:{port}"
+    if _port_listening(port):  # 已经在跑（run.bat / run.sh 重复双击）：不重复起，只开浏览器
+        if not _is_coco(url):
+            raise RuntimeError(f"端口 {port} 被其他程序占用，coco 无法启动。"
+                               f"可换端口：coco web --port 8766（或设置环境变量 COCO_PORT）")
+        _p(f"coco 服务已在运行 → {url}")
+        if args.open:
+            webbrowser.open(url)
+        return
     import uvicorn
     from .server import app
-    port = args.port or load_config()["port"]
-    _p(f"🌐 coco Web → http://127.0.0.1:{port}")
+    backend = detect_backend()
+    _p(f"🌐 coco Web → {url}")
+    _p(f"   转写引擎：{backend or '无（只能导入文字稿，不能转写音频）'}")
+    if args.open:
+        def _open_when_ready():
+            for _ in range(120):
+                if _port_listening(port):
+                    webbrowser.open(url)
+                    return
+                time.sleep(0.5)
+        threading.Thread(target=_open_when_ready, daemon=True).start()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
@@ -403,7 +455,7 @@ def main(argv=None):
                    help="AI 从长期记忆与最近转写中提炼词表")
     p.set_defaults(func=cmd_glossary)
 
-    p = sub.add_parser("import", help="导入已有文字材料（txt/md/srt/vtt/json）入库")
+    p = sub.add_parser("import", help="导入已有文字材料（txt/md/docx/srt/vtt/json）入库")
     p.add_argument("files", nargs="+", help="文件或文件夹")
     p.add_argument("--title", help="标题（单文件时生效，默认用文件名）")
     p.set_defaults(func=cmd_import)
@@ -424,6 +476,7 @@ def main(argv=None):
 
     p = sub.add_parser("web", help="启动本地 Web 界面")
     p.add_argument("--port", type=int)
+    p.add_argument("--open", action="store_true", help="服务就绪后自动打开浏览器")
     p.set_defaults(func=cmd_web)
 
     p = sub.add_parser("config", help="查看/修改配置")
@@ -435,6 +488,11 @@ def main(argv=None):
     if not getattr(args, "func", None):
         parser.print_help()
         return
+    for stream in (sys.stdout, sys.stderr):  # Windows 重定向到日志时默认 GBK，emoji/生僻字会炸
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ensure_dirs()
     try:
         args.func(args)

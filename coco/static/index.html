@@ -260,7 +260,7 @@
     <option value="es">Español</option>
   </select>
   <button id="btn-record" title="用本机麦克风直接录音，停止后自动转写">● 录音</button>
-  <button id="btn-upload" class="primary" title="上传音频/视频或已有的文字材料（txt/md/srt/vtt/json）">↑ 上传</button>
+  <button id="btn-upload" class="primary" title="上传音频/视频或已有的文字材料（txt/md/docx/srt/vtt/json）">↑ 上传</button>
   <button id="btn-import" title="导入本地路径（文件夹批量）或直接粘贴文字材料">⌖ 导入</button>
   <button id="btn-prep" title="会前调查：汇总历史会议与记忆，先看懂局再进会">◎ 会前</button>
   <button id="btn-track" title="跨会议洞察：追踪 / 深层信号 / 调研综合">⛓ 洞察</button>
@@ -268,7 +268,7 @@
   <button id="btn-knowledge" title="知识底座：人物、项目、承诺、词表的沉淀总览">☷ 底座</button>
   <button id="btn-export">⬇ 导出</button>
   <button id="btn-memory">◈ 记忆</button>
-  <input type="file" id="file-input" multiple accept="audio/*,video/*,.m4a,.mp3,.wav,.aiff,.flac,.ogg,.mp4,.mov,.webm,.amr,.txt,.md,.markdown,.srt,.vtt,.json">
+  <input type="file" id="file-input" multiple accept="audio/*,video/*,.m4a,.mp3,.wav,.aiff,.flac,.ogg,.mp4,.mov,.webm,.amr,.wma,.txt,.md,.markdown,.docx,.srt,.vtt,.json">
 </header>
 
 <main>
@@ -292,8 +292,8 @@
 
   <section id="content">
     <div id="empty">还没有选中的会议<br>
-      点右上角「● 录音」直接录，或把音频/视频/文字材料<b>拖进窗口</b>、用「上传」「导入」，<br>
-      也可以在「导入」里直接粘贴聊天记录、邮件等文字材料。<br>
+      <span id="empty-rec">点右上角「● 录音」直接录，或</span>把音频/视频/文字材料<b>拖进窗口</b>、用「上传」「导入」，<br>
+      已有的文字稿（txt / docx / srt 等）直接上传即可分析；也可以在「导入」里粘贴聊天记录、邮件等文字材料。<br>
       开会前用「◎ 会前」生成会前简报；积累几场后用「⛓ 洞察」「☷ 底座」看全局。</div>
     <div id="mtg-head" style="display:none"><h2 id="mtg-title"></h2>
       <div class="meta" id="mtg-meta"></div></div>
@@ -359,8 +359,8 @@
     <button id="imp-tab-paste">粘贴文本</button>
   </div>
   <div id="imp-path-pane">
-    <div class="hint">粘贴文件或文件夹的完整路径。音频/视频会转写；txt / md / srt / vtt / json 等文字材料直接入库。
-      指向文件夹则批量导入其中全部可识别文件。Finder 选中后按 Option+Cmd+C 可拷贝路径。</div>
+    <div class="hint">粘贴文件或文件夹的完整路径。音频/视频会转写；txt / md / docx / srt / vtt / json 等文字材料直接入库。
+      指向文件夹则批量导入其中全部可识别文件。<span id="imp-path-tip">Finder 选中后按 Option+Cmd+C 可拷贝路径。</span></div>
     <input type="text" id="imp-path" placeholder="/Users/you/Desktop/会议录音/">
   </div>
   <div id="imp-paste-pane" style="display:none">
@@ -414,7 +414,10 @@
 
 <script>
 const $ = id => document.getElementById(id);
-let state = { meetings: [], current: null, tab: 'transcript', recording: false,
+// 平台先按浏览器猜（服务连不上时掉线横幅也要给对启动方式），/api/config 通了再以服务端为准
+const GUESS_PLATFORM = /win/i.test(navigator.platform) ? 'windows' : /mac/i.test(navigator.platform) ? 'mac' : 'linux';
+let state = { caps: { transcribe: 'mlx', record: true, platform: GUESS_PLATFORM },
+              meetings: [], current: null, tab: 'transcript', recording: false,
   recSeconds: 0, selected: new Set(), filterFrom: '', filterTo: '' };
 
 /* ---------- 工具 ---------- */
@@ -896,8 +899,13 @@ $('chat-input').addEventListener('keydown', e => {
 });
 
 /* ---------- 上传（多选 + 拖拽） ---------- */
+const TEXT_EXT_RE = /\.(txt|md|markdown|docx|srt|vtt|json)$/i;
 async function uploadFiles(files) {
   for (const f of files) {
+    if (!state.caps.transcribe && !TEXT_EXT_RE.test(f.name)) {
+      toast(`${f.name}：本机没有转写引擎，无法转写音频。请先用其他工具转成文字稿（txt / docx / srt），再上传文字稿`, 10000);
+      continue;
+    }
     const fd = new FormData();
     fd.append('file', f);
     toast(`上传 ${f.name} …`);
@@ -1598,15 +1606,43 @@ $('btn-export-go').onclick = async () => {
 function setConn(down) {
   const b = $('conn-banner');
   if (down) {
-    b.textContent = '⚠️ 连不上 coco 服务，正在自动重连…（若长时间未恢复，请双击 coco.command 或在终端运行 ./run.sh）';
+    b.textContent = '⚠️ 连不上 coco 服务，正在自动重连…（若长时间未恢复，请'
+      + (state.caps.platform === 'windows' ? '双击 run.bat' : '双击 coco.command 或在终端运行 ./run.sh') + '）';
     b.classList.add('show');
   } else b.classList.remove('show');
+}
+
+/* ---------- 本机能力：录音只有 macOS；没有转写引擎时只走文字稿路线 ---------- */
+function applyCaps(cfg) {
+  state.caps = { transcribe: cfg.transcribe || '', record: !!cfg.record, platform: cfg.platform || 'mac' };
+  if (!state.caps.record) {
+    $('btn-record').style.display = 'none';
+    const er = $('empty-rec'); if (er) er.textContent = '';
+  }
+  if (!state.caps.transcribe) {
+    // 模型/语言只对本机转写有意义；没有引擎就收起来，避免用户以为切了模型就能转
+    $('model-select').style.display = 'none';
+    $('lang-select').style.display = 'none';
+    $('btn-upload').title = '上传已有的文字稿（txt/md/docx/srt/vtt/json）。本机没有转写引擎，音频请先用其他工具转成文字稿';
+    if (!sessionStorage.getItem('coco-noengine-tip')) {
+      toast('本机没有转写引擎：音频无法转写，但文字稿（txt / docx / srt）上传后分析功能完整可用', 9000);
+      sessionStorage.setItem('coco-noengine-tip', '1');
+    }
+  }
+  if (state.caps.platform === 'windows') {
+    $('imp-path').placeholder = 'C:\\Users\\you\\Desktop\\会议录音\\';
+    $('imp-path-tip').textContent = '资源管理器里右键文件 →「复制文件地址」即可得到路径。';
+  } else if (state.caps.platform === 'linux') {
+    $('imp-path').placeholder = '/home/you/会议录音/';
+    $('imp-path-tip').textContent = '';
+  }
 }
 
 /* ---------- 启动 ---------- */
 async function bootstrap() {
   state.templates = await api('/api/templates');
   const cfg = await api('/api/config');
+  applyCaps(cfg);
   $('model-select').value = cfg.whisper_model;
   $('model-select').onchange = async e => {
     try {

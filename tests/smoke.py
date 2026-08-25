@@ -12,8 +12,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 ROOT = Path(tempfile.mkdtemp(prefix="coco-smoke-"))
 os.environ["COCO_ROOT"] = str(ROOT)
-(ROOT / "coco.config.json").write_text(json.dumps(
-    {"claude_bin": str(REPO / "tests" / "claude-stub")}, ensure_ascii=False))
+STUB = REPO / "tests" / "claude-stub"
+if os.name == "nt":  # Windows 不认 shebang：包一层 .cmd 用当前解释器跑桩
+    STUB = ROOT / "claude-stub.cmd"
+    STUB.write_text(f'@"{sys.executable}" -X utf8 "{REPO / "tests" / "claude-stub"}" %*\n',
+                    encoding="utf-8")
+CONFIG = ROOT / "coco.config.json"
+CONFIG.write_text(json.dumps({"claude_bin": str(STUB)}, ensure_ascii=False),
+                  encoding="utf-8")
 
 sys.path.insert(0, str(REPO))
 from fastapi.testclient import TestClient  # noqa: E402
@@ -189,6 +195,85 @@ check("同名音频+转写只建一场", ok, r.text[:200])
 from coco.library import find_meeting
 m = find_meeting(r.json()["imported"][0]["meeting_id"])
 check("配套音频已归档", m.audio_file is not None and m.audio_file.name == "audio.m4a")
+
+# 17. Word 文字稿（腾讯会议/飞书妙记/讯飞导出的 docx）上传直接入库
+import io, zipfile
+def make_docx(paras):
+    W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    body = "".join(f"<w:p><w:r><w:t>{t}</w:t></w:r></w:p>" for t in paras)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("word/document.xml",
+                   f'<?xml version="1.0"?><w:document {W}><w:body>{body}</w:body></w:document>')
+    return buf.getvalue()
+docx = make_docx(["发言人1 00:00:05", "我们先看渠道预算。", "发言人2 00:00:12", "渠道预算要等集团批。"])
+r = c.post("/api/upload", files={"file": ("腾讯会议-渠道复盘.docx", docx,
+                                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")})
+check("上传 docx 直接入库", r.status_code == 200 and r.json().get("text") is True, r.text[:150])
+d = c.get(f"/api/meetings/{r.json()['meeting_id']}").json()
+check("docx 正文按段落抽出", "渠道预算要等集团批" in d["transcript"] and "发言人1 00:00:05" in d["transcript"],
+      d["transcript"][-120:])
+bad = c.post("/api/upload", files={"file": ("坏.docx", b"not a zip", "application/octet-stream")})
+check("坏 docx 400 且提示", bad.status_code == 400 and "Word" in bad.json()["detail"], bad.text[:120])
+# 文件夹里同名 docx + txt：只留信息量更高的 txt（docx 排在最后）
+dd = ROOT / "docx-folder"; dd.mkdir()
+(dd / "复盘.docx").write_bytes(make_docx(["docx 版本"]))
+(dd / "复盘.txt").write_text("txt 版本", encoding="utf-8")
+r = c.post("/api/import", json={"path": str(dd)})
+d = c.get(f"/api/meetings/{r.json()['imported'][0]['meeting_id']}").json()
+check("同名 docx+txt 只建一场且取 txt", r.json()["count"] == 1 and "txt 版本" in d["transcript"], r.text[:150])
+
+# 18. 本机能力上报 + 无转写引擎时的文字稿路线（Windows 没装 faster-whisper 的典型情况）
+cfg = c.get("/api/config").json()
+check("config 上报能力字段", all(k in cfg for k in ("platform", "transcribe", "record", "text_exts")), str(cfg))
+check("config text_exts 含 docx", ".docx" in cfg["text_exts"])
+n_before = len(c.get("/api/meetings").json())
+CONFIG.write_text(json.dumps({"claude_bin": str(STUB), "transcribe_backend": "none"},
+                             ensure_ascii=False), encoding="utf-8")
+check("backend=none 时 transcribe 为空", c.get("/api/config").json()["transcribe"] == "")
+r = c.post("/api/upload", files={"file": ("录音.wav", b"RIFF----WAVEfake", "audio/wav")})
+check("无引擎上传音频 400 并指向文字稿", r.status_code == 400 and "文字稿" in r.json()["detail"], r.text[:160])
+(ROOT / "solo.m4a").write_bytes(b"fake")
+r = c.post("/api/import", json={"path": str(ROOT / "solo.m4a")})
+check("无引擎路径导入音频 400", r.status_code == 400 and "文字稿" in r.json()["detail"], r.text[:160])
+r = c.post("/api/upload", files={"file": ("纪要.txt", "无引擎也能导文字稿".encode(), "text/plain")})
+check("无引擎上传文字稿照常入库", r.status_code == 200 and r.json().get("text") is True, r.text[:120])
+check("拒绝的音频没有留下空会议", len(c.get("/api/meetings").json()) == n_before + 1)
+mix = ROOT / "mixed-folder"; mix.mkdir()
+(mix / "纪要.txt").write_text("文字稿内容", encoding="utf-8")
+(mix / "另一段录音.m4a").write_bytes(b"fake")
+r = c.post("/api/import", json={"path": str(mix)})
+items = r.json()["imported"]
+check("无引擎混合文件夹：文字稿照导、音频逐项报错",
+      r.status_code == 200 and any(it.get("text") for it in items)
+      and any("文字稿" in it.get("error", "") for it in items), r.text[:200])
+check("无引擎时 record 能力为 false", c.get("/api/config").json()["record"] is False)
+check("无引擎录音 400", c.post("/api/record/start", json={"title": "x"}).status_code == 400)
+bad_pair = ROOT / "bad-pair"; bad_pair.mkdir()
+(bad_pair / "会.docx").write_bytes(b"not a zip"); (bad_pair / "会.m4a").write_bytes(b"fake")
+n_mid = len(c.get("/api/meetings").json())
+r = c.post("/api/import", json={"path": str(bad_pair)})
+check("无引擎坏 docx+同名音频不回退建会议",
+      r.json()["imported"][0].get("error") and len(c.get("/api/meetings").json()) == n_mid, r.text[:160])
+CONFIG.write_text(json.dumps({"claude_bin": str(STUB)}, ensure_ascii=False), encoding="utf-8")
+from coco.transcriber import detect_backend
+check("backend 恢复 auto 后重新探测", detect_backend() in ("mlx", "faster", ""))
+
+# 19. 非 macOS：录音接口直接 400，不留空会议
+import coco.server as srv
+_orig = srv.record_supported
+srv.record_supported = lambda: False
+n_before = len(c.get("/api/meetings").json())
+r = c.post("/api/record/start", json={"title": "x"})
+check("录音不支持时 400", r.status_code == 400 and "macOS" in r.json()["detail"], r.text[:120])
+check("录音拒绝不建会议", len(c.get("/api/meetings").json()) == n_before)
+check("config 上报 record=false", c.get("/api/config").json()["record"] is False)
+srv.record_supported = _orig
+
+# 20. claude CLI 定位：配置的绝对路径 / PATH 名都能解析
+from coco.ai import resolve_claude_bin
+check("claude_bin 绝对路径解析", Path(resolve_claude_bin()).name.startswith("claude-stub"), resolve_claude_bin())
 
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

@@ -16,7 +16,8 @@ AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
 def _slug(title: str) -> str:
     s = re.sub(r"[\\/:*?\"<>|\s]+", "-", title.strip())
     s = re.sub(r"\.{2,}", "-", s)  # ".." 会被下载/删除接口的路径穿越防护拒绝
-    return s.strip("-")[:60] or "未命名"
+    # Windows 会静默去掉文件夹名末尾的点和空格，导致创建的目录名与记录的 id 对不上
+    return s[:60].strip("-. ") or "未命名"
 
 
 class Meeting:

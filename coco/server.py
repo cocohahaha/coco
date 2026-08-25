@@ -26,9 +26,10 @@ from .config import (BRIEFS_DIR, GLOSSARY_FILE, GLOSSARY_PLACEHOLDER,
 from .ingest import TEXT_EXTS, import_text, import_transcript_file
 from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
                       find_meeting, list_meetings, search_library)
-from .recorder import Recorder
+from .recorder import RECORD_UNSUPPORTED, Recorder, record_supported
 from .templates import TEMPLATES, TRACK_MODES
-from .transcriber import transcribe_meeting
+from .transcriber import (NO_ENGINE_HINT, detect_backend, is_apple_silicon,
+                          transcribe_meeting)
 
 app = FastAPI(title="coco", docs_url=None, redoc_url=None)
 recorder = Recorder()
@@ -50,6 +51,13 @@ def _trash_file(path: Path, dest_stem: str) -> Path:
     dest = TRASH_DIR / f"{dest_stem}~{stamp}.md"
     shutil.move(str(path), dest)
     return dest
+
+
+def _require_transcriber() -> None:
+    """音频进来之前先确认本机有转写引擎，否则直接 400 给出文字稿路线，
+    不要建一个注定失败的会议让人以为是转写卡住了。"""
+    if not detect_backend():
+        _err(RuntimeError(NO_ENGINE_HINT))
 
 
 def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
@@ -202,6 +210,9 @@ async def api_upload(file: UploadFile = File(...), title: str = Form(""),
         tmp.unlink(missing_ok=True)  # 中途失败清理残留的半截临时文件
         _err(RuntimeError(f"写入临时文件失败（磁盘空间不足？）：{e}"), 500)
     name = title or Path(file.filename).stem
+    if suffix not in TEXT_EXTS and not detect_backend():
+        tmp.unlink(missing_ok=True)
+        _require_transcriber()
     if suffix in TEXT_EXTS:  # 已有文字材料：不转写直接入库
         try:
             mtg = import_transcript_file(tmp, title=name, source="文本导入")
@@ -223,7 +234,8 @@ class ImportBody(BaseModel):
 
 
 # 同一录音的多种转写格式并存时（Whisper 导出目录），按信息量选一种，避免重复建会议
-_TEXT_PREF = {".json": 0, ".srt": 1, ".vtt": 2, ".md": 3, ".markdown": 4, ".txt": 5}
+_TEXT_PREF = {".json": 0, ".srt": 1, ".vtt": 2, ".md": 3, ".markdown": 4, ".txt": 5,
+              ".docx": 6}
 
 
 def _plan_folder_import(files: "list[Path]") -> "list[tuple[Path, Path | None]]":
@@ -268,6 +280,9 @@ def api_import(body: ImportBody):
         if p.suffix.lower() not in ok_exts:
             _err(ValueError(f"不支持的文件类型：{p.suffix}"))
         plan = [(p, None)]
+    has_engine = bool(detect_backend())
+    if not has_engine and all(f.suffix.lower() not in TEXT_EXTS for f, _ in plan):
+        _require_transcriber()  # 全是待转写的音频且没有引擎：直接 400 说明文字稿路线
     ensure_dirs()
     imported = []
     single = len(plan) == 1
@@ -278,7 +293,7 @@ def api_import(body: ImportBody):
                 mtg = import_transcript_file(f, title=title, source="文本导入",
                                              audio_path=audio)
             except Exception as e:
-                if audio is not None:  # 文字解析失败但有同名音频：退回正常转写
+                if audio is not None and has_engine:  # 文字解析失败但有同名音频：退回正常转写
                     mtg = create_meeting(title, audio_path=audio, source="本地导入")
                     imported.append({"meeting_id": mtg.id,
                                      "job": _start_transcribe_job(mtg, body.model or None)})
@@ -287,6 +302,9 @@ def api_import(body: ImportBody):
                 continue
             _post_import_memory(mtg)
             imported.append({"meeting_id": mtg.id, "job": None, "text": True})
+        elif not has_engine:
+            # 文件夹里混着的音频：无引擎时只报这一项，文字稿照常入库，不拖垮整批
+            imported.append({"error": f"{f.name}：{NO_ENGINE_HINT}"})
         else:
             mtg = create_meeting(title, audio_path=f, source="本地导入")
             imported.append({"meeting_id": mtg.id,
@@ -326,6 +344,9 @@ class RecordStart(BaseModel):
 def api_record_start(body: RecordStart):
     if recorder.active:
         _err(RuntimeError("已有录音在进行中"))
+    if not record_supported():  # 先检查再建会议，避免留下空的「录音」条目
+        _err(RuntimeError(RECORD_UNSUPPORTED))
+    _require_transcriber()  # 录完必然要转写：没有引擎就别录
     title = body.title or f"录音-{dt.datetime.now().strftime('%H%M')}"
     mtg = create_meeting(title, source="录音")
     try:
@@ -565,7 +586,17 @@ def dl_weekly(week: str):
 @app.get("/api/config")
 def api_config():
     cfg = load_config()
-    return {"whisper_model": cfg["whisper_model"], "language": cfg.get("language", "auto")}
+    return {
+        "whisper_model": cfg["whisper_model"],
+        "language": cfg.get("language", "auto"),
+        # 本机能力：前端据此隐藏录音按钮、提示「无转写引擎，请导入文字稿」
+        "platform": ("mac" if sys.platform == "darwin"
+                     else "windows" if sys.platform.startswith("win") else "linux"),
+        "apple_silicon": is_apple_silicon(),
+        "transcribe": detect_backend(cfg),  # "mlx" | "faster" | ""（不能转写音频）
+        "record": record_supported() and bool(detect_backend(cfg)),  # 录音的下一步就是转写
+        "text_exts": sorted(TEXT_EXTS),
+    }
 
 
 class ConfigBody(BaseModel):
