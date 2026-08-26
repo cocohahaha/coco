@@ -126,6 +126,13 @@ en_old = "# Long-term memory\n\n## People\n- **Lin Wei**: lead\n"
 en_merged = apply_delta(en_old, "## Commitments & decisions\n- Lin Wei: schedule by 8/25 [x] in progress\n", "en")
 check("apply_delta 英文标题识别", "## Commitments & decisions" in en_merged and "## People" in en_merged)
 check("detect_headings_lang", detect_headings_lang(old) == "zh-CN" and detect_headings_lang(en_old) == "en")
+twice = apply_delta("# 长期记忆\n\n## 承诺与决定\n- 王五 决定（8/17）：李四 不进 AI 试点 [a] 状态：待确认\n",
+                    "## 承诺与决定\n- 王五 决定（8/17）：李四 不进 AI 试点，8/26 需重新确认 [a][b] 状态：待确认\n"
+                    "- 王五 决定（8/17）：李四 进培训序列 [b] 状态：已生效\n", "zh-CN")
+check("apply_delta 同一条目只被替换一次（相似的第二条追加）", twice.count("- 王五") == 2 and "重新确认" in twice and "培训序列" in twice, twice)
+from coco.ai import _has_all_sections  # noqa: E402
+check("全量重写校验要求四章节齐全", _has_all_sections(old) is False and _has_all_sections(old + "\n## 项目与客户\n\n## 术语与说法\n") is True
+      and _has_all_sections("## 人物\n## 项目与客户\n## 承诺与决定\n## 术语与说法\n") is False)
 
 # 3. .srt upload
 srt = ("1\n00:00:01,000 --> 00:00:03,000\n王五：预算要走集团流程。\n\n"

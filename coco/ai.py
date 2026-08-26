@@ -294,6 +294,7 @@ def apply_delta(old: str, delta: str, lang: "str | None" = None) -> str:
             target = {"heading": sec_names.get(canon, ds["heading"]), "canon": canon, "entries": []}
             added.append(target)
             by_canon[canon] = target
+        replaced: set[int] = set()  # an existing entry is replaced at most once per merge
         for entry in ds["entries"]:
             if not entry.startswith(("- ", "* ")):
                 continue
@@ -301,13 +302,15 @@ def apply_delta(old: str, delta: str, lang: "str | None" = None) -> str:
             idx = None
             if key:
                 for i, ex in enumerate(target["entries"]):
-                    if _entry_key(ex) == key:
+                    if _entry_key(ex) == key and i not in replaced:
                         idx = i
                         break
             if idx is None:
                 a = _first_line(entry)
                 best, best_r = None, 0.0
                 for i, ex in enumerate(target["entries"]):
+                    if i in replaced:
+                        continue
                     r = difflib.SequenceMatcher(None, a, _first_line(ex)).ratio()
                     if r > best_r:
                         best, best_r = i, r
@@ -317,6 +320,7 @@ def apply_delta(old: str, delta: str, lang: "str | None" = None) -> str:
                 target["entries"].append(entry)
             else:
                 target["entries"][idx] = entry
+                replaced.add(idx)
     if not pre.strip():
         pre = f"# {sec_names['longterm_title']}"
     # keep the file's own section order; brand-new sections follow in canonical order
@@ -369,11 +373,19 @@ def _merge_longterm(source_id: str, text: str, kind: str = "transcript") -> str:
     return new
 
 
+def _has_all_sections(text: str) -> bool:
+    """A complete memory file starts with a title and has all four canonical sections."""
+    canons = {canonical_section(l) for l in text.splitlines() if l.startswith("## ")}
+    return text.lstrip().startswith("# ") and set(_CANON_ORDER) <= canons
+
+
 def _validate_full(old: str, out: str) -> str:
+    """A full rewrite must be a complete file. A truncated model response (missing title or
+    sections) once passed a looser check and wiped half of a memory file – never again."""
     out = _strip_fence(out)
-    if "## " not in out:
+    if not _has_all_sections(out):
         raise AIError(t("ai.memory_bad_format"))
-    if len(old) > 2000 and len(out) < len(old) * 0.3:
+    if len(old) > 2000 and len(out) < len(old) * 0.5:
         raise AIError(t("ai.memory_too_short"))
     return out.rstrip() + "\n"
 
@@ -394,7 +406,7 @@ def compact_longterm(progress=lambda msg: None) -> str:
                   f"<current_memory>\n{old.strip()}\n</current_memory>\n\n"
                   f"<new_material kind=\"none\" id=\"compaction\">\n</new_material>")
         out = _strip_fence(run_model(prompt, task="memory", timeout=1800))
-        if "## " not in out:
+        if not _has_all_sections(out):
             raise AIError(t("ai.memory_bad_format"))
         if out.count("\n- ") < old.count("\n- ") * 0.5:
             raise AIError(t("ai.memory_compaction_dropped"))
