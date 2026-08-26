@@ -1,74 +1,107 @@
-"""词表：人名与专有名词的标准写法（memory/glossary.md）。
+"""Glossary: standard spelling of names and proper nouns (memory/glossary.md).
 
-格式约定（宽松解析，手写不必完全规范）：
-    ## 人名
-    - 林炜（误写：林伟、林薇）｜产品负责人
-    ## 专有名词
-    - 智舱（误写：置仓、智仓）｜车机智能座舱项目
+Format (parsed leniently – hand-written entries need not be perfect)::
 
-「正确写法」注入 whisper 转写提示提高识别率；全文注入人名与术语校正、AI 分析。
+    ## Names            (## 人名 / ## Noms …)
+    - Lin Wei (misheard: Lin Way, Lynn Wei) | product lead
+    ## Terms            (## 专有名词 / ## Termes …)
+    - SmartCabin (misheard: Smart Cabinet) | in-car cockpit project
+
+Headings and the "misheard" label are accepted in every shipped locale, so a
+glossary written in one language keeps working after switching the interface.
+"Correct spellings" are injected into the whisper prompt; the whole glossary is
+injected into name/term correction and every AI analysis.
 """
 from __future__ import annotations
 
 import re
 
 from .config import GLOSSARY_FILE, ensure_dirs
+from .i18n import LOCALES_DIR, _load, canonical_section
 
-_WRONG = re.compile(r"[（(]\s*误写[:：]\s*([^）)]*)[）)]")  # （误写：a、b），全半角兼容
+_EXTRA_MISHEARD = ("误写", "misheard", "mis-heard", "variants", "variant", "aka",
+                   "erreurs", "variantes", "erreur")
+
+
+def _misheard_labels() -> list[str]:
+    labels = set(_EXTRA_MISHEARD)
+    for p in LOCALES_DIR.glob("*.json"):
+        v = (_load(p.stem).get("sections") or {}).get("misheard")
+        if v:
+            labels.add(v)
+    return sorted(labels, key=len, reverse=True)
+
+
+def _wrong_re() -> re.Pattern:
+    alts = "|".join(re.escape(l) for l in _misheard_labels())
+    return re.compile(rf"[（(]\s*(?:{alts})\s*[:：]\s*([^）)]*)[）)]", re.I)
 
 
 def read_glossary() -> str:
     ensure_dirs()
-    # 外部编辑器可能以非 UTF-8 保存；宽容读取，绝不让词表问题拖垮转写
+    # an external editor may save in another encoding; never let the glossary break transcription
     return GLOSSARY_FILE.read_text(encoding="utf-8", errors="replace")
 
 
-def parse_glossary(text: str | None = None) -> dict:
-    """解析词表 → {"人名": [{term, wrong, note}], "专有名词": [...]}。
+def _section_kind(head: str) -> str:
+    canon = canonical_section(head)
+    if canon == "names":
+        return "names"
+    if canon == "glossary_terms":
+        return "terms"
+    h = head.lower()
+    if "人名" in h or "name" in h or "nom" in h or "person" in h or "people" in h:
+        return "names"
+    return "terms"
 
-    对手写格式宽容：`- 林炜（产品负责人）`（普通括号归入备注）、`- **张三**`、
-    缺竖线/缺误写都能解析；分隔线、超长的说明性句子不算词条。
-    未识别的章节名归入「专有名词」。
+
+def parse_glossary(text: str | None = None) -> dict:
+    """Parse the glossary → {"names": [{term, wrong, note}], "terms": [...]}.
+
+    Lenient: `- Lin Wei (product lead)` (plain parentheses become the note), `- **Name**`,
+    missing bar / missing misspellings all parse; rules and long explanatory sentences
+    are not entries. Unknown section headings count as terms.
     """
     text = read_glossary() if text is None else text
-    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)  # 注释里的格式示例不算词条
-    out: dict[str, list[dict]] = {"人名": [], "专有名词": []}
-    section = "专有名词"
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)  # format examples in comments are not entries
+    wrong_re = _wrong_re()
+    out: dict[str, list[dict]] = {"names": [], "terms": []}
+    section = "terms"
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("#"):
             head = line.lstrip("#").strip()
-            if "人名" in head:
-                section = "人名"
-            elif head and not head.startswith("词表"):
-                section = "专有名词"
+            if head and canonical_section(head) not in ("glossary_title", "longterm_title",
+                                                         "memory_title"):
+                section = _section_kind(head)
             continue
         if not (line.startswith("- ") or line.startswith("* ")):
             continue
         body = line[2:].strip().replace("**", "")
-        m = _WRONG.search(body)
+        m = wrong_re.search(body)
         wrong = ([w.strip() for w in re.split(r"[、,，/；;]", m.group(1)) if w.strip()]
                  if m else [])
-        body = _WRONG.sub("", body)
+        body = wrong_re.sub("", body)
         parts = re.split(r"[｜|]", body, maxsplit=1)
         term = parts[0].strip()
         note = parts[1].strip() if len(parts) > 1 else ""
         pm = re.match(r"(.+?)[（(]([^）)]*)[）)]\s*$", term)
-        if pm:  # 普通括号注释归入备注：- 林炜（产品负责人）
+        if pm:  # plain parenthesis = note: - Lin Wei (product lead)
             term = pm.group(1).strip()
             note = f"{pm.group(2).strip()} {note}".strip()
         term = term.strip(" -—·*＝=~～")
-        if not term or len(term) > 30:  # 空行/分隔线/说明性长句不算词条
+        if not term or len(term) > 40:  # blank / rule / explanatory sentence
             continue
         out[section].append({"term": term, "wrong": wrong, "note": note})
     return out
 
 
 def initial_prompt_terms(max_chars: int = 200) -> str:
-    """给 whisper 转写提示用的正确写法列表（人名在前），控制总长避免挤掉提示窗口。"""
+    """Correct spellings for the whisper prompt (names first), capped so the prompt window
+    is not flooded."""
     parsed = parse_glossary()
     terms, total = [], 0
-    for e in parsed["人名"] + parsed["专有名词"]:
+    for e in parsed["names"] + parsed["terms"]:
         t = e["term"]
         if total + len(t) + 1 > max_chars:
             break
@@ -79,4 +112,4 @@ def initial_prompt_terms(max_chars: int = 200) -> str:
 
 def glossary_stats(text: str | None = None) -> dict:
     p = parse_glossary(text)
-    return {"names": len(p["人名"]), "terms": len(p["专有名词"])}
+    return {"names": len(p["names"]), "terms": len(p["terms"])}

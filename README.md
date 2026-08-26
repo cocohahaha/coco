@@ -1,121 +1,210 @@
-# coco — 本地会议参谋
+# coco — local meeting strategist
 
-**录音转写 · 会前调查 · 深层洞察 · 知识沉淀，全部在你自己的电脑上完成。**
+**Transcribe · prepare · see what was not said · build lasting knowledge — all on your own computer.**
 
-coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://younavi.me)）：
-把会议录音、访谈、聊天记录、他人纪要都喂给它，它帮你在**会前看懂局**、
-**会后抓住没说破的东西**、并把每一次沟通**沉淀成可复用的认知资产**。
+[中文说明 → README.zh-CN.md](README.zh-CN.md)
 
-音频不出本机（Whisper 本地转写），分析通过你已登录的 `claude` CLI 完成，
-不需要额外 API key，没有云端账号，没有订阅。
+coco is a local meeting AI tool (inspired by [YouNavi](https://younavi.me)). Feed it recordings,
+interviews, chat logs or other people's minutes and it helps you **understand the situation before
+a meeting**, **catch what was left unsaid after it**, and **turn every conversation into reusable
+knowledge**.
 
-支持 macOS 与 Windows。没有本地转写引擎的机器也能用：把录音用任何工具转成文字稿
-（txt / docx / srt），上传进来，分析功能一样完整。
+Audio never leaves your machine (Whisper runs locally). Analysis goes through the `claude` CLI you
+are already logged in to by default, so there is no extra API key, cloud account or subscription;
+any Anthropic- or OpenAI-compatible endpoint (DeepSeek, OpenAI, a local Ollama …) can be plugged in
+instead.
 
-## 它适合谁
+Interface in **English, 简体中文 and français**; AI output in any language the model speaks.
+Works on macOS, Windows and Linux. Machines that cannot run a transcription engine still get every
+analysis feature: drop in a transcript exported by any other tool (txt / docx / pdf / srt / vtt /
+json …) or paste the text.
 
-- **顾问 / FDE / 售前**：进入一家新公司，访谈十个人，各说各话——
-  用「调研综合」交叉对比各方诉求与痛点，理出共识、分歧和落地方向
-- **销售 / 客户负责人**：每次见客户前用「会前调查」过一遍历史——谁承诺过什么、
-  态度怎么变的、这次该怎么开场
-- **管理者**：跨周例会追踪「谁答应的事有没有下文」，发现反复被搁置的问题
-- **任何开很多会的人**：转写、纪要、行动项、每日简报，一条龙
+## Who it is for
 
-## 界面一览
+- **Consultants / FDEs / pre-sales** — ten interviews in a new organisation, ten stories:
+  *Research synthesis* cross-compares needs and pain points into consensus, disagreement and a
+  direction of implementation
+- **Sales / account owners** — before every client meeting, *Prep* replays the history: who promised
+  what, how attitudes shifted, how to open
+- **Managers** — *Tracking* follows "who agreed to what, did it happen" across weekly meetings and
+  surfaces the questions that keep being parked
+- **Anyone with too many meetings** — transcription, minutes, action items, daily and weekly
+  briefs in one place
 
-**会前调查**——先看懂局，再进会。自动挑出相关历史会议，结合长期记忆生成：
-局势判断、关键人立场与历史表态、阻力与机会、建议打法、该问的问题。
+## What it looks like
 
-![会前调查](docs/prep.png)
+Screenshots below show the Chinese interface; the layout is identical in English and French.
 
-**跨会议洞察**——三种分析模式，可聚焦某个人/项目，可只分析勾选的几场访谈。
+**Pre-meeting brief** — understand the situation before walking in.
 
-![跨会议洞察](docs/insight.png)
+![Prep](docs/prep.png)
 
-**知识底座**——人物、项目、承诺、词表的自动沉淀总览。点一个人名，
-即可跨全部会议梳理 TA 的表态变化与未兑现承诺。
+**Cross-meeting insight** — three analysis modes, optional focus on a person or project, optional
+restriction to selected meetings.
 
-![知识底座](docs/knowledge.png)
+![Insight](docs/insight.png)
 
-## 功能全览
+**Knowledge base** — people, projects, commitments and glossary accumulated automatically. Click a
+person to review them across every meeting.
 
-### 材料进来（归集私人上下文）
+![Knowledge](docs/knowledge.png)
 
-| 方式 | 说明 |
+## Features
+
+### Getting material in
+
+| Route | Notes |
 |---|---|
-| ● 录音 | 本机麦克风直接录，停止后自动转写 |
-| 拖拽 / ↑ 上传 | 音频、视频、或已有的文字材料（txt / docx / srt 等文字稿直接入库），多选、排队转写 |
-| ⌖ 导入 · 本地路径 | 粘贴文件或文件夹路径，文件夹=批量；音频+同名转写（Whisper 导出目录）自动配对，只建一场会议 |
-| ⌖ 导入 · 粘贴文本 | 聊天记录、邮件、他人纪要直接贴进来，可标注材料原始日期 |
-| `coco watch` | 监控文件夹，新音频自动转写（接语音备忘录、Plaud 导出目录） |
+| ● Record | Microphone recording from the web UI (macOS), transcribed when stopped |
+| Drag & drop / ↑ Upload | Audio, video, or existing text material — several files at once, queued |
+| ⌖ Import · local path | File or folder (folder = bulk). Audio + same-name transcript (Whisper export folders) are paired into one meeting |
+| ⌖ Import · paste | Chat logs, e-mails, someone else's minutes, raw transcripts — SRT / VTT / JSON content is detected and keeps its timestamps; the material's own date can be set |
+| `coco watch` | Watch a folder and transcribe new recordings (voice memos, Plaud exports …) |
 
-文字材料支持 txt / md / docx / srt / vtt / json（Whisper 风格），不转写直接入库——
-腾讯会议、飞书妙记、讯飞听见等工具导出的文字稿可以原样上传；
-带时间轴的渲染成与本地转写一致的 `[mm:ss]` 形态，VTT 的说话人标签保留；
-自动识别 UTF-8 / UTF-16 / GB18030 / Big5 编码，微信、QQ 导出不乱码。
-**入库即入记忆**：所有材料和转写一样，自动并入长期记忆、参与所有跨会议分析。
+**Transcript formats accepted without transcription:** `txt md docx odt pdf rtf html eml csv tsv srt
+vtt sbv lrc ass ssa json`. Exports from Zoom, Teams, Google Meet, Otter, Fireflies, Tencent
+Meeting, Feishu Minutes, iFlytek and similar tools go straight in. Timed formats are rendered as
+`[mm:ss] text` exactly like a local transcription; speaker labels (VTT voice tags, ASS names,
+CSV/JSON speaker columns) are kept. UTF-8 / UTF-16 / GB18030 / Big5 are detected automatically.
+Whisper `.tsv` millisecond offsets and word-level JSON exports are handled. PDF needs the optional
+`pypdf` package (included in `requirements.txt`).
 
-### 转写与校正
+**Everything imported joins the memory**: text material is merged into long-term memory and takes
+part in every cross-meeting analysis, exactly like a transcription.
 
-- **本地 Whisper**：Apple Silicon 用 mlx-whisper（原生加速，turbo 转 45 分钟会议约 2 分钟）；
-  Windows / Linux / Intel Mac 用 faster-whisper（有 NVIDIA 显卡走 CUDA，否则 CPU，慢但可用）。
-  turbo 快、large 最准；顶栏随时切换模型与语言（中文默认，支持多语种与自动识别）
-- 两个引擎都没装的机器不能转写音频，但可以导入文字稿；界面会自动收起录音与模型选项
-- **词表**（`memory/glossary.md`）：人名与专有名词的标准写法，格式
-  `- 正确写法（误写：错1、错2）｜备注`。正确写法注入转写提示；
-  「✦ 提炼词表」让 AI 从你的会议历史里自动归集人名和术语的同音字误写对照
-- **✦ 人名与术语校正**：按词表统一修正**全部会议**转写与报告里的写法
-  （「置仓」→「智舱」这类同音字错误一键清理；原文自动备份，可逐场恢复原稿）
-- **✎ 编辑**：转写和报告都可以直接改，后续分析用改过的版本
+### Transcription
 
-### 单场分析
+- **Local Whisper**: Apple Silicon uses mlx-whisper (native acceleration; *turbo* transcribes a
+  45-minute meeting in about 2 minutes); Windows / Linux / Intel Mac use faster-whisper (CUDA with an
+  NVIDIA GPU, otherwise CPU — slow but working). *turbo* is fast, *large* the most accurate; model
+  and transcription language (auto-detect or any ISO code) switch in the top bar.
+- **No engine? No problem.** If a machine cannot transcribe (typical: Windows without
+  faster-whisper), dropping audio opens a help dialog that explains the situation and offers the
+  three routes: export a transcript from another tool and drop it in, paste the text, or install an
+  engine. CPU-only machines get a one-time warning about expected duration.
+- **Glossary** (`memory/glossary.md`): standard spellings of names and terms, one per line
+  `- Correct spelling (misheard: wrong1, wrong2) | note`. Correct spellings are injected into the
+  Whisper prompt; *✦ Extract glossary* lets the AI collect names and terms from your history.
+- **✦ Correct names & terms**: rewrites every transcript and report in the library to the glossary
+  spellings; originals are backed up and can be restored per meeting.
+- **✎ Edit**: transcripts and reports are editable; later analyses use the edited version.
+- **Download** a transcript as `.md`, `.txt`, `.srt`, `.vtt` or `.json`.
 
-九个分析模板，一键生成报告（可编辑、可下载 .md）：
+### Single-meeting analysis
 
-> 纪要 · 行动项 · 情绪曲线 · 张力与分歧 · 认知偏误 · 话题延伸 · 客户跟进 · 招聘评估 · **跟进草稿**
+Nine templates, one click, streamed to the screen as they are written (editable, downloadable):
 
-「跟进草稿」直接产出**可发送的跟进消息**（邮件/微信，语气匹配双方关系）+ 48 小时行动清单。
+> Minutes · Action items · Mood curve · Tensions · Cognitive biases · Open threads · Client debrief
+> · Interview debrief · **Follow-up draft**
 
-右侧对话框可对当前会议自由提问；勾选「跨全部会议」后提问范围扩展到整个会议库。
+*Follow-up draft* produces a **ready-to-send message** (e-mail or chat, tone matched to the
+relationship) plus a 48-hour action list. The chat panel answers free questions about the current
+meeting; tick *across all meetings* to ask about the whole library.
 
-### 会前调查（◎ 会前）
+### Pre-meeting brief (◎ Prep)
 
-填三样：会议主题、参会人、你的目标。coco 自动挑出最相关的历史会议，
-结合长期记忆与词表生成会前简报——所有判断标注来源（会议 id + 时间戳），
-推测明确标「推测」。可选**联网搜索**参会人/公司的公开信息（结果注明来源；
-默认关闭，逐次勾选）。历史简报保存在 `library/_prep/`，界面可翻看。
+Enter topic, participants and your goal. coco picks the most relevant past meetings and, with
+long-term memory and the glossary, writes a brief: situation, key people with their past statements
+(quoted with meeting id + timestamp), obstacles and opportunities, suggested approach and questions,
+warning signs, information gaps. Inferences are labelled. Optional **web search** for public
+information on participants and companies (sources cited; Claude CLI channel only; off by default).
+Briefs are kept in `library/_prep/`.
 
-### 跨会议洞察（⛓ 洞察）
+### Cross-meeting insight (⛓ Insight)
 
-| 模式 | 回答的问题 |
+| Mode | Question it answers |
 |---|---|
-| 追踪 | 谁承诺了什么、兑现没有；谁的说法前后变了；哪些问题反复被搁置 |
-| 深层信号 | 表面同意实际没同意的地方；潜台词；各方在保护什么、争取什么；观点漂移轨迹；所有人都没提的盲区 |
-| 调研综合 | 多方访谈交叉对比：角色图、诉求与痛点矩阵、共识区与分歧区、信息盲区、快赢/中期/长期落地建议（FDE 调研场景） |
+| Tracking | Who committed to what and did it happen; whose statements changed; which questions keep being parked |
+| Deep signals | Apparent agreement that was not real; subtext; what each party protects and pushes for; drift over time; the blind spot nobody mentioned |
+| Research synthesis | Cross-interview comparison: role map, needs/pain-point matrix, consensus vs disagreement, information gaps, quick wins / medium / long-term direction (FDE research) |
 
-范围可选全部会议，或侧边栏勾选的几场（比如只对比三个部门的访谈）；可聚焦某个人/项目/客户。
+Scope: the whole library or the meetings ticked in the sidebar; optional focus on a person,
+project or client.
 
-### 沉淀（越用越懂你）
+### Memory (it learns you)
 
-- **长期记忆**（自动）：每场转写/导入完成后，提取人物、项目与客户、承诺与决定、
-  术语，合并进 `memory/longterm.md`，注入之后所有分析；同一人表态变化保留轨迹
-  （「原说 X [旧会议] → 现说 Y [新会议]」）
-- **每日简报**（☀ 简报 · 日报）：汇总当天全部会议的行动项与战略洞察，含历史视图，
-  简报本身也并入长期记忆
-- **周报**（☀ 简报 · 周报）：汇总一整周（周一~周日）——本周主线、关键决定、
-  行动项总账（新增承诺 + 更早承诺的兑现状态）、表态变化、未决与风险、下周建议；
-  按周翻看历史，未生成的周一键补生成
-- **知识底座**（☷ 底座）：沉淀总览 + 人物点选提问
-- 记忆、词表都可手动编辑；任何自动覆盖/清空前都留 `.bak.md` 备份
+- **Long-term memory** (automatic): after each transcript or import, people, projects & clients,
+  commitments & decisions and terms are extracted and merged into `memory/longterm.md`, then
+  injected into every later analysis. Changed positions keep their trajectory
+  (*previously said X [old meeting] → now says Y [new meeting]*). Merging is **incremental**: the
+  model only outputs new or changed entries and coco merges them by name in seconds, instead of
+  rewriting the whole file each time. *⟲ Compact long-term memory* runs a full merge-and-compress
+  pass when you want one.
+- **Daily brief** and **weekly report** (☀ Briefs): action items and insights of a day; storylines,
+  decisions, commitments ledger, changed positions and recommendations for a week. Briefs also feed
+  the memory.
+- **Knowledge base** (☷ Knowledge): counts, the memory and glossary at a glance, click-a-person
+  review.
+- Memory and glossary are plain Markdown you can edit; every automatic overwrite leaves a `.bak.md`.
 
-### 管理
+### Management
 
-全局搜索（搜全部转写与报告）· 日期筛选与录音日期校准 · 回收站软删除（`library/_trash`，可手动恢复）· 单文件下载 .md · 批量勾选打包 zip 导出 · 服务重启自动恢复中断的转写队列
+Full-text search · date filter and recording-date correction · trash (`library/_trash`, soft
+delete) · per-file download · bulk zip export · interrupted transcriptions resume after a restart.
 
-## 安装与启动
+## Languages
 
-**共同前提**：Python 3.10+ · [claude CLI](https://claude.com/claude-code) 已安装并登录
-（终端里 `claude` 命令可用；分析全部经它完成）。Web 界面只监听 127.0.0.1，不对外网开放。
+- **Interface**: English, 简体中文, français. Switch with the language select in the top bar, in
+  ⚙ Settings, with `?lang=fr` in the URL, or `coco lang zh-CN` for the CLI. The choice is saved.
+- **AI output language** (⚙ Settings): *same as the interface* (default), *same as the material*
+  (write in whatever language the transcript is in), or any fixed language (Japanese, German …).
+  It applies to reports, briefs, insights, prep, chat and the wording of memory and glossary.
+- **Transcription language**: auto-detect or a fixed ISO code, in the top bar.
+- Libraries survive language switches: coco recognises the memory/glossary headings of every
+  shipped language, and old report files named in Chinese keep their labels.
+
+Adding a language: copy `coco/locales/en.json` to `<code>.json`, translate, done (prompts stay in
+English with a "write in <language>" directive; Chinese output uses the Chinese prompt set).
+`python tests/check_i18n.py` verifies completeness.
+
+## AI channels (Claude, DeepSeek, OpenAI, Ollama …)
+
+By default every analysis runs through the **Claude Code CLI** you are logged in to. ⚙ Settings (or
+`coco ai`) lets you define two channels:
+
+- **Primary** — reports, insights, prep, chat
+- **Background** — long-term memory merges, glossary extraction, name correction
+
+Each channel is one of:
+
+| Type | Use it for |
+|---|---|
+| `claude-cli` | The logged-in Claude Code CLI. With a base URL + API key the same CLI can talk to any Anthropic-compatible endpoint (DeepSeek's `https://api.deepseek.com/anthropic`); coco then starts it with `--bare` (under a second instead of several) |
+| `anthropic` | Direct HTTPS to an Anthropic-compatible `/v1/messages` endpoint — Anthropic, DeepSeek /anthropic … |
+| `openai` | Direct HTTPS to an OpenAI-compatible `/chat/completions` endpoint — DeepSeek, OpenAI, Ollama / LM Studio on localhost |
+
+Presets fill in the URLs and model names (DeepSeek `deepseek-v4-pro` / `deepseek-v4-flash` as
+documented by DeepSeek in August 2026; check their docs if a name is rejected). **Test connection**
+runs one tiny request and reports latency. API keys stay in `coco.config.json` on your machine
+(git-ignored) or come from an environment variable.
+
+**Using DeepSeek well.** A sensible split: keep the primary channel on Claude for the analyses you
+read (prep, insights, reports) and send the background channel to DeepSeek. Memory merges, glossary
+extraction and name correction are frequent, mechanical and long-input tasks; a cheaper channel
+there saves quota without touching what you read. If you route the primary channel to DeepSeek as
+well, judge on your own meetings: run the same template through both (`coco ai test` gives raw
+latency; quality has to be read). Two hard limits: web search in Prep only exists on the Claude CLI
+channel, and HTTP providers stream straight from the API, so the CLI's tool sandbox is not involved.
+The per-channel *context cap* protects models with smaller windows.
+
+## Performance
+
+Where the time goes: one CLI round-trip costs a fixed ~5–8 s before the first token on the machine
+this was developed on (measured with `claude --version` 2.1.246, August 2026 — your numbers will
+differ), then output speed. coco therefore:
+
+- **streams** every report, chat answer, insight, brief and prep to the screen as it is written;
+- merges long-term memory **incrementally** (a few hundred output tokens instead of rewriting a
+  file that can grow to thousands of lines);
+- lets you route background work to a **faster channel** (`haiku` via the Claude CLI, or DeepSeek);
+- starts the CLI without MCP servers, without tools and in an empty working directory, so no
+  project `CLAUDE.md` or MCP start-up leaks into the analysis.
+
+## Install and run
+
+**Requirements:** Python 3.10+ · [Claude Code](https://claude.com/claude-code) installed and logged
+in (`claude` works in a terminal) — or an API channel configured in Settings. The web UI listens on
+127.0.0.1 only.
 
 ### macOS
 
@@ -124,142 +213,135 @@ git clone https://github.com/cocohahaha/coco.git
 cd coco
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-
-./run.sh        # 启动并打开浏览器 → http://127.0.0.1:8765
+./run.sh        # starts the server and opens http://127.0.0.1:8765
 ```
 
-以后每次启动：双击 `coco.command`，或再跑 `./run.sh`（重复运行不会重复起服务）。
-Apple Silicon 自动装 mlx-whisper；首次转写会自动下载 Whisper 模型（turbo 约 1.6GB，large 约 3GB；
-国内网络自动切 hf-mirror）。首次录音时 macOS 会请求麦克风权限。
+Later: double-click `coco.command` or run `./run.sh` again (it will not start a second server).
+Apple Silicon installs mlx-whisper automatically; the first transcription downloads the Whisper
+model (turbo ≈ 1.6 GB, large ≈ 3 GB; a mirror is used automatically when huggingface.co is
+unreachable). macOS asks for microphone permission on the first recording.
 
 ### Windows
 
-1. 安装 [Python 3.10+](https://www.python.org/downloads/)（安装时勾选 **Add python.exe to PATH**）
-2. 安装 [Git for Windows](https://git-scm.com/download/win)（claude CLI 在 Windows 上依赖它）
-3. 安装并登录 [claude CLI](https://claude.com/claude-code)：在终端运行一次 `claude`，按提示登录
-4. 下载本仓库（`git clone` 或 GitHub 页面「Code → Download ZIP」解压），**双击 `run.bat`**
+1. Install [Python 3.10+](https://www.python.org/downloads/) (tick **Add python.exe to PATH**)
+2. Install [Git for Windows](https://git-scm.com/download/win) (Claude Code needs it)
+3. Install and log in to [Claude Code](https://claude.com/claude-code): run `claude` once
+4. Download this repository (`git clone` or *Code → Download ZIP*) and **double-click `run.bat`**
 
-首次双击会自动创建虚拟环境并安装依赖（含 faster-whisper 转写引擎，几百 MB，需要几分钟），
-然后启动服务并打开浏览器。以后每次双击 `run.bat` 即可；关闭那个黑色窗口就是停止服务。
-命令行用 `bin\coco.cmd`（用法与下文 `coco` 一致）。
+The first run creates the virtual environment and installs dependencies (faster-whisper is a few
+hundred MB); then the server starts and the browser opens. Close the black window to stop.
+Command line: `bin\coco.cmd`.
 
-**Windows 上的典型用法：已有录音 → 文字稿 → 上传 → 分析**
+**Typical Windows workflow: recording → transcript elsewhere → upload → analyse.** Most people do
+not need Whisper on their PC: let your meeting software or a transcription service produce the
+transcript, export `txt / docx / pdf / srt`, drop it into coco. If faster-whisper fails to install,
+`run.bat` installs the core only and the UI hides the recording/model options; the transcript route
+is unaffected. Local transcription without an NVIDIA GPU takes 10–30 minutes for a 45-minute file.
 
-大多数人不需要在自己电脑上跑 Whisper：录音用腾讯会议、飞书妙记、讯飞听见、
-手机录音 App 等工具转成文字稿，导出为 **txt / docx / srt**，然后拖进 coco 窗口或点「↑ 上传」。
-文字稿不经转写直接入库，纪要、行动项、会前调查、跨会议洞察、长期记忆等全部功能照常使用。
-若 faster-whisper 安装失败，`run.bat` 会自动退回只装核心依赖，界面会收起录音与模型选项，
-这条文字稿路线不受影响。
+### Linux
 
-要在 Windows 本机转写音频：faster-whisper 装好后直接上传音频即可；没有 NVIDIA 显卡时走 CPU，
-45 分钟会议 turbo 模型大约需要 10–30 分钟（取决于 CPU）。网页录音目前只支持 macOS。
+Same as macOS (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then
+`.venv/bin/python -m coco web --open`); faster-whisper is used, recording from the web UI is
+macOS-only.
 
-## 命令行
+## Command line
 
-界面能做的 CLI 都能做（macOS 建议 `alias coco="<项目路径>/bin/coco"`；Windows 用 `bin\coco.cmd`）：
+Everything the UI does (`alias coco="<repo>/bin/coco"` on macOS/Linux; `bin\coco.cmd` on Windows).
+Output follows the interface language.
 
-| 命令 | 作用 |
+| Command | Purpose |
 |---|---|
-| `coco transcribe <文件…>` | 导入音频/视频转写（`--model turbo/large`） |
-| `coco import <文件/文件夹…>` | 导入文字材料（txt/md/docx/srt/vtt/json），不转写直接入库 |
-| `coco record [标题]` | 麦克风录音，Ctrl+C 停止后自动转写（仅 macOS） |
-| `coco watch <文件夹>` | 监控文件夹，新音频自动转写 |
-| `coco list` / `coco show <会议>` | 查看会议库 / 某条转写 |
-| `coco ask "问题" [会议…]` | 对会议内容提问 |
-| `coco report <会议> -t 模板` | 生成分析报告（`coco templates` 看全部） |
-| `coco prep "主题" [--who 人] [--goal 目标] [--web]` | 会前调查 |
-| `coco track [焦点] [--mode 深层信号\|调研综合] [--refs 会议1,会议2]` | 跨会议洞察 |
-| `coco brief [日期]` | 每日简报 |
-| `coco weekly [日期]` | 周报（该日期所在的周一~周日，默认本周） |
-| `coco search <词>` | 全文搜索 |
-| `coco glossary [词条] [--extract]` | 查看/追加/AI 提炼词表 |
-| `coco memory [内容]` | 查看/追加全局记忆 |
-| `coco memorize [会议\|--all]` | 手动触发长期记忆提取 |
-| `coco delete <会议>` | 删除（进回收站） |
-| `coco config [键 值]` | 查看/修改配置 |
-| `coco web` | 启动 Web 界面 |
+| `coco transcribe <files…>` | Import audio/video and transcribe (`--model turbo/large`) |
+| `coco import <files/folders…>` | Import text material (txt/docx/pdf/srt/vtt/json …) without transcription |
+| `coco record [title]` | Microphone recording, Ctrl+C to stop and transcribe (macOS) |
+| `coco watch <folder>` | Watch a folder, transcribe new audio |
+| `coco list` / `coco show <meeting>` | Library / one transcript |
+| `coco ask "question" [meetings…]` | Ask about meetings (streamed) |
+| `coco report <meeting> -t <template>` | Generate a report (`coco templates` lists ids) |
+| `coco prep "topic" [--who …] [--goal …] [--web]` | Pre-meeting brief |
+| `coco track [focus] [--mode track\|signals\|synthesis] [--refs a,b]` | Cross-meeting insight |
+| `coco brief [date]` / `coco weekly [date]` | Daily brief / weekly report |
+| `coco search <text>` | Full-text search |
+| `coco glossary [entry] [--extract]` | Show / add / extract the glossary |
+| `coco memory [text]` | Show / append global memory |
+| `coco memorize [meeting\|--all\|--compact]` | Extract long-term memory / compact it |
+| `coco lang [code] [--output …]` | Interface and AI output language |
+| `coco ai show\|test\|preset\|set\|task` | AI channels (`--profile fast` for the background channel) |
+| `coco delete <meeting>` · `coco config [key value]` · `coco web` | Trash · config · web UI |
 
-## 数据与配置
+Template and mode ids: `minutes actions mood tension bias topics client hiring followup` ·
+`track signals synthesis`. The original Chinese names are accepted as well.
 
-所有数据都是本机磁盘上的普通文件夹和 Markdown，随时可以直接翻看、备份、迁移：
+## Data and configuration
+
+Everything is ordinary folders and Markdown on your disk — inspect, back up, move at will:
 
 ```
-library/<日期-标题>/   每场会议：音频 + transcript.md/json + reports/*.md
-library/_briefs/       每日简报
-library/_weekly/       周报
-library/_tracking/     跨会议洞察报告
-library/_prep/         会前调查简报
-library/_trash/        回收站
-memory/memory.md       全局记忆（手动维护，注入每次分析）
-memory/longterm.md     长期记忆（自动提取，可手动修订）
-memory/glossary.md     词表（人名与专有名词标准写法）
-coco.config.json       配置
+library/<date-title>/   one meeting: audio + transcript.md/json + reports/*.md
+library/_briefs/        daily briefs          library/_weekly/    weekly reports
+library/_tracking/      cross-meeting insights library/_prep/     pre-meeting briefs
+library/_trash/         trash
+memory/memory.md        global memory (hand-written, injected everywhere)
+memory/longterm.md      long-term memory (automatic, editable)
+memory/glossary.md      glossary (names and terms)
+coco.config.json        configuration (incl. API keys — git-ignored)
 ```
 
-常用配置（`coco config 键 值`）：`whisper_model`、`language`、`beam_size`（5=更准更慢）、
-`transcribe_backend`（auto / mlx / faster / none；none = 只导文字稿不转写）、
-`auto_memory`（false 关闭自动记忆）、`claude_extra_args`（如指定模型）、`hf_endpoint`。
-环境变量 `COCO_ROOT` 可把数据根目录指到别处（多套数据隔离）。
+Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr),
+`output_language` (ui / source / ISO code), `whisper_model`, `language` (transcription),
+`beam_size`, `transcribe_backend` (auto / mlx / faster / none), `auto_memory`, `memory_merge`
+(delta / full), `ai_profiles`, `ai_tasks`, `claude_extra_args`, `hf_endpoint`.
+`COCO_ROOT` points the data directory elsewhere; `COCO_LANG` overrides the CLI language.
 
-## 已知边界
+## Known limits
 
-- 转写不区分说话人（无 diarization）；VTT 导入的说话人标签会保留
-- Whisper 的防复读机制使词表提示主要作用于音频开头，全文同音字纠错靠「校正」完成
-- 会前调查的「联网搜索」会把检索词发给搜索引擎——只在需要公开情报时勾选；
-  其余一切功能均不联网（模型下载除外）
-- 网页录音仅 macOS；Windows 请用系统录音机或会议软件录好后上传
-- Windows 无 NVIDIA 显卡时本机转写走 CPU，速度明显慢于 Mac；推荐先用其他工具转成文字稿再导入
-- 文字稿不支持 PDF 与旧版 .doc，请先另存为 txt 或 docx
+- No speaker diarization for local transcription (speaker labels from imported material are kept)
+- Whisper's anti-repetition logic means the glossary prompt mostly helps at the start of a
+  recording; whole-file corrections are done by *✦ Correct names & terms*
+- Prep's web search sends search terms to a search engine — tick it only when you want public
+  intelligence; nothing else goes online (except model downloads and the API channel you chose)
+- Web-UI recording is macOS-only; on Windows record with the system recorder or meeting software
+- Legacy `.doc` is not read; save as `.docx` or `.txt`. Scanned PDFs need OCR first
 
-## 开发自检
+## Development
 
 ```bash
-.venv/bin/python tests/smoke.py
+.venv/bin/python tests/smoke.py      # ~150 assertions against a temporary COCO_ROOT with a stub claude
+.venv/bin/python tests/check_i18n.py # every key used in Python / the UI exists in every locale
 ```
 
-在临时 `COCO_ROOT` 下用 stub claude 跑 74 项接口断言，不碰真实数据、不消耗模型额度
-（Windows：`.venv\Scripts\python tests\smoke.py`）。
+Neither touches real data or spends model quota (Windows: `.venv\Scripts\python tests\smoke.py`).
 
-## 更新日记
+## Changelog
 
-### 2026-08-25 · Windows 支持
-- **Windows 可用**：`run.bat` 一键装环境并启动；`bin\coco.cmd` 命令行；claude CLI 按 PATHEXT 定位、
-  子进程强制 UTF-8，中文提示词不再受 GBK 影响
-- **转写引擎抽象**：Apple Silicon 用 mlx-whisper，其他平台用 faster-whisper（CUDA / CPU 自动选择）；
-  两者都没有时音频上传直接给出「先转文字稿再导入」的指引，不再留下失败的空会议
-- **docx 导入**：腾讯会议 / 飞书妙记 / 讯飞听见导出的 Word 文字稿可直接上传（标准库解析，无新依赖）
-- 界面按本机能力自适应：非 macOS 收起录音按钮，无引擎时收起模型/语言选项并提示文字稿路线
-- 冒烟测试增至 74 项，覆盖无引擎、docx、录音不支持、混合文件夹等 Windows 典型情况
+### 2026-08-26 · Multilingual, streaming, pluggable AI channels
+- **Three interface languages** (English, 简体中文, français) with per-request language for every
+  message, file label and download name; **AI output language** independent of the interface
+  (follow UI / follow material / fixed language); libraries survive language switches
+- **Streaming**: reports, chat, insights, briefs and prep render as they are written
+- **Incremental long-term memory** merge (seconds instead of a full rewrite) + on-demand compaction
+- **AI channels**: Claude CLI (default), Anthropic-compatible and OpenAI-compatible HTTP providers
+  (DeepSeek, OpenAI, Ollama …); primary/background split per task; connection test; presets
+- **More transcript formats**: pdf, odt, rtf, html, eml, csv/tsv, sbv, lrc, ass/ssa, richer JSON
+  detection (speakers, millisecond offsets, word-level exports); pasted SRT/VTT/JSON detected;
+  transcript download as md/txt/srt/vtt/json
+- **Friendlier no-engine experience**: a help dialog when audio is dropped on a machine that cannot
+  transcribe, CPU-speed warning, paste-a-transcript shortcut
+- Claude CLI started without MCP servers / tools and in a clean working directory
+- Smoke test grown to ~150 assertions, plus an i18n completeness check
+
+### 2026-08-25 · Windows support
+- `run.bat` one-click setup; `bin\coco.cmd`; claude CLI located via PATHEXT; UTF-8 subprocesses
+- Engine abstraction: mlx-whisper on Apple Silicon, faster-whisper elsewhere (CUDA/CPU)
+- `.docx` import; UI adapts to local capabilities
 
 ### 2026-08-24
-- **周报**：汇总一整周的主线、决定、行动项总账、表态变化与下周建议；
-  「☀ 简报」视图日报/周报切换，按周翻看历史；CLI `coco weekly`
-- README 重写为完整产品文档，附界面截图
+- Weekly report; README rewritten as product documentation
 
-### 2026-08-21 · 大版本：从「会后纪要」到「会前-会中-会后-沉淀」全流程
-- **会前调查**：主题+参会人 → 自动挑相关历史会议 → 局势/关键人/打法/问题清单，可选联网查公开信息
-- **词表**：人名与专有名词标准写法；AI 从会议历史自动提炼误写对照；注入转写提示与全部分析
-- **人名校正升级**为人名+专有名词双校正，词表为最高依据
-- **跨会议追踪升级为洞察三模式**：追踪 / 深层信号（非共识、潜台词、盲区）/ 调研综合（FDE 多方访谈交叉对比）；支持限定勾选的会议
-- **文字材料归集**：txt/md/srt/vtt/json 与粘贴文本直接入库，自动进长期记忆；多编码识别；VTT 说话人保留；Whisper 导出目录音频+转写自动配对
-- **知识底座**视图：沉淀统计 + 人物点选跨库梳理
-- 新模板**跟进草稿**：可直接发送的跟进消息 + 48 小时行动清单
-- 深审修复批次（codex + code review 双审）：词表解析宽容化、whisper 提示窗溢出保护、prep 上下文顺序与相关性修正、联网防注入收紧、词表提炼并发保护等
-- 固化冒烟测试 `tests/smoke.py`
+### 2026-08-21 · From "minutes" to "before – during – after – memory"
+- Pre-meeting brief, glossary, insight modes (tracking / deep signals / research synthesis),
+  text material import, knowledge base, follow-up draft template, smoke test
 
-### 2026-06-24
-- 人名校正重做为全库批处理（转写+报告，原文自动备份、可恢复原稿）
-- 网页版录音入口；多项 UX 修复
-
-### 2026-06-12
-- 报告/简报/追踪可删除（进回收站）；记忆可下载与一键清空（覆盖前自动备份）
-- UI 细节修正：弹窗 Esc/点背景关闭、侧边栏轮询不闪烁、忙碌状态等
-
-### 2026-06-11
-- 转写可编辑、AI 校对、页面切换模型
-- 回收站软删除、自动长期记忆、跨会议追踪、全局搜索
-- 每日简报历史视图，简报自动并入长期记忆
-
-### 2026-06-10 · 首个版本
-- 本地 Whisper 转写、八个分析模板、对话问答、每日简报
-- 下载导出；服务重启自动恢复转写队列
+### 2026-06 · First versions
+- Local Whisper transcription, analysis templates, chat, daily brief, long-term memory,
+  cross-meeting tracking, search, trash, editing, name correction

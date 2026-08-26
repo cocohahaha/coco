@@ -1,8 +1,10 @@
-"""coco 本地 Web 服务（FastAPI，仅监听 127.0.0.1）。"""
+"""coco local web server (FastAPI, bound to 127.0.0.1 only)."""
 from __future__ import annotations
 
 import datetime as dt
 import io
+import json
+import queue
 import re
 import shutil
 import sys
@@ -14,38 +16,62 @@ import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import ai
-from .config import (BRIEFS_DIR, GLOSSARY_FILE, GLOSSARY_PLACEHOLDER,
-                     LONGTERM_FILE, LONGTERM_PLACEHOLDER, MEMORY_FILE,
-                     MEMORY_PLACEHOLDER, PREP_DIR, TRACKING_DIR, TRASH_DIR,
-                     WEEKLY_DIR, ensure_dirs, load_config, save_config)
-from .ingest import TEXT_EXTS, import_text, import_transcript_file
-from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting,
-                      find_meeting, list_meetings, search_library)
-from .recorder import RECORD_UNSUPPORTED, Recorder, record_supported
-from .templates import TEMPLATES, TRACK_MODES
-from .transcriber import (NO_ENGINE_HINT, detect_backend, is_apple_silicon,
+from . import ai, i18n, providers
+from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
+                     TRACKING_DIR, TRASH_DIR, WEEKLY_DIR, ensure_dirs, load_config,
+                     save_config)
+from .i18n import get_lang, memory_placeholder, set_lang, t
+from .ingest import TEXT_EXTS, TIMED_EXTS, import_text, import_transcript_file
+from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting, find_meeting,
+                      list_meetings, search_library)
+from .recorder import Recorder, record_supported, record_unsupported_hint
+from .templates import (list_templates, list_track_modes, report_label, resolve_track_mode,
+                        track_label)
+from .transcriber import (detect_backend, detect_device, is_apple_silicon, no_engine_hint,
                           transcribe_meeting)
 
 app = FastAPI(title="coco", docs_url=None, redoc_url=None)
 recorder = Recorder()
 JOBS: dict[str, dict] = {}  # jid -> {status, detail, meeting_id, error}
 STATIC = Path(__file__).parent / "static"
-TRANSCRIBE_LOCK = threading.Lock()  # 转写串行执行，避免多个模型同时加载
+TRANSCRIBE_LOCK = threading.Lock()  # one transcription at a time (one model in memory)
+
+
+@app.middleware("http")
+async def language_middleware(request: Request, call_next):
+    """Per-request language: X-Coco-Lang header (set by the UI) > ?lang= > Accept-Language."""
+    lang = (request.headers.get("x-coco-lang") or request.query_params.get("lang")
+            or (request.headers.get("accept-language") or "").split(",")[0])
+    token = set_lang(lang if i18n.normalize(lang) else None)
+    try:
+        return await call_next(request)
+    finally:
+        i18n.reset_lang(token)
 
 
 def _err(e: Exception, code: int = 400):
     raise HTTPException(status_code=code, detail=str(e))
 
 
+def _bg(fn) -> None:
+    """Run fn in a daemon thread that inherits the request language."""
+    lang = get_lang()
+
+    def run():
+        set_lang(lang)
+        fn()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 def _trash_file(path: Path, dest_stem: str) -> Path:
-    """单个 .md 文件软删除：移入回收站 library/_trash，可手动找回。"""
+    """Soft-delete one .md into library/_trash."""
     if not path.exists():
-        _err(FileNotFoundError(f"文件不存在：{path.name}"), 404)
+        _err(FileNotFoundError(t("server.file_missing", name=path.name)), 404)
     TRASH_DIR.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
     dest = TRASH_DIR / f"{dest_stem}~{stamp}.md"
@@ -54,33 +80,33 @@ def _trash_file(path: Path, dest_stem: str) -> Path:
 
 
 def _require_transcriber() -> None:
-    """音频进来之前先确认本机有转写引擎，否则直接 400 给出文字稿路线，
-    不要建一个注定失败的会议让人以为是转写卡住了。"""
+    """Refuse audio up front when there is no engine – a meeting that can never be
+    transcribed would look like a stuck job."""
     if not detect_backend():
-        _err(RuntimeError(NO_ENGINE_HINT))
+        _err(RuntimeError(no_engine_hint()))
 
 
 def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
     jid = uuid.uuid4().hex[:8]
-    JOBS[jid] = {"status": "running", "detail": "排队中…", "meeting_id": mtg.id}
+    JOBS[jid] = {"status": "running", "detail": t("job.queued"), "meeting_id": mtg.id}
+    lang = get_lang()
 
     def work():
+        set_lang(lang)
         try:
             if not mtg.path.exists():
-                raise FileNotFoundError("会议在排队期间被删除")
+                raise FileNotFoundError(t("job.deleted_while_queued"))
             with TRANSCRIBE_LOCK:
-                JOBS[jid].update(detail="转写中…")
-                transcribe_meeting(
-                    mtg, model=model,
-                    progress=lambda msg: JOBS[jid].update(detail=msg),
-                )
+                JOBS[jid].update(detail=t("job.transcribing"))
+                transcribe_meeting(mtg, model=model,
+                                   progress=lambda msg: JOBS[jid].update(detail=msg))
             if load_config().get("auto_memory", True):
                 try:
-                    JOBS[jid].update(detail="提取长期记忆…")
+                    JOBS[jid].update(detail=t("job.memorizing"))
                     ai.update_longterm(mtg)
-                except Exception as e:  # 记忆失败不影响转写结果
+                except Exception as e:  # memory failure never invalidates the transcript
                     mtg.save_meta(memory_error=str(e))
-            JOBS[jid].update(status="done", detail="转写完成")
+            JOBS[jid].update(status="done", detail=t("job.done"))
         except Exception as e:
             JOBS[jid].update(status="error", detail=str(e))
 
@@ -90,27 +116,29 @@ def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
 
 @app.on_event("startup")
 def resume_interrupted():
-    """服务重启后，把上次被打断或还在排队的转写任务重新排队。
-
-    覆盖两种情况：转写到一半被杀（transcribing）、排队中被杀（new）。
-    """
+    """Re-queue transcriptions that were running or queued when the server was killed."""
     for m in list_meetings():
         if (m.meta.get("status") in ("new", "transcribing")
                 and not m.transcript_md.exists() and m.audio_file):
             _start_transcribe_job(m)
 
 
-# ---------- 页面 ----------
+# ---------- page / i18n ----------
 
 @app.get("/")
 def index():
     return FileResponse(STATIC / "index.html")
 
 
-# ---------- 会议库 ----------
+@app.get("/api/i18n")
+def api_i18n(lang: str = ""):
+    code = i18n.normalize(lang) or get_lang()
+    return {"lang": code, "strings": i18n.ui_strings(code), "available": i18n.available()}
+
+
+# ---------- library ----------
 
 def _active_job_detail(meeting_id: str) -> str | None:
-    """按 meeting_id 反查正在运行的转写任务的阶段文字（刷新后丢了 jid 也能拿到进度）。"""
     for j in JOBS.values():
         if j.get("meeting_id") == meeting_id and j.get("status") == "running":
             return j.get("detail")
@@ -136,10 +164,8 @@ def api_meeting(mid: str):
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
-    reports = [
-        {"name": p.stem, "content": p.read_text(encoding="utf-8")}
-        for p in m.reports()
-    ]
+    reports = [{"name": p.stem, "label": report_label(p.stem),
+                "content": p.read_text(encoding="utf-8")} for p in m.reports()]
     return {**m.summary(), "transcript": m.transcript_text(), "report_list": reports,
             "job_detail": _active_job_detail(mid)}
 
@@ -157,15 +183,19 @@ def api_delete_meeting(mid: str):
     return {"ok": True, "trash": str(dest)}
 
 
+def _safe_name(name: str) -> None:
+    if "/" in name or "\\" in name or ".." in name:
+        _err(ValueError(t("server.bad_name")))
+
+
 @app.delete("/api/meetings/{mid}/reports/{name}")
 def api_delete_report(mid: str, name: str):
     try:
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
-    if "/" in name or ".." in name:
-        _err(ValueError("非法报告名"))
-    dest = _trash_file(m.reports_dir / f"{name}.md", f"报告~{m.id}~{name}")
+    _safe_name(name)
+    dest = _trash_file(m.reports_dir / f"{name}.md", f"report~{m.id}~{name}")
     return {"ok": True, "trash": str(dest)}
 
 
@@ -175,7 +205,7 @@ def api_search(q: str = ""):
 
 
 def _post_import_memory(mtg: Meeting) -> None:
-    """文字材料导入后台并入长期记忆（转写件走转写任务里的同一步骤）。"""
+    """Merge imported text into long-term memory in the background."""
     if not load_config().get("auto_memory", True):
         return
 
@@ -183,23 +213,22 @@ def _post_import_memory(mtg: Meeting) -> None:
         try:
             ai.update_longterm(mtg)
         except Exception as e:
-            try:  # 会议可能在排队期间被删除，记录失败本身也不能抛
+            try:
                 mtg.save_meta(memory_error=str(e))
             except Exception:
                 pass
 
-    threading.Thread(target=work, daemon=True).start()
+    _bg(work)
 
 
 @app.post("/api/upload")
-async def api_upload(file: UploadFile = File(...), title: str = Form(""),
-                     model: str = Form("")):
+async def api_upload(file: UploadFile = File(...), title: str = Form(""), model: str = Form("")):
     suffix = Path(file.filename or "audio").suffix.lower()
     if suffix not in AUDIO_EXTS and suffix not in TEXT_EXTS:
-        _err(ValueError(f"不支持的文件类型：{suffix}"))
+        _err(ValueError(t("server.unsupported_type", ext=suffix)))
     ensure_dirs()
     tmp = Path(tempfile.gettempdir()) / f"coco_upload_{uuid.uuid4().hex[:6]}{suffix}"
-    try:  # 分块流式落盘，避免把整段大音视频一次性读入内存
+    try:  # stream to disk in chunks; never hold a whole video in memory
         with tmp.open("wb") as out:
             while True:
                 chunk = await file.read(1024 * 1024)
@@ -207,22 +236,22 @@ async def api_upload(file: UploadFile = File(...), title: str = Form(""),
                     break
                 out.write(chunk)
     except OSError as e:
-        tmp.unlink(missing_ok=True)  # 中途失败清理残留的半截临时文件
-        _err(RuntimeError(f"写入临时文件失败（磁盘空间不足？）：{e}"), 500)
+        tmp.unlink(missing_ok=True)
+        _err(RuntimeError(t("server.tmp_write_failed", detail=str(e))), 500)
     name = title or Path(file.filename).stem
     if suffix not in TEXT_EXTS and not detect_backend():
         tmp.unlink(missing_ok=True)
         _require_transcriber()
-    if suffix in TEXT_EXTS:  # 已有文字材料：不转写直接入库
+    if suffix in TEXT_EXTS:  # existing text material: straight into the library
         try:
-            mtg = import_transcript_file(tmp, title=name, source="文本导入")
+            mtg = import_transcript_file(tmp, title=name, source="text")
         except Exception as e:
-            _err(ValueError(f"解析失败：{e}"))
+            _err(ValueError(t("server.parse_failed", detail=str(e))))
         finally:
             tmp.unlink(missing_ok=True)
         _post_import_memory(mtg)
         return {"meeting_id": mtg.id, "job": None, "text": True}
-    mtg = create_meeting(name, audio_path=tmp, source="上传", move=True)
+    mtg = create_meeting(name, audio_path=tmp, source="upload", move=True)
     jid = _start_transcribe_job(mtg, model or None)
     return {"meeting_id": mtg.id, "job": jid}
 
@@ -233,23 +262,21 @@ class ImportBody(BaseModel):
     model: str = ""
 
 
-# 同一录音的多种转写格式并存时（Whisper 导出目录），按信息量选一种，避免重复建会议
-_TEXT_PREF = {".json": 0, ".srt": 1, ".vtt": 2, ".md": 3, ".markdown": 4, ".txt": 5,
-              ".docx": 6}
+# several text formats of the same recording (Whisper export folder): keep the richest one
+_TEXT_PREF = {".json": 0, ".srt": 1, ".vtt": 2, ".sbv": 3, ".ass": 3, ".ssa": 3, ".lrc": 4,
+              ".tsv": 5, ".csv": 5, ".md": 6, ".markdown": 7, ".txt": 8, ".rtf": 9,
+              ".html": 9, ".htm": 9, ".docx": 10, ".odt": 10, ".pdf": 11, ".eml": 12}
 
 
 def _plan_folder_import(files: "list[Path]") -> "list[tuple[Path, Path | None]]":
-    """把文件夹里的文件规划成导入项 [(主文件, 配套音频)]。
-
-    同名（同 stem）规则：多种文字格式只留信息量最高的一种；
-    文字 + 同名音频视为「音频 + 现成转写」，用文字建会议、音频归档，不再转写。
-    """
+    """Plan [(main file, companion audio)]: same-stem text files collapse to the richest one;
+    text + same-stem audio = 'recording with existing transcript' (archive audio, do not transcribe)."""
     best_text: dict[str, Path] = {}
     for f in files:
         sfx = f.suffix.lower()
         if sfx in TEXT_EXTS:
             cur = best_text.get(f.stem)
-            if cur is None or _TEXT_PREF[sfx] < _TEXT_PREF[cur.suffix.lower()]:
+            if cur is None or _TEXT_PREF.get(sfx, 20) < _TEXT_PREF.get(cur.suffix.lower(), 20):
                 best_text[f.stem] = f
     audio_by_stem = {f.stem: f for f in files if f.suffix.lower() in AUDIO_EXTS}
     plan = []
@@ -258,31 +285,31 @@ def _plan_folder_import(files: "list[Path]") -> "list[tuple[Path, Path | None]]"
         if sfx in TEXT_EXTS:
             if best_text[f.stem] is f:
                 plan.append((f, audio_by_stem.get(f.stem)))
-        elif f.stem not in best_text:  # 有同名转写的音频不再单独转写
+        elif f.stem not in best_text:
             plan.append((f, None))
     return plan
 
 
 @app.post("/api/import")
 def api_import(body: ImportBody):
-    """导入本地文件或文件夹（文件夹则批量导入其中所有音频/视频/文字材料）。"""
+    """Import a local file or folder (folder = every audio / video / text file inside)."""
     p = Path(body.path.strip().strip("'\"")).expanduser()
     if not p.exists():
-        _err(FileNotFoundError(f"路径不存在：{p}"))
+        _err(FileNotFoundError(t("server.path_missing", path=str(p))))
     ok_exts = AUDIO_EXTS | TEXT_EXTS
     if p.is_dir():
         files = [f for f in sorted(p.iterdir())
                  if f.suffix.lower() in ok_exts and not f.name.startswith(".")]
         if not files:
-            _err(ValueError(f"文件夹里没有可识别的音频/视频/文字文件：{p}"))
+            _err(ValueError(t("server.folder_empty", path=str(p))))
         plan = _plan_folder_import(files)
     else:
         if p.suffix.lower() not in ok_exts:
-            _err(ValueError(f"不支持的文件类型：{p.suffix}"))
+            _err(ValueError(t("server.unsupported_type", ext=p.suffix)))
         plan = [(p, None)]
     has_engine = bool(detect_backend())
     if not has_engine and all(f.suffix.lower() not in TEXT_EXTS for f, _ in plan):
-        _require_transcriber()  # 全是待转写的音频且没有引擎：直接 400 说明文字稿路线
+        _require_transcriber()
     ensure_dirs()
     imported = []
     single = len(plan) == 1
@@ -290,51 +317,48 @@ def api_import(body: ImportBody):
         title = body.title if (body.title and single) else f.stem
         if f.suffix.lower() in TEXT_EXTS:
             try:
-                mtg = import_transcript_file(f, title=title, source="文本导入",
-                                             audio_path=audio)
+                mtg = import_transcript_file(f, title=title, source="text", audio_path=audio)
             except Exception as e:
-                if audio is not None and has_engine:  # 文字解析失败但有同名音频：退回正常转写
-                    mtg = create_meeting(title, audio_path=audio, source="本地导入")
+                if audio is not None and has_engine:  # unreadable text but audio present: transcribe
+                    mtg = create_meeting(title, audio_path=audio, source="import")
                     imported.append({"meeting_id": mtg.id,
                                      "job": _start_transcribe_job(mtg, body.model or None)})
                 else:
-                    imported.append({"error": f"{f.name}：{e}"})
+                    imported.append({"error": f"{f.name}: {e}"})
                 continue
             _post_import_memory(mtg)
             imported.append({"meeting_id": mtg.id, "job": None, "text": True})
         elif not has_engine:
-            # 文件夹里混着的音频：无引擎时只报这一项，文字稿照常入库，不拖垮整批
-            imported.append({"error": f"{f.name}：{NO_ENGINE_HINT}"})
+            imported.append({"error": f"{f.name}: {no_engine_hint()}", "audio": True})
         else:
-            mtg = create_meeting(title, audio_path=f, source="本地导入")
-            imported.append({"meeting_id": mtg.id,
-                             "job": _start_transcribe_job(mtg, body.model or None)})
+            mtg = create_meeting(title, audio_path=f, source="import")
+            imported.append({"meeting_id": mtg.id, "job": _start_transcribe_job(mtg, body.model or None)})
     return {"imported": imported, "count": len(imported)}
 
 
 class ImportTextBody(BaseModel):
     content: str
     title: str = ""
-    date: str = ""  # 可选 YYYY-MM-DD，材料的原始日期
+    date: str = ""  # optional YYYY-MM-DD, the material's own date
 
 
 @app.post("/api/import-text")
 def api_import_text(body: ImportTextBody):
-    """粘贴文字材料入库：聊天记录、邮件、他人纪要等私人上下文。"""
+    """Pasted material: chat logs, e-mails, minutes, raw transcripts (SRT/VTT/JSON detected)."""
     if body.date:
         try:
             dt.date.fromisoformat(body.date)
         except ValueError:
-            _err(ValueError("日期格式应为 YYYY-MM-DD"))
+            _err(ValueError(t("server.bad_date")))
     try:
         mtg = import_text(body.content, body.title, date=body.date)
     except ValueError as e:
         _err(e)
     _post_import_memory(mtg)
-    return {"meeting_id": mtg.id}
+    return {"meeting_id": mtg.id, "format": mtg.meta.get("source_format", "paste")}
 
 
-# ---------- 录音 ----------
+# ---------- recording ----------
 
 class RecordStart(BaseModel):
     title: str = ""
@@ -343,12 +367,12 @@ class RecordStart(BaseModel):
 @app.post("/api/record/start")
 def api_record_start(body: RecordStart):
     if recorder.active:
-        _err(RuntimeError("已有录音在进行中"))
-    if not record_supported():  # 先检查再建会议，避免留下空的「录音」条目
-        _err(RuntimeError(RECORD_UNSUPPORTED))
-    _require_transcriber()  # 录完必然要转写：没有引擎就别录
-    title = body.title or f"录音-{dt.datetime.now().strftime('%H%M')}"
-    mtg = create_meeting(title, source="录音")
+        _err(RuntimeError(t("record.already_recording")))
+    if not record_supported():
+        _err(RuntimeError(record_unsupported_hint()))
+    _require_transcriber()
+    title = body.title or t("record.default_title", time=dt.datetime.now().strftime('%H%M'))
+    mtg = create_meeting(title, source="record")
     try:
         recorder.start(mtg.path / "audio.wav", title)
     except RuntimeError as e:
@@ -370,85 +394,141 @@ def api_record_stop():
 
 @app.get("/api/record/status")
 def api_record_status():
-    return {
-        "active": recorder.active,
-        "elapsed": recorder.elapsed(),
-        "title": recorder.title if recorder.active else "",
-    }
+    return {"active": recorder.active, "elapsed": recorder.elapsed(),
+            "title": recorder.title if recorder.active else ""}
 
 
-# ---------- 任务状态 ----------
+# ---------- jobs ----------
 
 @app.get("/api/jobs/{jid}")
 def api_job(jid: str):
     job = JOBS.get(jid)
     if not job:
-        _err(LookupError("任务不存在"), 404)
+        _err(LookupError(t("server.job_missing")), 404)
     return job
 
 
-# ---------- AI ----------
+# ---------- AI (sync + streaming) ----------
+
+def _sse(fn) -> StreamingResponse:
+    """Run fn(on_delta) in a worker thread and stream its text as server-sent events:
+    ``delta`` {text}, then ``done`` {result} or ``error`` {detail}."""
+    q: "queue.Queue[tuple[str, object]]" = queue.Queue()
+    lang = get_lang()
+
+    def work():
+        set_lang(lang)
+        try:
+            q.put(("done", fn(lambda text: q.put(("delta", {"text": text})))))
+        except (LookupError, ValueError, ai.AIError) as e:
+            q.put(("error", {"detail": str(e)}))
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            q.put(("error", {"detail": t("server.internal_error")}))
+
+    threading.Thread(target=work, daemon=True).start()
+
+    def gen():
+        while True:
+            try:
+                kind, payload = q.get(timeout=15)
+            except queue.Empty:
+                yield ": keepalive\n\n"
+                continue
+            yield f"event: {kind}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            if kind in ("done", "error"):
+                return
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
 
 class AskBody(BaseModel):
     question: str
     ids: list[str] = []
-    all: bool = False  # 跨全部已转写会议提问
+    all: bool = False  # ask across every transcribed meeting
+
+
+def _ask_targets(body: AskBody) -> list[Meeting]:
+    if body.all:
+        meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    elif body.ids:
+        meetings = [find_meeting(i) for i in body.ids]
+    else:
+        meetings = [m for m in list_meetings() if m.transcript_md.exists()][:1]
+    if not meetings:
+        raise ai.AIError(t("ai.library_empty"))
+    return meetings
 
 
 @app.post("/api/ask")
 def api_ask(body: AskBody):
     try:
-        if body.all:
-            meetings = [m for m in list_meetings() if m.transcript_md.exists()]
-        elif body.ids:
-            meetings = [find_meeting(i) for i in body.ids]
-        else:
-            meetings = [m for m in list_meetings() if m.transcript_md.exists()][:1]
-        if not meetings:
-            raise ai.AIError("会议库中没有已转写的会议")
-        return {"answer": ai.ask(body.question, meetings)}
+        return {"answer": ai.ask(body.question, _ask_targets(body))}
     except (LookupError, ai.AIError) as e:
         _err(e)
 
 
+@app.post("/api/stream/ask")
+def api_stream_ask(body: AskBody):
+    return _sse(lambda on: {"answer": ai.ask(body.question, _ask_targets(body), on_delta=on)})
+
+
 class TrackBody(BaseModel):
     focus: str = ""
-    mode: str = "追踪"  # 追踪 | 深层信号 | 调研综合
-    ids: list[str] = []  # 留空 = 全部已转写会议
+    mode: str = "track"  # track | signals | synthesis (legacy Chinese names accepted)
+    ids: list[str] = []  # empty = every transcribed meeting
+
+
+def _track(body: TrackBody, on=None) -> dict:
+    meetings = [find_meeting(i) for i in body.ids] if body.ids else None
+    path, content = ai.track(body.focus, mode=body.mode, meetings=meetings, on_delta=on)
+    mid = resolve_track_mode(body.mode) or body.mode
+    return {"path": path, "content": content, "name": Path(path).stem,
+            "mode": mid, "mode_label": track_label(mid)}
 
 
 @app.post("/api/track")
 def api_track(body: TrackBody):
     try:
-        meetings = [find_meeting(i) for i in body.ids] if body.ids else None
-        path, content = ai.track(body.focus, mode=body.mode, meetings=meetings)
-        return {"path": path, "content": content, "name": Path(path).stem}
+        return _track(body)
     except (LookupError, ai.AIError) as e:
         _err(e)
 
 
+@app.post("/api/stream/track")
+def api_stream_track(body: TrackBody):
+    return _sse(lambda on: _track(body, on))
+
+
 @app.get("/api/track-modes")
 def api_track_modes():
-    return [{"name": k, "desc": v[1]} for k, v in TRACK_MODES.items()]
+    return list_track_modes()
 
-
-# ---------- 会前调查 ----------
 
 class PrepBody(BaseModel):
     topic: str
     people: str = ""
     goal: str = ""
-    web: bool = False  # 是否联网搜索公开信息
+    web: bool = False
+
+
+def _prep(body: PrepBody, on=None) -> dict:
+    path, content = ai.prep(body.topic, body.people, body.goal, use_web=body.web, on_delta=on)
+    return {"path": path, "content": content, "name": Path(path).stem}
 
 
 @app.post("/api/prep")
 def api_prep(body: PrepBody):
     try:
-        path, content = ai.prep(body.topic, body.people, body.goal,
-                                use_web=body.web)
-        return {"path": path, "content": content, "name": Path(path).stem}
+        return _prep(body)
     except ai.AIError as e:
         _err(e)
+
+
+@app.post("/api/stream/prep")
+def api_stream_prep(body: PrepBody):
+    return _sse(lambda on: _prep(body, on))
 
 
 @app.get("/api/preps")
@@ -458,24 +538,21 @@ def api_preps():
 
 @app.delete("/api/preps/{name}")
 def api_delete_prep(name: str):
-    if "/" in name or ".." in name:
-        _err(ValueError("非法文件名"))
-    dest = _trash_file(PREP_DIR / f"{name}.md", f"会前调查~{name}")
+    _safe_name(name)
+    dest = _trash_file(PREP_DIR / f"{name}.md", f"prep~{name}")
     return {"ok": True, "trash": str(dest)}
 
 
 @app.get("/api/download/prep/{name}")
 def dl_prep(name: str):
-    if "/" in name or ".." in name:
-        _err(ValueError("非法文件名"))
-    return _md_download(PREP_DIR / f"{name}.md", f"会前调查-{name}.md")
+    _safe_name(name)
+    return _md_download(PREP_DIR / f"{name}.md", f"{t('files.prep')}-{name}.md")
 
 
 @app.delete("/api/tracking/{name}")
 def api_delete_tracking(name: str):
-    if "/" in name or ".." in name:
-        _err(ValueError("非法文件名"))
-    dest = _trash_file(TRACKING_DIR / f"{name}.md", f"追踪~{name}")
+    _safe_name(name)
+    dest = _trash_file(TRACKING_DIR / f"{name}.md", f"tracking~{name}")
     return {"ok": True, "trash": str(dest)}
 
 
@@ -484,74 +561,101 @@ class ReportBody(BaseModel):
     template: str
 
 
+def _report(body: ReportBody, on=None) -> dict:
+    mtg = find_meeting(body.id)
+    path, content = ai.generate_report(mtg, body.template, on_delta=on)
+    stem = Path(path).stem
+    return {"path": path, "content": content, "name": stem, "label": report_label(stem),
+            "meeting_id": mtg.id}
+
+
 @app.post("/api/report")
 def api_report(body: ReportBody):
     try:
-        mtg = find_meeting(body.id)
-        path, content = ai.generate_report(mtg, body.template)
-        return {"path": path, "content": content}
+        return _report(body)
     except (LookupError, ai.AIError) as e:
         _err(e)
+
+
+@app.post("/api/stream/report")
+def api_stream_report(body: ReportBody):
+    return _sse(lambda on: _report(body, on))
 
 
 class BriefBody(BaseModel):
     date: str = ""
 
 
-@app.post("/api/brief")
-def api_brief(body: BriefBody):
-    try:
-        path, content = ai.daily_brief(body.date or None)
-    except ai.AIError as e:
-        _err(e)
+def _brief(body: BriefBody, on=None) -> dict:
+    path, content = ai.daily_brief(body.date or None, on_delta=on)
     if load_config().get("auto_memory", True):
         def merge():
-            try:  # 简报刚重新生成，内容有变，强制重新合并
+            try:  # regenerated brief: force a fresh merge
                 ai.memorize_brief(Path(path), force=True)
             except Exception:
                 pass
-        threading.Thread(target=merge, daemon=True).start()
+        _bg(merge)
     return {"path": path, "content": content, "date": Path(path).stem}
+
+
+@app.post("/api/brief")
+def api_brief(body: BriefBody):
+    try:
+        return _brief(body)
+    except ai.AIError as e:
+        _err(e)
+
+
+@app.post("/api/stream/brief")
+def api_stream_brief(body: BriefBody):
+    return _sse(lambda on: _brief(body, on))
 
 
 @app.get("/api/briefs")
 def api_briefs():
     if not BRIEFS_DIR.exists():
         return []
-    return [
-        {"date": p.stem, "content": p.read_text(encoding="utf-8")}
-        for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)
-    ]
+    return [{"date": p.stem, "content": p.read_text(encoding="utf-8")}
+            for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)]
 
 
 @app.delete("/api/briefs/{date}")
 def api_delete_brief(date: str):
-    if "/" in date or ".." in date:
-        _err(ValueError("非法日期"))
-    dest = _trash_file(BRIEFS_DIR / f"{date}.md", f"每日简报~{date}")
+    _safe_name(date)
+    dest = _trash_file(BRIEFS_DIR / f"{date}.md", f"brief~{date}")
     return {"ok": True, "trash": str(dest)}
 
 
-# ---------- 周报 ----------
+# ---------- weekly ----------
 
 class WeeklyBody(BaseModel):
-    date: str = ""  # 该周内任意一天（YYYY-MM-DD），留空=本周
+    date: str = ""  # any day of the week (YYYY-MM-DD); empty = this week
+
+
+def _weekly(body: WeeklyBody, on=None) -> dict:
+    try:
+        path, content = ai.weekly_brief(body.date or None, on_delta=on)
+    except ValueError:
+        raise ai.AIError(t("server.bad_date"))
+    return {"path": path, "content": content, "week": Path(path).stem}
 
 
 @app.post("/api/weekly")
 def api_weekly(body: WeeklyBody):
     try:
-        path, content = ai.weekly_brief(body.date or None)
-    except ValueError:
-        _err(ValueError("日期格式应为 YYYY-MM-DD"))
+        return _weekly(body)
     except ai.AIError as e:
         _err(e)
-    return {"path": path, "content": content, "week": Path(path).stem}
+
+
+@app.post("/api/stream/weekly")
+def api_stream_weekly(body: WeeklyBody):
+    return _sse(lambda on: _weekly(body, on))
 
 
 @app.get("/api/weeklies")
 def api_weeklies():
-    """已有周报列表 + 会议库覆盖到的全部周（未生成的标 null，供补生成）。"""
+    """Existing weeklies + every week covered by the library (null content = not generated yet)."""
     weeks: dict[str, "str | None"] = {}
     if WEEKLY_DIR.exists():
         for p in sorted(WEEKLY_DIR.glob("*.md"), reverse=True):
@@ -561,27 +665,24 @@ def api_weeklies():
             _, _, wk = ai.week_bounds(m.date)
             weeks.setdefault(wk, None)
     return [{"week": w, "content": weeks[w], "range": "%s ~ %s" % ai.week_bounds(
-        # 由周名反推该周周一：ISO 周第 1 天
         dt.date.fromisocalendar(int(w[:4]), int(w[6:]), 1).isoformat())[:2]}
         for w in sorted(weeks, reverse=True)]
 
 
 @app.delete("/api/weeklies/{week}")
 def api_delete_weekly(week: str):
-    if "/" in week or ".." in week:
-        _err(ValueError("非法周名"))
-    dest = _trash_file(WEEKLY_DIR / f"{week}.md", f"周报~{week}")
+    _safe_name(week)
+    dest = _trash_file(WEEKLY_DIR / f"{week}.md", f"weekly~{week}")
     return {"ok": True, "trash": str(dest)}
 
 
 @app.get("/api/download/weekly/{week}")
 def dl_weekly(week: str):
-    if "/" in week or ".." in week:
-        _err(ValueError("非法周名"))
-    return _md_download(WEEKLY_DIR / f"{week}.md", f"周报-{week}.md")
+    _safe_name(week)
+    return _md_download(WEEKLY_DIR / f"{week}.md", f"{t('files.weekly')}-{week}.md")
 
 
-# ---------- 配置 / 转写编辑 / 人名校正 / 报告编辑 ----------
+# ---------- config / settings ----------
 
 @app.get("/api/config")
 def api_config():
@@ -589,19 +690,29 @@ def api_config():
     return {
         "whisper_model": cfg["whisper_model"],
         "language": cfg.get("language", "auto"),
-        # 本机能力：前端据此隐藏录音按钮、提示「无转写引擎，请导入文字稿」
+        "ui_language": cfg.get("ui_language", "auto"),
+        "output_language": cfg.get("output_language", "ui"),
+        "available_languages": i18n.available(),
         "platform": ("mac" if sys.platform == "darwin"
                      else "windows" if sys.platform.startswith("win") else "linux"),
         "apple_silicon": is_apple_silicon(),
-        "transcribe": detect_backend(cfg),  # "mlx" | "faster" | ""（不能转写音频）
-        "record": record_supported() and bool(detect_backend(cfg)),  # 录音的下一步就是转写
+        "transcribe": detect_backend(cfg),      # "mlx" | "faster" | "" (cannot transcribe audio)
+        "transcribe_device": detect_device(cfg),  # "mlx" | "cuda" | "cpu" | ""
+        "record": record_supported() and bool(detect_backend(cfg)),
         "text_exts": sorted(TEXT_EXTS),
+        "timed_exts": sorted(TIMED_EXTS),
+        "audio_exts": sorted(AUDIO_EXTS),
+        "memory_merge": cfg.get("memory_merge", "delta"),
+        "ai": _ai_settings(cfg),
     }
 
 
 class ConfigBody(BaseModel):
     whisper_model: str | None = None
     language: str | None = None
+    ui_language: str | None = None
+    output_language: str | None = None
+    memory_merge: str | None = None
 
 
 def _valid_lang(v: str) -> bool:
@@ -613,16 +724,123 @@ def api_config_save(body: ConfigBody):
     cfg = load_config()
     if body.whisper_model is not None:
         if body.whisper_model not in ("turbo", "large"):
-            _err(ValueError("模型只能是 turbo 或 large"))
+            _err(ValueError(t("server.bad_model")))
         cfg["whisper_model"] = body.whisper_model
     if body.language is not None:
         if not _valid_lang(body.language):
-            _err(ValueError("语言只能是 auto 或 ISO 码（如 zh、en、fr）"))
+            _err(ValueError(t("server.bad_language")))
         cfg["language"] = body.language
+    if body.ui_language is not None:
+        if body.ui_language != "auto" and not i18n.normalize(body.ui_language):
+            _err(ValueError(t("server.bad_ui_language",
+                              codes=", ".join(l["code"] for l in i18n.available()))))
+        cfg["ui_language"] = "auto" if body.ui_language == "auto" else i18n.normalize(body.ui_language)
+    if body.output_language is not None:
+        v = body.output_language.strip()
+        if v not in ("ui", "source") and not re.fullmatch(r"[A-Za-z]{2,3}(-[A-Za-z]{2,4})?", v):
+            _err(ValueError(t("server.bad_output_language")))
+        cfg["output_language"] = v
+    if body.memory_merge is not None:
+        if body.memory_merge not in ("delta", "full"):
+            _err(ValueError(t("server.bad_memory_merge")))
+        cfg["memory_merge"] = body.memory_merge
     save_config(cfg)
-    return {"ok": True, "whisper_model": cfg["whisper_model"],
-            "language": cfg.get("language", "auto")}
+    return {"ok": True, "whisper_model": cfg["whisper_model"], "language": cfg.get("language", "auto"),
+            "ui_language": cfg.get("ui_language", "auto"),
+            "output_language": cfg.get("output_language", "ui"),
+            "memory_merge": cfg.get("memory_merge", "delta")}
 
+
+def _ai_settings(cfg: dict) -> dict:
+    profiles = cfg.get("ai_profiles") or {}
+    tasks = dict(providers.TASK_PROFILE_DEFAULTS)
+    tasks.update({k: v for k, v in (cfg.get("ai_tasks") or {}).items() if v in providers.PROFILE_NAMES})
+    return {
+        "primary": providers.public_profile(providers.get_profile("primary", cfg)),
+        "fast": providers.public_profile(providers.get_profile("fast", cfg)),
+        "fast_configured": bool(profiles.get("fast")),
+        "tasks": tasks,
+        "presets": providers.PRESETS,
+        "claude_bin_found": bool(shutil.which(cfg.get("claude_bin") or "claude")),
+    }
+
+
+class AIProfileBody(BaseModel):
+    type: str = "claude-cli"
+    model: str = ""
+    base_url: str = ""
+    api_key: str | None = None  # None = keep the stored key; "" = clear it
+    api_key_env: str = ""
+    max_context_chars: int = 0
+    max_tokens: int = 16000
+    extra_args: list[str] = []
+
+
+class AISettingsBody(BaseModel):
+    primary: AIProfileBody | None = None
+    fast: AIProfileBody | None = None
+    fast_same_as_primary: bool | None = None
+    tasks: dict[str, str] | None = None
+    memory_merge: str | None = None
+
+
+def _profile_dict(body: AIProfileBody, old: dict) -> dict:
+    if body.type not in providers.PROFILE_TYPES:
+        _err(ValueError(t("server.bad_profile_type", types=", ".join(providers.PROFILE_TYPES))))
+    d = {"type": body.type, "model": body.model.strip(), "base_url": body.base_url.strip().rstrip("/"),
+         "api_key_env": body.api_key_env.strip(), "max_context_chars": max(0, int(body.max_context_chars)),
+         "max_tokens": max(256, int(body.max_tokens)), "extra_args": [str(a) for a in body.extra_args]}
+    d["api_key"] = old.get("api_key", "") if body.api_key is None else body.api_key.strip()
+    return d
+
+
+@app.get("/api/settings/ai")
+def api_ai_settings():
+    return _ai_settings(load_config())
+
+
+@app.post("/api/settings/ai")
+def api_ai_settings_save(body: AISettingsBody):
+    cfg = load_config()
+    profiles = dict(cfg.get("ai_profiles") or {})
+    if body.primary is not None:
+        profiles["primary"] = _profile_dict(body.primary, profiles.get("primary") or {})
+    if body.fast_same_as_primary:
+        profiles.pop("fast", None)
+    elif body.fast is not None:
+        profiles["fast"] = _profile_dict(body.fast, profiles.get("fast") or {})
+    cfg["ai_profiles"] = profiles
+    if body.tasks is not None:
+        cfg["ai_tasks"] = {k: v for k, v in body.tasks.items()
+                           if k in providers.TASK_PROFILE_DEFAULTS and v in providers.PROFILE_NAMES}
+    if body.memory_merge is not None:
+        if body.memory_merge not in ("delta", "full"):
+            _err(ValueError(t("server.bad_memory_merge")))
+        cfg["memory_merge"] = body.memory_merge
+    save_config(cfg)
+    return {"ok": True, **_ai_settings(cfg)}
+
+
+class AITestBody(BaseModel):
+    profile: str = "primary"            # test a stored profile …
+    inline: AIProfileBody | None = None  # … or a not-yet-saved one from the settings form
+
+
+@app.post("/api/settings/ai/test")
+def api_ai_test(body: AITestBody):
+    cfg = load_config()
+    if body.inline is not None:
+        old = (cfg.get("ai_profiles") or {}).get(body.profile) or {}
+        p = dict(providers.PROFILE_DEFAULTS)
+        p.update(_profile_dict(body.inline, old))
+        p["name"] = body.profile
+        return providers.test_profile(profile=p)
+    if body.profile not in providers.PROFILE_NAMES:
+        _err(ValueError(t("server.bad_profile_name")))
+    return providers.test_profile(body.profile)
+
+
+# ---------- transcript / reports editing, name fixing ----------
 
 class TranscriptBody(BaseModel):
     content: str
@@ -630,31 +848,31 @@ class TranscriptBody(BaseModel):
 
 class MeetingMetaBody(BaseModel):
     title: str | None = None
-    date: str | None = None  # YYYY-MM-DD，手动校准录音日期
+    date: str | None = None  # YYYY-MM-DD, manual recording date
 
 
 @app.post("/api/meetings/{mid}/meta")
 def api_save_meeting_meta(mid: str, body: MeetingMetaBody):
-    """修改会议标题 / 校准录音日期（不重命名文件夹，id 保持稳定）。"""
+    """Rename / re-date a meeting (folder and id stay stable)."""
     try:
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
     updates: dict = {}
     if body.title is not None:
-        t = body.title.strip()
-        if not t:
-            _err(ValueError("标题不能为空"))
-        updates["title"] = t
+        tt = body.title.strip()
+        if not tt:
+            _err(ValueError(t("server.title_empty")))
+        updates["title"] = tt
     if body.date is not None:
         d = body.date.strip()
         try:
-            dt.date.fromisoformat(d)  # 同时校验格式与是否真实日期
+            dt.date.fromisoformat(d)
         except ValueError:
-            _err(ValueError("日期格式应为 YYYY-MM-DD 且是有效日期"))
+            _err(ValueError(t("server.bad_date")))
         updates["date"] = d
     if not updates:
-        _err(ValueError("没有要更新的字段"))
+        _err(ValueError(t("server.nothing_to_update")))
     m.save_meta(**updates)
     return {"ok": True, **m.summary()}
 
@@ -666,7 +884,7 @@ def api_save_transcript(mid: str, body: TranscriptBody):
     except LookupError as e:
         _err(e, 404)
     if not body.content.strip():
-        _err(ValueError("内容为空，未保存"))
+        _err(ValueError(t("server.content_empty")))
     with ai.TRANSCRIPT_LOCK:
         m.transcript_md.write_text(body.content.rstrip() + "\n", encoding="utf-8")
         m.save_meta(edited_at=dt.datetime.now().isoformat(timespec="seconds"))
@@ -677,45 +895,36 @@ def api_save_transcript(mid: str, body: TranscriptBody):
 def api_fix_names(mid: str):
     try:
         m = find_meeting(mid)
-        content = ai.fix_names(m)
-        return {"content": content}
+        return {"content": ai.fix_names(m)}
     except (LookupError, ai.AIError) as e:
         _err(e)
 
 
 @app.post("/api/meetings/{mid}/restore-raw")
 def api_restore_raw(mid: str):
-    """恢复人名校正前的原稿（transcript.raw.md → transcript.md）。"""
     try:
         m = find_meeting(mid)
-        content = ai.restore_raw(m)
-        return {"content": content}
+        return {"content": ai.restore_raw(m)}
     except (LookupError, ai.AIError) as e:
         _err(e)
 
 
-FIX_ALL_LOCK = threading.Lock()  # 全库人名校正一次只允许一个在跑
+FIX_ALL_LOCK = threading.Lock()
 
 
-def _start_fix_all_job() -> str:
+def _start_job(label: str, fn) -> str:
+    """Generic background job with progress text; fn(progress) -> detail string."""
     jid = uuid.uuid4().hex[:8]
-    JOBS[jid] = {"status": "running", "detail": "准备校正…", "meeting_id": None}
+    JOBS[jid] = {"status": "running", "detail": label, "meeting_id": None}
+    lang = get_lang()
 
     def work():
-        if not FIX_ALL_LOCK.acquire(blocking=False):
-            JOBS[jid].update(status="error", detail="已有一个全库校正在进行中，请等它结束")
-            return
+        set_lang(lang)
         try:
-            stats = ai.fix_all_names(progress=lambda msg: JOBS[jid].update(detail=msg))
-            detail = (f"完成：{stats['meetings']} 场，修正转写 {stats['transcripts']}、"
-                      f"报告 {stats['reports']}")
-            if stats["errors"]:
-                detail += f"，{len(stats['errors'])} 项跳过"
-            JOBS[jid].update(status="done", detail=detail, stats=stats)
+            detail = fn(lambda msg: JOBS[jid].update(detail=msg))
+            JOBS[jid].update(status="done", detail=detail)
         except Exception as e:
             JOBS[jid].update(status="error", detail=str(e))
-        finally:
-            FIX_ALL_LOCK.release()
 
     threading.Thread(target=work, daemon=True).start()
     return jid
@@ -727,13 +936,26 @@ class FixAllBody(BaseModel):
 
 @app.post("/api/fix-all-names")
 def api_fix_all_names(body: FixAllBody = FixAllBody()):
-    """全库按长期记忆校正人名（转写+报告）。破坏性操作：必须 confirm=true 才执行，
-    否则只返回将影响的会议数量（预览），避免误调/冒烟测试改动真实数据。"""
+    """Whole-library name correction. Destructive → requires confirm=true, otherwise preview only."""
     ready = [m for m in list_meetings() if m.transcript_md.exists()]
     if not body.confirm:
         return {"preview": True, "meeting_count": len(ready),
-                "detail": f"将按记忆校正 {len(ready)} 场会议的转写与报告（需 confirm=true 执行）"}
-    return {"job": _start_fix_all_job()}
+                "detail": t("server.fixall_preview", n=len(ready))}
+
+    def run(progress):
+        if not FIX_ALL_LOCK.acquire(blocking=False):
+            raise RuntimeError(t("server.fixall_busy"))
+        try:
+            stats = ai.fix_all_names(progress=progress)
+        finally:
+            FIX_ALL_LOCK.release()
+        detail = t("server.fixall_done", meetings=stats["meetings"],
+                   transcripts=stats["transcripts"], reports=stats["reports"])
+        if stats["errors"]:
+            detail += t("server.fixall_skipped", n=len(stats["errors"]))
+        return detail
+
+    return {"job": _start_job(t("server.fixall_preparing"), run)}
 
 
 class ReportEditBody(BaseModel):
@@ -742,65 +964,119 @@ class ReportEditBody(BaseModel):
 
 @app.post("/api/meetings/{mid}/reports/{name}")
 def api_save_report(mid: str, name: str, body: ReportEditBody):
-    """保存编辑后的报告正文（覆盖原 .md，不改文件名）。"""
     try:
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
-    if "/" in name or ".." in name:
-        _err(ValueError("非法报告名"))
+    _safe_name(name)
     path = m.reports_dir / f"{name}.md"
     if not path.exists():
-        _err(FileNotFoundError(f"报告不存在：{name}"), 404)
+        _err(FileNotFoundError(t("server.report_missing", name=name)), 404)
     if not body.content.strip():
-        _err(ValueError("内容为空，未保存"))
+        _err(ValueError(t("server.content_empty")))
     path.write_text(body.content.rstrip() + "\n", encoding="utf-8")
     m.save_meta(report_edited_at=dt.datetime.now().isoformat(timespec="seconds"))
     return {"ok": True}
 
 
-# ---------- 下载（.md 导出） ----------
+# ---------- downloads ----------
 
 def _md_download(path: Path, filename: str):
     if not path.exists():
-        _err(FileNotFoundError(f"文件不存在：{path.name}"), 404)
-    return FileResponse(path, media_type="text/markdown; charset=utf-8",
-                        filename=filename)
+        _err(FileNotFoundError(t("server.file_missing", name=path.name)), 404)
+    return FileResponse(path, media_type="text/markdown; charset=utf-8", filename=filename)
+
+
+def _attachment(content: bytes, media: str, filename: str) -> Response:
+    disp = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return Response(content=content, media_type=media, headers={"Content-Disposition": disp})
 
 
 @app.get("/api/download/brief/{date}")
 def dl_brief(date: str):
-    return _md_download(BRIEFS_DIR / f"{date}.md", f"每日简报-{date}.md")
+    _safe_name(date)
+    return _md_download(BRIEFS_DIR / f"{date}.md", f"{t('files.brief')}-{date}.md")
 
 
 @app.get("/api/download/tracking/{name}")
 def dl_tracking(name: str):
-    if "/" in name or ".." in name:
-        _err(ValueError("非法文件名"))
-    return _md_download(TRACKING_DIR / f"{name}.md", f"跨会议洞察-{name}.md")
+    _safe_name(name)
+    return _md_download(TRACKING_DIR / f"{name}.md", f"{t('files.tracking')}-{name}.md")
+
+
+def _srt_ts(sec: float, sep: str = ",") -> str:
+    ms = int(round(sec * 1000))
+    h, ms = divmod(ms, 3600_000)
+    m, ms = divmod(ms, 60_000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d}{sep}{ms:03d}"
+
+
+def render_transcript(m: Meeting, fmt: str) -> "tuple[bytes, str, str]":
+    """Transcript in md / txt / srt / vtt / json → (bytes, media type, extension)."""
+    segs = m.segments()
+    timed = [s for s in segs if s.get("start") is not None]
+    for i, s in enumerate(timed):  # fill missing end times from the next cue
+        if s.get("end") is None:
+            s["end"] = timed[i + 1]["start"] if i + 1 < len(timed) else s["start"] + 5
+
+    def line(s):
+        sp = s.get("speaker")
+        return f"{sp}: {s['text']}" if sp and not s["text"].lower().startswith(str(sp).lower()) else s["text"]
+
+    if fmt == "json":
+        return m.transcript_json.read_bytes(), "application/json", "json"
+    if fmt == "txt":
+        if segs:
+            text = "\n".join(line(s) for s in segs)
+        else:  # plain import / no json: body of the markdown without header and stamps
+            body = m.transcript_text().split("\n## ", 1)[-1].split("\n", 1)[-1]
+            text = re.sub(r"^\[\d+:\d{2}(?::\d{2})?\]\s*", "", body, flags=re.M)
+        return (text.strip() + "\n").encode("utf-8"), "text/plain; charset=utf-8", "txt"
+    if fmt in ("srt", "vtt"):
+        if not timed:
+            raise ValueError(t("server.no_timing"))
+        out = ["WEBVTT", ""] if fmt == "vtt" else []
+        sep = "." if fmt == "vtt" else ","
+        for i, s in enumerate(timed, 1):
+            if fmt == "srt":
+                out.append(str(i))
+            out.append(f"{_srt_ts(s['start'], sep)} --> {_srt_ts(s['end'], sep)}")
+            out.append(line(s))
+            out.append("")
+        media = "text/vtt; charset=utf-8" if fmt == "vtt" else "application/x-subrip; charset=utf-8"
+        return "\n".join(out).encode("utf-8"), media, fmt
+    return m.transcript_md.read_bytes(), "text/markdown; charset=utf-8", "md"
 
 
 @app.get("/api/download/meeting/{mid}/transcript")
-def dl_transcript(mid: str):
+def dl_transcript(mid: str, fmt: str = "md"):
     try:
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
-    return _md_download(m.transcript_md, f"{m.title}-转写.md")
+    if fmt not in ("md", "txt", "srt", "vtt", "json"):
+        _err(ValueError(t("server.bad_format")))
+    if not m.transcript_md.exists() or (fmt == "json" and not m.transcript_json.exists()):
+        _err(FileNotFoundError(t("server.file_missing", name=f"transcript.{fmt}")), 404)
+    try:
+        data, media, ext = render_transcript(m, fmt)
+    except ValueError as e:
+        _err(e)
+    return _attachment(data, media, f"{m.title}-{t('files.transcript')}.{ext}")
 
 
-MEMORY_FILES = {"content": (MEMORY_FILE, "全局记忆", MEMORY_PLACEHOLDER),
-                "longterm": (LONGTERM_FILE, "长期记忆", LONGTERM_PLACEHOLDER),
-                "glossary": (GLOSSARY_FILE, "词表", GLOSSARY_PLACEHOLDER)}
+MEMORY_FILES = {"content": (MEMORY_FILE, "memory"), "longterm": (LONGTERM_FILE, "longterm"),
+                "glossary": (GLOSSARY_FILE, "glossary")}
 
 
 @app.get("/api/download/memory/{which}")
 def dl_memory(which: str):
     if which not in MEMORY_FILES:
-        _err(ValueError("which 只能是 content、longterm 或 glossary"))
-    path, label, _ = MEMORY_FILES[which]
+        _err(ValueError(t("server.bad_memory_which")))
+    path, kind = MEMORY_FILES[which]
     ensure_dirs()
-    return _md_download(path, f"{label}.md")
+    return _md_download(path, f"{t('files.' + kind)}.md")
 
 
 @app.get("/api/download/meeting/{mid}/report/{name}")
@@ -809,80 +1085,34 @@ def dl_report(mid: str, name: str):
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
-    if "/" in name or ".." in name:
-        _err(ValueError("非法报告名"))
-    return _md_download(m.reports_dir / f"{name}.md", f"{m.title}-{name}.md")
+    _safe_name(name)
+    return _md_download(m.reports_dir / f"{name}.md", f"{m.title}-{report_label(name)}.md")
 
 
-# ---------- 批量导出（多个 .md 打包 zip） ----------
-
-def _report_label(name: str) -> str:
-    # 行动项-1355 → 行动项 13:55，与页签显示一致
-    return re.sub(r"-(\d{2})(\d{2})$", r" \1:\2", name)
-
+# ---------- bulk export (zip of .md files) ----------
 
 @app.get("/api/export/manifest")
 def api_export_manifest():
-    """列出全部可导出的 .md，供导出弹窗逐个勾选。"""
     meetings = []
     for m in list_meetings():
         files = []
         if m.transcript_md.exists():
-            files.append({"type": "transcript", "name": "", "label": "转写"})
+            files.append({"type": "transcript", "name": "", "label": t("files.transcript")})
         for p in m.reports():
-            files.append({"type": "report", "name": p.stem,
-                          "label": _report_label(p.stem)})
+            files.append({"type": "report", "name": p.stem, "label": report_label(p.stem)})
         if files:
-            meetings.append({"id": m.id, "title": m.title,
-                             "date": m.date, "files": files})
-    briefs = ([{"name": p.stem, "label": p.stem}
-               for p in sorted(BRIEFS_DIR.glob("*.md"), reverse=True)]
-              if BRIEFS_DIR.exists() else [])
-    tracking = ([{"name": p.stem, "label": p.stem}
-                 for p in sorted(TRACKING_DIR.glob("*.md"), reverse=True)]
-                if TRACKING_DIR.exists() else [])
-    preps = ([{"name": p.stem, "label": p.stem}
-              for p in sorted(PREP_DIR.glob("*.md"), reverse=True)]
-             if PREP_DIR.exists() else [])
-    weeklies = ([{"name": p.stem, "label": p.stem}
-                 for p in sorted(WEEKLY_DIR.glob("*.md"), reverse=True)]
-                if WEEKLY_DIR.exists() else [])
-    return {"meetings": meetings, "briefs": briefs, "tracking": tracking,
-            "preps": preps, "weeklies": weeklies}
+            meetings.append({"id": m.id, "title": m.title, "date": m.date, "files": files})
+
+    def listing(folder):
+        return ([{"name": p.stem, "label": p.stem} for p in sorted(folder.glob("*.md"), reverse=True)]
+                if folder.exists() else [])
+
+    return {"meetings": meetings, "briefs": listing(BRIEFS_DIR), "tracking": listing(TRACKING_DIR),
+            "preps": listing(PREP_DIR), "weeklies": listing(WEEKLY_DIR)}
 
 
 def _safe_seg(s: str) -> str:
-    """清洗成 zip 内安全的单段文件/目录名（去掉分隔符与首尾点）。"""
-    return re.sub(r"[\\/]+", "_", s).strip().strip(".") or "未命名"
-
-
-def _resolve_export_item(it: "ExportItem") -> "tuple[Path | None, str]":
-    """把一条导出项安全解析为 (磁盘路径, zip 内相对路径)。非法项返回 (None, '')。
-
-    所有 name 都禁止包含路径分隔符与 ..，会议路径只通过 find_meeting 解析已存在的会议，
-    杜绝路径穿越。
-    """
-    name = it.name or ""
-    if "/" in name or "\\" in name or ".." in name:
-        return None, ""
-    if it.type in ("transcript", "report"):
-        try:
-            m = find_meeting(it.id)
-        except LookupError:
-            return None, ""
-        folder = _safe_seg(f"{m.date}-{m.title}")
-        if it.type == "transcript":
-            return m.transcript_md, f"{folder}/转写.md"
-        return m.reports_dir / f"{name}.md", f"{folder}/{_safe_seg(_report_label(name))}.md"
-    if it.type == "brief":
-        return BRIEFS_DIR / f"{name}.md", f"每日简报/{_safe_seg(name)}.md"
-    if it.type == "tracking":
-        return TRACKING_DIR / f"{name}.md", f"跨会议洞察/{_safe_seg(name)}.md"
-    if it.type == "prep":
-        return PREP_DIR / f"{name}.md", f"会前调查/{_safe_seg(name)}.md"
-    if it.type == "weekly":
-        return WEEKLY_DIR / f"{name}.md", f"周报/{_safe_seg(name)}.md"
-    return None, ""
+    return re.sub(r"[\\/]+", "_", s).strip().strip(".") or "untitled"
 
 
 class ExportItem(BaseModel):
@@ -895,11 +1125,32 @@ class ExportBody(BaseModel):
     items: list[ExportItem]
 
 
+def _resolve_export_item(it: ExportItem) -> "tuple[Path | None, str]":
+    """Export item → (disk path, path inside the zip); invalid → (None, '')."""
+    name = it.name or ""
+    if "/" in name or "\\" in name or ".." in name:
+        return None, ""
+    if it.type in ("transcript", "report"):
+        try:
+            m = find_meeting(it.id)
+        except LookupError:
+            return None, ""
+        folder = _safe_seg(f"{m.date}-{m.title}")
+        if it.type == "transcript":
+            return m.transcript_md, f"{folder}/{_safe_seg(t('files.transcript'))}.md"
+        return m.reports_dir / f"{name}.md", f"{folder}/{_safe_seg(report_label(name))}.md"
+    groups = {"brief": (BRIEFS_DIR, "brief"), "tracking": (TRACKING_DIR, "tracking"),
+              "prep": (PREP_DIR, "prep"), "weekly": (WEEKLY_DIR, "weekly")}
+    if it.type in groups:
+        folder, key = groups[it.type]
+        return folder / f"{name}.md", f"{_safe_seg(t('files.' + key))}/{_safe_seg(name)}.md"
+    return None, ""
+
+
 @app.post("/api/export")
 def api_export(body: ExportBody):
-    """把选中的多个 .md 打包成 zip 返回。"""
     if not body.items:
-        _err(ValueError("没有选择任何文件"))
+        _err(ValueError(t("server.export_nothing_selected")))
     buf = io.BytesIO()
     used: set[str] = set()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -908,27 +1159,26 @@ def api_export(body: ExportBody):
             if path is None or not path.exists():
                 continue
             base, n = arc, 1
-            while arc in used:  # 不同会议可能产生同名 arc，避免覆盖
+            while arc in used:
                 n += 1
                 stem, dot, ext = base.rpartition(".")
                 arc = f"{stem}-{n}.{ext}" if dot else f"{base}-{n}"
             used.add(arc)
             zf.write(path, arcname=arc)
     if not used:
-        _err(ValueError("选中的文件都不存在"))
+        _err(ValueError(t("server.export_files_missing")))
     buf.seek(0)
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    fname = f"coco-导出-{stamp}.zip"
+    fname = f"coco-{t('files.export')}-{stamp}.zip"
     disp = f"attachment; filename=coco-export-{stamp}.zip; filename*=UTF-8''{quote(fname)}"
-    return StreamingResponse(buf, media_type="application/zip",
-                             headers={"Content-Disposition": disp})
+    return StreamingResponse(buf, media_type="application/zip", headers={"Content-Disposition": disp})
 
 
-# ---------- 模板 / 记忆 ----------
+# ---------- templates / memory ----------
 
 @app.get("/api/templates")
 def api_templates():
-    return [{"name": k, "desc": v["desc"]} for k, v in TEMPLATES.items()]
+    return list_templates()
 
 
 @app.get("/api/memory")
@@ -946,10 +1196,7 @@ class MemoryBody(BaseModel):
 
 
 def _backup_then_write(path: Path, new: str) -> bool:
-    """覆盖前把旧内容备份为同目录 .bak.md（单槽撤销，与自动合并一致）。
-
-    返回是否真的写了备份（内容没变化时不备份）。
-    """
+    """Back the old content up as .bak.md before overwriting (single-slot undo)."""
     old = path.read_text(encoding="utf-8") if path.exists() else ""
     backed = bool(old.strip()) and old != new
     if backed:
@@ -978,18 +1225,27 @@ class MemoryClearBody(BaseModel):
 @app.post("/api/memory/clear")
 def api_memory_clear(body: MemoryClearBody):
     if body.which not in MEMORY_FILES:
-        _err(ValueError("which 只能是 content、longterm 或 glossary"))
+        _err(ValueError(t("server.bad_memory_which")))
     ensure_dirs()
-    path, _, placeholder = MEMORY_FILES[body.which]
+    path, kind = MEMORY_FILES[body.which]
+    placeholder = memory_placeholder(kind)
     with ai.MEMORY_LOCK:
         backed = _backup_then_write(path, placeholder)
     return {"ok": True, "content": placeholder,
             "backup": str(path.with_suffix(".bak.md")) if backed else None}
 
 
+@app.post("/api/memory/compact")
+def api_memory_compact():
+    """Rewrite long-term memory once to merge / compress (background job)."""
+    def run(progress):
+        ai.compact_longterm(progress=progress)
+        return t("server.compact_done")
+    return {"job": _start_job(t("ai.compacting"), run)}
+
+
 @app.post("/api/glossary/extract")
 def api_glossary_extract():
-    """AI 从长期记忆与最近转写中提炼词表（人名/专有名词），合并进 glossary.md。"""
     try:
         content = ai.extract_glossary()
     except ai.AIError as e:
@@ -997,19 +1253,16 @@ def api_glossary_extract():
     return {"ok": True, "glossary": content}
 
 
-# ---------- 知识底座 ----------
+# ---------- knowledge base ----------
 
 def _section_items(text: str) -> dict[str, list[str]]:
-    """把 Markdown 按「## 章节」切分，取每节的【顶层】条目行（无缩进的 - / *）。
-
-    缩进的子条目（如人物名下的时间线补充）属于父条目，不单独计数。
-    """
+    """Top-level bullet entries per canonical section ('people', 'projects', …)."""
     out: dict[str, list[str]] = {}
     section = ""
     for line in text.splitlines():
         s = line.strip()
         if s.startswith("## "):
-            section = s[3:].strip()
+            section = i18n.canonical_section(s) or s[3:].strip()
             out.setdefault(section, [])
         elif section and (line.startswith("- ") or line.startswith("* ")):
             out[section].append(line[2:].strip())
@@ -1018,29 +1271,24 @@ def _section_items(text: str) -> dict[str, list[str]]:
 
 @app.get("/api/knowledge")
 def api_knowledge():
-    """知识底座总览：统计 + 长期记忆 + 词表（供底座页面渲染）。"""
     ensure_dirs()
     longterm = LONGTERM_FILE.read_text(encoding="utf-8")
     glossary = GLOSSARY_FILE.read_text(encoding="utf-8")
     sections = _section_items(longterm)
     from .glossary import glossary_stats
     gs = glossary_stats(glossary)
-    persons = sections.get("人物", [])
-    # 人物条目通常是「**张三**：备注」或「张三：备注」，取名字部分做点选提问
+    persons = sections.get("people", [])
     names = []
-    for p in persons:
+    for p in persons:  # entries look like "**Name**: note" or "Name: note"
         n = re.split(r"[:：（(]", p.replace("*", ""), 1)[0].strip()
-        if 0 < len(n) <= 20:
+        if 0 < len(n) <= 40:
             names.append(n)
     meetings = [m for m in list_meetings() if m.transcript_md.exists()]
     return {
-        "stats": {
-            "meetings": len(meetings),
-            "persons": len(persons),
-            "projects": len(sections.get("项目与客户", [])),
-            "promises": len(sections.get("承诺与决定", [])),
-            "glossary": gs["names"] + gs["terms"],
-        },
+        "stats": {"meetings": len(meetings), "persons": len(persons),
+                  "projects": len(sections.get("projects", [])),
+                  "promises": len(sections.get("commitments", [])),
+                  "glossary": gs["names"] + gs["terms"]},
         "person_names": names,
         "longterm": longterm,
         "glossary": glossary,
@@ -1049,7 +1297,5 @@ def api_knowledge():
 
 @app.exception_handler(Exception)
 def on_error(request, exc):
-    # 堆栈打到终端供本人排查；只回固定文案给前端，不泄漏内部路径/异常细节
-    traceback.print_exc(file=sys.stderr)
-    return JSONResponse(status_code=500,
-                        content={"detail": "服务器内部错误，请查看运行 coco 的终端日志"})
+    traceback.print_exc(file=sys.stderr)  # stack to the terminal; a fixed message to the browser
+    return JSONResponse(status_code=500, content={"detail": t("server.internal_error")})

@@ -1,228 +1,122 @@
-"""分析模板（对标 YouNavi 的「来点启发」提示模板）。"""
+"""Registry of analysis templates and cross-meeting insight modes.
 
-TEMPLATES = {
-    "纪要": {
-        "desc": "结构化会议纪要：议题、讨论要点、结论、待办",
-        "prompt": (
-            "请基于转写内容生成一份结构化会议纪要，包含：\n"
-            "1. 会议主题与参与方（能推断多少写多少，不要编造）\n"
-            "2. 按议题分组的讨论要点\n"
-            "3. 达成的结论与决定\n"
-            "4. 待办事项（负责人、时间点，转写中没有就标「未明确」）\n"
-            "引用关键原话时带上时间戳。"
-        ),
-    },
-    "行动项": {
-        "desc": "只提取行动项：事项、负责人、截止时间、依赖",
-        "prompt": (
-            "只提取行动项，输出表格：事项 | 负责人 | 截止时间 | 依赖/备注。\n"
-            "负责人和时间在转写中没有明确说的，标「未明确」，不要推测。\n"
-            "最后列出「悬而未决」：被提出但没人认领的事。"
-        ),
-    },
-    "情绪曲线": {
-        "desc": "按时间线描绘对话情绪与能量变化，标出转折点",
-        "prompt": (
-            "按时间线分析这场对话的情绪与能量变化：\n"
-            "1. 用分段时间线描述情绪走向（开场→各阶段→收尾）\n"
-            "2. 标出明显的转折点（谁说了什么导致气氛变化，带时间戳）\n"
-            "3. 哪些话题让对方明显投入或回避\n"
-            "4. 整体判断：这场对话的真实温度如何"
-        ),
-    },
-    "张力与分歧": {
-        "desc": "识别未说破的分歧、回避的话题、立场差异",
-        "prompt": (
-            "找出这场对话中隐藏的张力：\n"
-            "1. 表面同意但措辞含糊的地方（引用原话+时间戳）\n"
-            "2. 被引开或刻意回避的话题\n"
-            "3. 各方真实立场与表达立场的差距\n"
-            "4. 如果不处理，这些张力接下来会在哪里爆发\n"
-            "保持克制：只基于转写证据，每条标注信心程度。"
-        ),
-    },
-    "认知偏误": {
-        "desc": "检测讨论与决策中的认知偏误",
-        "prompt": (
-            "审视这场讨论中的决策质量：\n"
-            "1. 出现了哪些认知偏误（锚定、确认偏误、沉没成本、从众等），"
-            "引用原话+时间戳作为证据\n"
-            "2. 哪些关键假设没有被质疑\n"
-            "3. 缺失了哪些本应讨论的反方观点\n"
-            "4. 给出 2-3 个值得回头重新审视的问题"
-        ),
-    },
-    "话题延伸": {
-        "desc": "值得深挖的话题、未回答的问题、下一步研究方向",
-        "prompt": (
-            "基于这场对话，列出：\n"
-            "1. 被提及但没展开、值得深挖的话题（为什么值得）\n"
-            "2. 提出了但没人回答的问题\n"
-            "3. 对话中暴露的信息盲区\n"
-            "4. 建议的下一步：要查的资料、要约的人、要验证的假设"
-        ),
-    },
-    "客户跟进": {
-        "desc": "客户会议复盘：信号、异议、关系温度、跟进动作",
-        "prompt": (
-            "以资深客户总监视角复盘这场客户沟通：\n"
-            "1. 购买/合作信号与负面信号（引用原话+时间戳）\n"
-            "2. 客户提出的异议和真实顾虑（说出来的 vs 没说出来的）\n"
-            "3. 关系温度判断与依据\n"
-            "4. 跟进计划：48 小时内、两周内分别做什么，邮件要点建议"
-        ),
-    },
-    "招聘评估": {
-        "desc": "面试复盘：能力证据、亮点、风险、追问建议",
-        "prompt": (
-            "以面试官教练视角复盘这场面试：\n"
-            "1. 候选人展示的能力证据（具体事例，不算口头宣称）\n"
-            "2. 亮点与风险信号（引用原话+时间戳）\n"
-            "3. 回答中含糊、矛盾或被美化的地方\n"
-            "4. 下一轮值得追问的 3-5 个问题"
-        ),
-    },
-    "跟进草稿": {
-        "desc": "会后可直接发出的跟进消息草稿 + 48 小时行动清单",
-        "prompt": (
-            "基于这场会议，输出两部分可直接使用的内容：\n"
-            "1. 跟进消息草稿：一封发给对方的跟进邮件/微信（自动判断哪种更合适），"
-            "包含：感谢与共识确认、双方待办与时间点、下一步安排。"
-            "语气匹配转写中体现的双方关系，不客套堆砌；"
-            "落款和称呼用转写中出现的真实称谓，没有就留占位符\n"
-            "2. 48 小时行动清单：我方在 48 小时内应完成的动作，"
-            "每条注明：具体动作、产出物、截止时间、为什么现在就要做。"
-            "只列转写中有依据的事项，别编造承诺"
-        ),
-    },
+IDs are language-neutral (``minutes``, ``actions`` …) and used in API calls and
+file names; display names / descriptions come from the locale files. The
+original Chinese names are still accepted everywhere (and old report files
+named after them keep their labels), so libraries created before the
+multilingual version continue to work.
+"""
+from __future__ import annotations
+
+import re
+
+from .i18n import LOCALES_DIR, _load, get_lang, normalize, t
+
+TEMPLATE_IDS = ["minutes", "actions", "mood", "tension", "bias", "topics",
+                "client", "hiring", "followup"]
+LEGACY_TEMPLATES = {
+    "纪要": "minutes", "行动项": "actions", "情绪曲线": "mood", "张力与分歧": "tension",
+    "认知偏误": "bias", "话题延伸": "topics", "客户跟进": "client", "招聘评估": "hiring",
+    "跟进草稿": "followup",
 }
+TRACK_MODE_IDS = ["track", "signals", "synthesis"]
+LEGACY_TRACK_MODES = {"追踪": "track", "深层信号": "signals", "调研综合": "synthesis"}
 
-BRIEF_PROMPT = (
-    "你是我的每日工作简报助手。以下是我今天的全部会议/录音转写（或已有报告）。\n"
-    "请生成一份每日简报，包含：\n"
-    "1. 今日概览：几场会、各自一句话核心\n"
-    "2. 所有行动项汇总（按紧急程度排序）\n"
-    "3. 战略层面的洞察：今天的信息放在一起看，说明了什么\n"
-    "4. 一条反思：今天的沟通中我可以做得更好的地方\n"
-    "简洁、可直接发给自己存档。"
-)
+DEFAULT_TEMPLATE = "minutes"
+DEFAULT_TRACK_MODE = "track"
 
-WEEKLY_PROMPT = (
-    "你是我的每周工作复盘助手。以下是本周的全部会议/沟通转写，按时间先后排列。\n"
-    "请生成一份周报，包含：\n"
-    "1. 本周概览：几场会，以及贯穿本周的 2-3 条主线（把相关会议串起来讲，"
-    "不要逐场流水账）\n"
-    "2. 关键决定与进展：本周拍板的事、取得的实质推进\n"
-    "3. 行动项总账：本周新增的承诺（谁、什么、何时）；更早的承诺在本周的状态"
-    "（已兑现 / 有推进 / 没下文），标注 [会议id]\n"
-    "4. 人与关系：谁的表态或态度在本周发生了变化，引用前后原话对比\n"
-    "5. 未决与风险：反复出现但没有结论的问题，以及不处理的后果\n"
-    "6. 下周建议：3-5 条具体动作，每条说明为什么是下周该做的\n"
-    "只依据转写证据，不编造；简洁、可直接存档。"
-)
 
-LONGTERM_PROMPT = (
-    "你负责维护一份跨会议的长期记忆文件。下面给出当前的长期记忆全文和一份新材料"
-    "（一场会议的转写，或汇总一天会议的每日简报）。\n"
-    "请输出更新后的长期记忆全文（Markdown），规则：\n"
-    "1. 固定四个章节：## 人物、## 项目与客户、## 承诺与决定、## 术语与说法\n"
-    "2. 从新转写中提取值得长期记住的事实合并进对应章节；"
-    "与已有条目重复的合并更新，不要重复罗列\n"
-    "3. 「承诺与决定」每条注明：谁、承诺/决定了什么、时间点（如有）、"
-    "状态（进行中/已兑现/已取消/未知），并标注来源 [会议id]\n"
-    "4. 同一人/项目的信息若被新会议更新（如表态变化），保留变化轨迹："
-    "「原说 X [旧会议] → 现说 Y [新会议]」\n"
-    "5. 只记录转写中有依据的事实，不推测；寒暄闲聊和一次性细节不记\n"
-    "6. 控制总长度在 600 行以内，过时低价值条目可压缩，但不要丢失未兑现的承诺\n"
-    "直接输出更新后的全文，以「# 长期记忆」开头，不要任何解释。"
-)
+def _labels(group: str, tid: str) -> set[str]:
+    """Every localized name of a template/mode across all shipped locales."""
+    names = set()
+    for p in LOCALES_DIR.glob("*.json"):
+        entry = (_load(p.stem).get(group) or {}).get(tid) or {}
+        if entry.get("name"):
+            names.add(entry["name"].strip().lower())
+    return names
 
-TRACK_PROMPT = (
-    "你是跨会议追踪分析师。下面按时间先后给出多场会议的转写。请输出三部分：\n"
-    "1. 承诺履行：谁在哪场会承诺/答应了什么（标注 [会议id] 和时间戳），"
-    "在之后的会议里是已兑现、有推进，还是没了下文\n"
-    "2. 表态变化：同一人或同一方对同一事项的说法前后发生变化的地方，"
-    "引用两处原话对比，并判断变化意味着什么\n"
-    "3. 反复出现的未决问题：被多次提起但始终没有结论的事，"
-    "以及每一次是怎么被搁置的\n"
-    "只依据转写证据，不编造；只有单场会议线索、构不成跨会议对比的，明确说明。"
-)
 
-SIGNAL_PROMPT = (
-    "你是深层信号分析师，任务是发现表面内容之下的东西。"
-    "下面按时间先后给出多场会议/沟通的转写。请输出：\n"
-    "1. 非共识：表面达成一致、实际并未真正同意的地方"
-    "（措辞含糊、口头答应但无行动承接、附加了条件），引用原话+[会议id]+时间戳\n"
-    "2. 潜台词：话里有话的表达，说了什么、真正想传达什么、为什么不直说\n"
-    "3. 立场与利益：各方（人或部门）真正在意什么、在保护什么、在争取什么，"
-    "依据是哪些言行\n"
-    "4. 观点漂移：同一人/方的态度随时间的变化轨迹，以及最可能的原因\n"
-    "5. 盲区：所有人都没提、但按讨论逻辑本应出现的关键问题\n"
-    "每条标注信心程度（高/中/低）与依据。只基于转写证据推断，"
-    "证据不足的明确说「证据不足」，不要脑补剧情。"
-)
+def resolve_template(name: str) -> "str | None":
+    """Accept an id, the legacy Chinese name or any localized label → id."""
+    if not name:
+        return None
+    n = name.strip()
+    if n in TEMPLATE_IDS:
+        return n
+    if n in LEGACY_TEMPLATES:
+        return LEGACY_TEMPLATES[n]
+    low = n.lower()
+    for tid in TEMPLATE_IDS:
+        if low in _labels("templates", tid):
+            return tid
+    return None
 
-SYNTH_PROMPT = (
-    "你是资深顾问（FDE/咨询视角），刚通过多场访谈与会议了解一个组织。"
-    "下面按时间先后给出这些沟通的转写。请交叉对比、综合出一份调研综合报告：\n"
-    "1. 组织与角色图：出场的关键人、职责与汇报关系线索、各自的影响力判断\n"
-    "2. 诉求与痛点对比矩阵：用表格列出「人/角色 | 核心诉求 | 痛点 | 优先级 | "
-    "关键原话（带[会议id]+时间戳）」\n"
-    "3. 共识区与分歧区：多方说法一致的判断；同一问题上互相矛盾的说法"
-    "（并列引用原话，分析谁的信息更可信、为什么）\n"
-    "4. 深层信号：利益冲突、部门墙、没人愿意说破的问题\n"
-    "5. 信息盲区：还缺谁的视角、哪些关键事实没被验证，"
-    "建议追加访谈的对象与各自要问的 3 个问题\n"
-    "6. 落地方向建议：快赢（2 周内可见效）、中期（1-3 个月）、长期（3 个月以上）"
-    "各 1-3 条，每条说明：解决什么痛点、需要谁配合、第一步具体做什么\n"
-    "7. 主要风险与规避\n"
-    "所有判断标注依据；转写没有覆盖的，明确说「访谈中未涉及」。"
-)
 
-# 跨会议洞察的三种模式：模式名 -> (提示词, 一句话说明)
-TRACK_MODES = {
-    "追踪": (TRACK_PROMPT, "承诺履行 / 表态变化 / 反复未决的问题"),
-    "深层信号": (SIGNAL_PROMPT, "非共识 / 潜台词 / 立场与利益 / 观点漂移 / 盲区"),
-    "调研综合": (SYNTH_PROMPT, "多方交叉对比：痛点矩阵 / 共识分歧 / 落地方向（FDE 调研）"),
-}
+def resolve_track_mode(name: str) -> "str | None":
+    if not name:
+        return None
+    n = name.strip()
+    if n in TRACK_MODE_IDS:
+        return n
+    if n in LEGACY_TRACK_MODES:
+        return LEGACY_TRACK_MODES[n]
+    low = n.lower()
+    for tid in TRACK_MODE_IDS:
+        if low in _labels("track_modes", tid):
+            return tid
+    return None
 
-PREP_PROMPT = (
-    "你是我的会前参谋。我即将参加一场会议/沟通，请基于给出的材料"
-    "（历史会议转写、长期记忆、词表{web_hint}）生成一份会前简报，让我先看懂局再进会。输出：\n"
-    "1. 局势判断：这场会发生在什么背景下，走到今天的关键脉络（3-5 句）\n"
-    "2. 关键人：每位参会人（材料里有信息的）——角色、历史表态与变化"
-    "（引用[会议id]+时间戳）、核心诉求、对我这次目标最可能的态度\n"
-    "3. 阻力与机会：谁/什么可能挡路，依据是什么；哪些机会窗口值得抓\n"
-    "4. 建议打法：开场怎么切入、议程顺序建议、我该主动提的 3-5 个问题"
-    "（每个问题注明想验证什么）\n"
-    "5. 红线与风险信号：会上出现什么迹象说明局面在变坏，出现了怎么办\n"
-    "6. 信息缺口：材料覆盖不到、开会前最好再确认的事\n"
-    "只依据给出的材料，历史信息都要标来源；材料之外的推断明确标「推测」。"
-)
 
-PREP_WEB_HINT = (
-    "，以及联网搜索。请先用搜索工具查参会人/相关公司/相关行业的公开信息"
-    "（新闻、动态、背景），公开信息单独归入「公开情报」小节且每条注明来源链接"
-)
+def template_label(tid: str, lang: "str | None" = None) -> str:
+    return t(f"templates.{tid}.name", lang) if tid in TEMPLATE_IDS else tid
 
-GLOSSARY_PROMPT = (
-    "你负责维护一份「词表」：人名与专有名词的标准写法，用于修正语音转写的同音字错误。\n"
-    "下面给出当前词表全文和一批新材料（长期记忆、会议转写片段）。"
-    "请输出更新后的词表全文（Markdown），规则：\n"
-    "1. 固定两个章节：## 人名、## 专有名词\n"
-    "2. 每条一行，格式：- 正确写法（误写：错1、错2）｜备注 ——"
-    "没有已知误写就省略括号，没有备注就省略竖线\n"
-    "3. 从新材料中提取值得收录的人名、公司/品牌/产品名、项目名、行业术语；"
-    "同一词条合并更新，不重复罗列\n"
-    "4. 材料中出现的疑似同音字误写（如「置仓/智舱」并存），"
-    "选最可能正确的作为标准写法，其余记入误写\n"
-    "5. 保留原词表的全部条目与备注（可修正明显错误），只增不删\n"
-    "6. 寒暄用语、普通词汇不收；控制在 200 行以内\n"
-    "直接输出更新后的全文，以「# 词表」开头，不要任何解释。"
-)
 
-CHAT_SYSTEM = (
-    "你是 coco，我的本地会议分析助手。基于提供的会议转写与全局记忆回答问题。\n"
-    "原则：只依据转写证据，不编造；引用关键原话时带时间戳；"
-    "转写没有覆盖的内容明确说「转写中没有提到」；用中文回答，直接给结论再给依据。"
-)
+def template_desc(tid: str, lang: "str | None" = None) -> str:
+    return t(f"templates.{tid}.desc", lang) if tid in TEMPLATE_IDS else ""
+
+
+def track_label(tid: str, lang: "str | None" = None) -> str:
+    return t(f"track_modes.{tid}.name", lang) if tid in TRACK_MODE_IDS else tid
+
+
+def track_desc(tid: str, lang: "str | None" = None) -> str:
+    return t(f"track_modes.{tid}.desc", lang) if tid in TRACK_MODE_IDS else ""
+
+
+def list_templates(lang: "str | None" = None) -> list[dict]:
+    return [{"id": i, "name": template_label(i, lang), "desc": template_desc(i, lang)}
+            for i in TEMPLATE_IDS]
+
+
+def list_track_modes(lang: "str | None" = None) -> list[dict]:
+    return [{"id": i, "name": track_label(i, lang), "desc": track_desc(i, lang)}
+            for i in TRACK_MODE_IDS]
+
+
+_STAMP = re.compile(r"-(\d{2})(\d{2})(?:-\d+)?$")
+
+
+def report_label(stem: str, lang: "str | None" = None) -> str:
+    """'minutes-1355' / '纪要-1355' → '纪要 13:55' in the requested language;
+    unknown prefixes keep their text, only the time suffix is made readable."""
+    m = _STAMP.search(stem)
+    base = stem[:m.start()] if m else stem
+    tid = resolve_template(base)
+    label = template_label(tid, lang) if tid else base
+    return f"{label} {m.group(1)}:{m.group(2)}" if m else label
+
+
+def all_template_names() -> list[str]:
+    """ids + legacy names, for CLI argument validation / help."""
+    return TEMPLATE_IDS + list(LEGACY_TEMPLATES)
+
+
+def all_track_mode_names() -> list[str]:
+    return TRACK_MODE_IDS + list(LEGACY_TRACK_MODES)
+
+
+__all__ = ["TEMPLATE_IDS", "TRACK_MODE_IDS", "LEGACY_TEMPLATES", "LEGACY_TRACK_MODES",
+           "resolve_template", "resolve_track_mode", "template_label", "template_desc",
+           "track_label", "track_desc", "list_templates", "list_track_modes",
+           "report_label", "all_template_names", "all_track_mode_names", "get_lang",
+           "normalize"]

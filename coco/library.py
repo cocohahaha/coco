@@ -1,4 +1,4 @@
-"""会议库：library/ 下每个会议一个文件夹，含音频、转写、报告。"""
+"""Meeting library: one folder per meeting under library/ (audio, transcript, reports)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -8,16 +8,17 @@ import shutil
 from pathlib import Path
 
 from .config import LIBRARY_DIR, TRASH_DIR, ensure_dirs
+from .i18n import t
 
 AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
-              ".opus", ".webm", ".mp4", ".mov", ".mkv", ".amr", ".wma"}
+              ".opus", ".webm", ".mp4", ".mov", ".mkv", ".amr", ".wma", ".aac", ".wmv", ".avi"}
 
 
 def _slug(title: str) -> str:
     s = re.sub(r"[\\/:*?\"<>|\s]+", "-", title.strip())
-    s = re.sub(r"\.{2,}", "-", s)  # ".." 会被下载/删除接口的路径穿越防护拒绝
-    # Windows 会静默去掉文件夹名末尾的点和空格，导致创建的目录名与记录的 id 对不上
-    return s[:60].strip("-. ") or "未命名"
+    s = re.sub(r"\.{2,}", "-", s)  # ".." would be rejected by the path-traversal guards
+    # Windows silently strips trailing dots/spaces from folder names → id mismatch
+    return s[:60].strip("-. ") or "untitled"
 
 
 class Meeting:
@@ -38,9 +39,7 @@ class Meeting:
     def save_meta(self, **kwargs) -> None:
         m = self.meta
         m.update(kwargs)
-        self.meta_file.write_text(
-            json.dumps(m, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        self.meta_file.write_text(json.dumps(m, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @property
     def title(self) -> str:
@@ -48,8 +47,7 @@ class Meeting:
 
     @property
     def date(self) -> str:
-        """有效日期（YYYY-MM-DD）：手动校准的 meta.date 优先，否则取创建日，
-        再不行从文件夹名前缀推断。用于显示、排序、按日筛选与每日简报分组。"""
+        """Effective date (YYYY-MM-DD): manual meta.date, else creation day, else folder prefix."""
         d = self.meta.get("date")
         if d:
             return d
@@ -83,6 +81,16 @@ class Meeting:
             return self.transcript_md.read_text(encoding="utf-8")
         return ""
 
+    def segments(self) -> list[dict]:
+        """Timed segments from transcript.json (empty for plain-text imports)."""
+        if not self.transcript_json.exists():
+            return []
+        try:
+            data = json.loads(self.transcript_json.read_text(encoding="utf-8"))
+        except ValueError:
+            return []
+        return [s for s in data.get("segments", []) if isinstance(s, dict) and s.get("text")]
+
     def reports(self) -> list[Path]:
         if not self.reports_dir.exists():
             return []
@@ -90,24 +98,38 @@ class Meeting:
 
     def summary(self) -> dict:
         m = self.meta
+        src = m.get("source", "")
         return {
             "id": self.id,
             "title": self.title,
             "created": m.get("created", ""),
             "date": self.date,
             "duration": m.get("duration", ""),
-            "source": m.get("source", ""),
-            "language": m.get("language", ""),  # 转写时识别/使用的语种
+            "source": src,
+            "source_label": source_label(src),
+            "language": m.get("language", ""),  # language detected / used for transcription
             "status": m.get("status", "new"),  # new|transcribing|done|error
             "has_transcript": self.transcript_md.exists(),
-            "has_raw": (self.path / "transcript.raw.md").exists(),  # 人名校正前原稿，供前端「恢复」入口
+            "has_raw": (self.path / "transcript.raw.md").exists(),  # pre-correction original
+            "has_segments": self.transcript_json.exists(),
             "names_fixed_at": m.get("names_fixed_at", ""),
             "reports": [p.stem for p in self.reports()],
         }
 
 
+def source_label(src: str) -> str:
+    """Localized label for a source id ('upload', 'record', 'watch:folder' …);
+    legacy Chinese labels stored by older versions are shown as they are."""
+    if not src:
+        return ""
+    if src.startswith("watch:"):
+        return t("source.watch", folder=src[6:])
+    label = t(f"source.{src}")
+    return src if label == f"source.{src}" else label
+
+
 def create_meeting(title: str, audio_path: Path | None = None,
-                   source: str = "导入", move: bool = False) -> Meeting:
+                   source: str = "import", move: bool = False) -> Meeting:
     ensure_dirs()
     date = dt.date.today().isoformat()
     base = f"{date}-{_slug(title)}"
@@ -118,12 +140,8 @@ def create_meeting(title: str, audio_path: Path | None = None,
         folder = LIBRARY_DIR / f"{base}-{n}"
     folder.mkdir(parents=True)
     mtg = Meeting(folder)
-    mtg.save_meta(
-        title=title,
-        created=dt.datetime.now().isoformat(timespec="seconds"),
-        source=source,
-        status="new",
-    )
+    mtg.save_meta(title=title, created=dt.datetime.now().isoformat(timespec="seconds"),
+                  source=source, status="new")
     if audio_path is not None:
         dest = folder / ("audio" + audio_path.suffix.lower())
         if move:
@@ -139,13 +157,13 @@ def list_meetings() -> list[Meeting]:
     for p in LIBRARY_DIR.iterdir():
         if p.is_dir() and not p.name.startswith("_") and (p / "meta.json").exists():
             out.append(Meeting(p))
-    # 按有效日期倒序（手动校准录音日期后顺序随之调整），同日再按创建时间、id
+    # newest effective date first, then creation time, then id
     out.sort(key=lambda m: (m.date, m.meta.get("created", ""), m.id), reverse=True)
     return out
 
 
 def find_meeting(key: str) -> Meeting:
-    """按 id 精确匹配，或按标题/id 子串模糊匹配；歧义时报错。"""
+    """Exact id, or unique substring of id / title; ambiguous → error."""
     meetings = list_meetings()
     for m in meetings:
         if m.id == key:
@@ -154,9 +172,9 @@ def find_meeting(key: str) -> Meeting:
     if len(hits) == 1:
         return hits[0]
     if not hits:
-        raise LookupError(f"找不到会议：{key}（coco list 查看全部）")
-    names = "、".join(m.id for m in hits[:8])
-    raise LookupError(f"“{key}”匹配到多个会议：{names}，请用更精确的名字")
+        raise LookupError(t("library.not_found", key=key))
+    names = ", ".join(m.id for m in hits[:8])
+    raise LookupError(t("library.ambiguous", key=key, names=names))
 
 
 def meetings_on(date: str) -> list[Meeting]:
@@ -164,9 +182,9 @@ def meetings_on(date: str) -> list[Meeting]:
 
 
 def delete_meeting(mtg: Meeting) -> Path:
-    """软删除：整个会议文件夹移入 library/_trash，可手动恢复。"""
+    """Soft delete: move the whole folder into library/_trash."""
     if mtg.meta.get("status") == "transcribing":
-        raise RuntimeError("该会议正在转写中，等转写结束后再删除")
+        raise RuntimeError(t("library.deleting_while_transcribing"))
     TRASH_DIR.mkdir(parents=True, exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
     dest = TRASH_DIR / f"{mtg.id}~{stamp}"
@@ -175,7 +193,7 @@ def delete_meeting(mtg: Meeting) -> Path:
 
 
 def search_library(query: str, per_meeting: int = 4, limit: int = 50) -> list[dict]:
-    """在所有转写和报告里做不区分大小写的全文搜索。"""
+    """Case-insensitive full-text search over transcripts and reports."""
     q = query.strip().lower()
     if not q:
         return []
@@ -183,7 +201,7 @@ def search_library(query: str, per_meeting: int = 4, limit: int = 50) -> list[di
     for m in list_meetings():
         sources = []
         if m.transcript_md.exists():
-            sources.append(("转写", m.transcript_md))
+            sources.append((t("files.transcript"), m.transcript_md))
         sources += [(p.stem, p) for p in m.reports()]
         matches = []
         for label, path in sources:
@@ -195,8 +213,7 @@ def search_library(query: str, per_meeting: int = 4, limit: int = 50) -> list[di
             if len(matches) >= per_meeting:
                 break
         if matches:
-            results.append({"id": m.id, "title": m.title,
-                            "created": m.meta.get("created", ""),
+            results.append({"id": m.id, "title": m.title, "created": m.meta.get("created", ""),
                             "matches": matches})
         if len(results) >= limit:
             break
