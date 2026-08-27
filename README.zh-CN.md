@@ -65,6 +65,10 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 - **本地 Whisper**：Apple Silicon 用 mlx-whisper（原生加速，turbo 转 45 分钟会议约 2 分钟）；
   Windows / Linux / Intel Mac 用 faster-whisper（有 NVIDIA 显卡走 CUDA，否则 CPU，慢但可用）。
   turbo 快、large 最准；顶栏随时切换模型与转写语言（自动识别或指定 ISO 码）
+- **幻觉抑制**：Whisper 会在静音和噪音处脑补文字（YouTube 式开场白、字幕致谢、单字复读），还会把
+  注入的提示词原样吐出来。coco 转写前先裁掉首尾静音，开启 Whisper 自带的静音幻觉阈值，保留每段的置信度，
+  转写后再按已知模式清洗。已有转写可在「转写」页签点「✦ 清理」（先预览再应用，原稿备份为
+  `transcript.preclean.md`），或用 `coco clean --all --apply`
 - **没有引擎也不慌**：不能本地转写的电脑（典型：没装 faster-whisper 的 Windows）一旦有人
   拖入音频，会弹出说明对话框：这台电脑暂时不能转写，录音本身没问题，给出三条路——用其他工具
   转成文字稿再拖进来 / 直接粘贴文字稿 / 安装引擎（附命令）。只有 CPU 的机器首次会提示预计耗时
@@ -230,6 +234,7 @@ coco。若 faster-whisper 安装失败，`run.bat` 会只装核心依赖，界�
 | `coco brief [日期]` / `coco weekly [日期]` | 日报 / 周报 |
 | `coco search <词>` | 全文搜索 |
 | `coco glossary [词条] [--extract]` | 查看/追加/AI 提炼词表 |
+| `coco clean <会议>\|--all [--apply]` | 清理已有转写里的 Whisper 幻觉（不加 `--apply` 只预览） |
 | `coco memory [内容]` | 查看/追加全局记忆 |
 | `coco memorize [会议\|--all\|--compact]` | 提取长期记忆 / 压缩整理 |
 | `coco lang [代码] [--output …]` | 界面与 AI 输出语言 |
@@ -256,7 +261,7 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 
 常用配置（`coco config 键 值`）：`ui_language`（auto / zh-CN / en / fr）、`output_language`
 （ui / source / 语言代码）、`whisper_model`、`language`（转写语言）、`beam_size`、
-`transcribe_backend`（auto / mlx / faster / none）、`auto_memory`、`memory_merge`（delta / full）、
+`hallucination_filter`、`transcribe_backend`（auto / mlx / faster / none）、`auto_memory`、`memory_merge`（delta / full）、
 `ai_profiles`、`ai_tasks`、`claude_extra_args`、`hf_endpoint`。环境变量 `COCO_ROOT` 可把数据根
 目录指到别处；`COCO_LANG` 覆盖 CLI 语言。
 

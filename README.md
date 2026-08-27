@@ -78,6 +78,12 @@ part in every cross-meeting analysis, exactly like a transcription.
   45-minute meeting in about 2 minutes); Windows / Linux / Intel Mac use faster-whisper (CUDA with an
   NVIDIA GPU, otherwise CPU — slow but working). *turbo* is fast, *large* the most accurate; model
   and transcription language (auto-detect or any ISO code) switch in the top bar.
+- **Hallucination guard**: Whisper invents text on silence and noise (YouTube-style greetings,
+  subtitle credits, repeated one-word segments) and echoes its own prompt. coco trims leading and
+  trailing silence before decoding, enables Whisper's silence-hallucination threshold, keeps each
+  segment's confidence, and strips the known shapes afterwards. Existing transcripts can be cleaned
+  with *✦ Clean* on the transcript tab (preview, then apply; original kept as
+  `transcript.preclean.md`) or `coco clean --all --apply`.
 - **No engine? No problem.** If a machine cannot transcribe (typical: Windows without
   faster-whisper), dropping audio opens a help dialog that explains the situation and offers the
   three routes: export a transcript from another tool and drop it in, paste the text, or install an
@@ -271,6 +277,7 @@ Output follows the interface language.
 | `coco brief [date]` / `coco weekly [date]` | Daily brief / weekly report |
 | `coco search <text>` | Full-text search |
 | `coco glossary [entry] [--extract]` | Show / add / extract the glossary |
+| `coco clean <meeting>\|--all [--apply]` | Remove Whisper hallucinations from existing transcripts (preview without `--apply`) |
 | `coco memory [text]` | Show / append global memory |
 | `coco memorize [meeting\|--all\|--compact]` | Extract long-term memory / compact it |
 | `coco lang [code] [--output …]` | Interface and AI output language |
@@ -297,7 +304,7 @@ coco.config.json        configuration (incl. API keys — git-ignored)
 
 Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr),
 `output_language` (ui / source / ISO code), `whisper_model`, `language` (transcription),
-`beam_size`, `transcribe_backend` (auto / mlx / faster / none), `auto_memory`, `memory_merge`
+`beam_size`, `hallucination_filter`, `transcribe_backend` (auto / mlx / faster / none), `auto_memory`, `memory_merge`
 (delta / full), `ai_profiles`, `ai_tasks`, `claude_extra_args`, `hf_endpoint`.
 `COCO_ROOT` points the data directory elsewhere; `COCO_LANG` overrides the CLI language.
 

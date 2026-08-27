@@ -114,6 +114,7 @@ class Meeting:
             "has_segments": self.transcript_json.exists(),
             "names_fixed_at": m.get("names_fixed_at", ""),
             "participants": m.get("participants", ""),
+            "has_preclean": (self.path / "transcript.preclean.md").exists(),
             "reports": [p.stem for p in self.reports()],
         }
 
@@ -164,6 +165,41 @@ def set_participants(mtg: "Meeting", text: str) -> str:
             md = "\n".join(lines).rstrip() + "\n"
         mtg.transcript_md.write_text(md, encoding="utf-8")
     return text
+
+
+def clean_meeting(mtg: "Meeting", apply: bool = False) -> dict:
+    """Remove hallucinated lines from an existing transcript (preview by default).
+
+    Applies the same rules as fresh transcriptions to transcript.md (body lines only) and to the
+    segments in transcript.json. The first apply keeps transcript.preclean.md as a backup.
+    Returns {"removed": [lines], "count": n, "applied": bool}.
+    """
+    from .transcriber import clean_segments, clean_transcript_lines
+    md = mtg.transcript_text()
+    if not md:
+        return {"removed": [], "count": 0, "applied": False}
+    prompt = "本次对话可能涉及。以下是普通话的句子，请用简体中文输出。"
+    lines = md.splitlines()
+    first_h2 = next((i for i, l in enumerate(lines) if l.startswith("## ")), -1)
+    head, body = (lines[: first_h2 + 1], lines[first_h2 + 1:]) if first_h2 >= 0 else ([], lines)
+    kept, removed = clean_transcript_lines(body, prompt)
+    if apply and removed:
+        bak = mtg.path / "transcript.preclean.md"
+        if not bak.exists():
+            bak.write_text(md, encoding="utf-8")
+        mtg.transcript_md.write_text("\n".join(head + kept).rstrip() + "\n", encoding="utf-8")
+        if mtg.transcript_json.exists():
+            try:
+                data = json.loads(mtg.transcript_json.read_text(encoding="utf-8"))
+                segs, _ = clean_segments(data.get("segments", []), prompt)
+                data["segments"] = segs
+                data["text"] = "\n".join(s["text"] for s in segs) if segs else data.get("text", "")
+                mtg.transcript_json.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+            except ValueError:
+                pass
+        mtg.save_meta(cleaned_at=dt.datetime.now().isoformat(timespec="seconds"),
+                      hallucinations_removed=int(mtg.meta.get("hallucinations_removed", 0) or 0) + len(removed))
+    return {"removed": removed, "count": len(removed), "applied": bool(apply and removed)}
 
 
 def source_label(src: str) -> str:

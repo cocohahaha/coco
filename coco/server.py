@@ -26,8 +26,8 @@ from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP
                      save_config)
 from .i18n import get_lang, memory_placeholder, set_lang, t
 from .ingest import TEXT_EXTS, TIMED_EXTS, import_text, import_transcript_file
-from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting, find_meeting,
-                      list_meetings, participants_from_transcript, search_library,
+from .library import (AUDIO_EXTS, Meeting, clean_meeting, create_meeting, delete_meeting,
+                      find_meeting, list_meetings, participants_from_transcript, search_library,
                       set_participants)
 from .recorder import Recorder, record_supported, record_unsupported_hint
 from .templates import (list_templates, list_track_modes, report_label, resolve_track_mode,
@@ -893,6 +893,22 @@ def api_detect_participants(mid: str):
         return {"participants": ai.detect_participants(m)}
     except (LookupError, ai.AIError) as e:
         _err(e)
+
+
+class CleanBody(BaseModel):
+    apply: bool = False  # false = preview only
+
+
+@app.post("/api/meetings/{mid}/clean")
+def api_clean_meeting(mid: str, body: CleanBody = CleanBody()):
+    """Strip Whisper hallucinations (silence chatter, subtitle credits, prompt echo, loops) from
+    an existing transcript. Preview by default; apply=true writes with a transcript.preclean.md backup."""
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    with ai.TRANSCRIPT_LOCK:
+        return clean_meeting(m, apply=body.apply)
 
 
 class ChatSaveBody(BaseModel):

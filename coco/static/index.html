@@ -963,6 +963,7 @@ async function renderMeeting() {
 
   const isT = state.tab === 'transcript';
   const extra = `<button id="btn-edit">${esc(t('doc.edit'))}</button>`
+    + (isT ? `<button id="btn-clean" title="${esc(t('doc.clean_title'))}">${esc(t('doc.clean'))}</button>` : '')
     + (isT && m.has_raw ? `<button id="btn-restore" title="${esc(t('doc.restore_title'))}">${esc(t('doc.restore'))}</button>` : '');
   const delBtn = isT ? '' : `<button id="btn-del-report">${esc(t('common.delete'))}</button>`;
   const fmtSel = isT ? `<select id="dl-fmt" title="${esc(t('doc.download_format_title'))}">
@@ -993,6 +994,7 @@ async function renderMeeting() {
   if (isT) {
     const rb = actions.querySelector('#btn-restore');
     if (rb) rb.onclick = restoreRaw;
+    actions.querySelector('#btn-clean').onclick = cleanTranscript;
   } else {
     actions.querySelector('#btn-del-report').onclick = async () => {
       const name = state.tab.slice(2);
@@ -1041,6 +1043,19 @@ async function saveReport() {
     state.editing = false; toast(t('report.saved'));
     await renderMeeting();
   } catch (e) { toast(t('common.save_failed', { msg: e.message }), 6000); }
+}
+
+async function cleanTranscript() {
+  const mid = state.current;
+  try {
+    const pre = await api(`/api/meetings/${encodeURIComponent(mid)}/clean`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply: false }) });
+    if (!pre.count) { toast(t('doc.clean_none')); return; }
+    const sample = pre.removed.slice(0, 8).map(l => '  ' + l.slice(0, 80)).join('\n') + (pre.count > 8 ? `\n  … +${pre.count - 8}` : '');
+    if (!confirm(t('doc.clean_confirm', { n: pre.count, sample }))) return;
+    const r = await api(`/api/meetings/${encodeURIComponent(mid)}/clean`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply: true }) });
+    toast(t('doc.clean_done', { n: r.count }), 6000);
+    if (state.current === mid) renderMeeting();
+  } catch (e) { toast(t('common.failed', { msg: e.message }), 8000); }
 }
 
 async function restoreRaw() {

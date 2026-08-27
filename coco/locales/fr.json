@@ -112,7 +112,8 @@
       "loading_device": "Chargement du modèle ({device} / {compute})…",
       "cuda_fallback": "CUDA indisponible ({detail}), bascule sur le CPU…",
       "progress": "Transcription… {done} / {total}",
-      "no_audio": "La réunion {id} n'a pas de fichier audio"
+      "no_audio": "La réunion {id} n'a pas de fichier audio",
+      "filtered": "{n} segments probablement hallucinés filtrés (bruit de silence, crédits de sous-titres, écho de l'invite, boucles)"
     },
     "record": {
       "unsupported": "L'enregistrement depuis l'interface web n'est disponible que sur macOS (ffmpeg avfoundation). Enregistrez avec le dictaphone du système ou votre logiciel de réunion, puis téléversez ou importez le fichier audio.",
@@ -347,7 +348,15 @@
       "h_ai_action": "show ; test de connexion ; preset <nom> ; set <clé> <valeur> ; task <tâche> primary|fast",
       "h_ai_name": "Nom du préréglage / clé / tâche",
       "h_ai_value": "Valeur",
-      "h_ai_profile": "Canal concerné (par défaut primary)"
+      "h_ai_profile": "Canal concerné (par défaut primary)",
+      "clean_usage": "Usage : coco clean <réunion> [--apply] ou coco clean --all [--apply] (aperçu sans --apply)",
+      "clean_meeting": "▶ {id} : {n} lignes suspectes",
+      "clean_preview": "Aperçu : {n} lignes pourraient être retirées ; ajoutez --apply pour le faire (sauvegarde : transcript.preclean.md)",
+      "clean_applied": "✓ {n} lignes retirées (sauvegarde : transcript.preclean.md)",
+      "h_clean": "Retirer les hallucinations de Whisper des transcriptions (bruit de silence, crédits de sous-titres, écho de l'invite, boucles)",
+      "h_clean_all": "Traiter toutes les réunions",
+      "h_clean_apply": "Écrire les modifications (aperçu seul par défaut)",
+      "h_clean_show": "Lignes d'exemple à afficher par réunion (6 par défaut)"
     }
   },
   "ui": {
@@ -444,7 +453,12 @@
       "participants_saved": "Participants enregistrés (écrits dans l'en-tête de la transcription)",
       "participants_detecting": "Détection…",
       "participants_detected": "Suggestion insérée : modifiez si besoin puis Entrée pour enregistrer",
-      "participants_failed": "Échec de la détection : {msg}"
+      "participants_failed": "Échec de la détection : {msg}",
+      "clean": "✦ Nettoyer",
+      "clean_title": "Retirer les hallucinations de Whisper : salutations inventées sur du silence, crédits de sous-titres, écho de l'invite, boucles, lignes de ponctuation. Aperçu d'abord ; l'original est sauvegardé",
+      "clean_none": "Aucune ligne suspecte trouvée",
+      "clean_confirm": "{n} lignes suspectes trouvées, par exemple :\n{sample}\n\nLes retirer ? L'original est conservé dans transcript.preclean.md.",
+      "clean_done": "{n} lignes retirées (original conservé dans transcript.preclean.md)"
     },
     "chat": {
       "title": "Discuter avec coco",

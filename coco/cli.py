@@ -315,6 +315,30 @@ def cmd_watch(args):
         _p("\n" + t("cli.watch_stopped"))
 
 
+def cmd_clean(args):
+    """Preview / remove hallucinated lines in existing transcripts."""
+    from .library import clean_meeting
+    if args.all:
+        meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    elif args.key:
+        meetings = [find_meeting(args.key)]
+    else:
+        _p(t("cli.clean_usage"))
+        sys.exit(1)
+    total = 0
+    for m in meetings:
+        r = clean_meeting(m, apply=args.apply)
+        if not r["count"]:
+            continue
+        total += r["count"]
+        _p(t("cli.clean_meeting", id=m.id, n=r["count"]))
+        for l in r["removed"][:args.show]:
+            _p("   " + l[:110])
+        if r["count"] > args.show:
+            _p(f"   … +{r['count'] - args.show}")
+    _p(t("cli.clean_applied" if args.apply else "cli.clean_preview", n=total))
+
+
 def cmd_devices(args):
     _p(list_devices())
     _p("\n" + t("cli.devices_hint"))
@@ -556,6 +580,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("folder")
     p.add_argument("--model", help=t("cli.h_model"))
     p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser("clean", help=t("cli.h_clean"))
+    p.add_argument("key", nargs="?", help=t("cli.h_key"))
+    p.add_argument("--all", action="store_true", help=t("cli.h_clean_all"))
+    p.add_argument("--apply", action="store_true", help=t("cli.h_clean_apply"))
+    p.add_argument("--show", type=int, default=6, help=t("cli.h_clean_show"))
+    p.set_defaults(func=cmd_clean)
 
     p = sub.add_parser("devices", help=t("cli.h_devices"))
     p.set_defaults(func=cmd_devices)

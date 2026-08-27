@@ -112,7 +112,8 @@
       "loading_device": "Loading model ({device} / {compute})…",
       "cuda_fallback": "CUDA unavailable ({detail}), falling back to CPU…",
       "progress": "Transcribing… {done} / {total}",
-      "no_audio": "Meeting {id} has no audio file"
+      "no_audio": "Meeting {id} has no audio file",
+      "filtered": "Filtered {n} likely hallucinated segments (silence chatter, subtitle credits, prompt echo, loops)"
     },
     "record": {
       "unsupported": "Recording from the web UI is only available on macOS (ffmpeg avfoundation). Record with your system recorder or meeting software and upload or import the audio file.",
@@ -347,7 +348,15 @@
       "h_ai_action": "show; test the connection; preset <name>; set <key> <value>; task <task> primary|fast",
       "h_ai_name": "Preset name / key / task",
       "h_ai_value": "Value",
-      "h_ai_profile": "Channel to act on (default primary)"
+      "h_ai_profile": "Channel to act on (default primary)",
+      "clean_usage": "Usage: coco clean <meeting> [--apply] or coco clean --all [--apply] (preview without --apply)",
+      "clean_meeting": "▶ {id}: {n} suspicious lines",
+      "clean_preview": "Preview: {n} lines could be removed; add --apply to do it (backup: transcript.preclean.md)",
+      "clean_applied": "✓ Removed {n} lines (backup: transcript.preclean.md)",
+      "h_clean": "Remove Whisper hallucinations from transcripts (silence chatter, subtitle credits, prompt echo, loops)",
+      "h_clean_all": "Process every meeting",
+      "h_clean_apply": "Write the changes (preview only by default)",
+      "h_clean_show": "Example lines to show per meeting (default 6)"
     }
   },
   "ui": {
@@ -444,7 +453,12 @@
       "participants_saved": "Participants saved (written into the transcript header)",
       "participants_detecting": "Detecting…",
       "participants_detected": "Suggestion filled in — edit if needed, then press Enter to save",
-      "participants_failed": "Detection failed: {msg}"
+      "participants_failed": "Detection failed: {msg}",
+      "clean": "✦ Clean",
+      "clean_title": "Remove Whisper hallucinations: greetings invented on silence, subtitle credits, prompt echo, loops, punctuation-only lines. Preview first; the original is backed up",
+      "clean_none": "No suspicious lines found",
+      "clean_confirm": "{n} suspicious lines found, for example:\n{sample}\n\nRemove them? The original is kept as transcript.preclean.md.",
+      "clean_done": "{n} lines removed (original kept as transcript.preclean.md)"
     },
     "chat": {
       "title": "Chat with coco",

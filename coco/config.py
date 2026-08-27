@@ -41,6 +41,7 @@ DEFAULTS = {
     "language": "auto",          # transcription language: auto-detect, or an ISO code (zh, en, fr …)
     "initial_prompt_extra": "",  # extra names / terms appended to the whisper prompt
     "beam_size": 0,              # 0 = greedy (fast). 5 = beam search: more accurate, slower
+    "hallucination_filter": True,  # suppress + strip Whisper hallucinations (silence chatter, prompt echo)
     "audio_device": ":0",        # ffmpeg avfoundation input device (coco devices)
     "hf_endpoint": "",           # empty = auto-detect; mainland China: https://hf-mirror.com
     # --- AI ---

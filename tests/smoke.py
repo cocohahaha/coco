@@ -279,6 +279,38 @@ check("对话保存为会议页签", r.status_code == 200 and r.json()["name"].s
 check("对话页签英文标签", c.get(f"/api/meetings/{mid1}", headers=EN).json()["report_list"][-1]["label"].startswith("Chat "))
 check("空对话 400", c.post(f"/api/meetings/{mid1}/chat", json={"content": " "}).status_code == 400)
 
+# 13.7 hallucination filter: fresh-transcription rules + clean endpoint on an existing transcript
+from coco.transcriber import clean_segments, is_hallucination  # noqa: E402
+PROMPT = "本次对话可能涉及：林炜、智舱。以下是普通话的句子，请用简体中文输出。"
+segs = [{"start": 0, "end": 2, "text": "请用简体中文输出。", "no_speech_prob": 0.9},
+        {"start": 2, "end": 4, "text": "Hi, guys! Welcome back to my channel!", "no_speech_prob": 0.2},
+        {"start": 4, "end": 5, "text": "!", "no_speech_prob": 0.1},
+        {"start": 5, "end": 8, "text": "请不吝点赞 订阅 转发 打赏支持明镜与点点栏目"},
+        {"start": 8, "end": 9, "text": "are", "no_speech_prob": 0.3}, {"start": 9, "end": 10, "text": "are", "no_speech_prob": 0.3},
+        {"start": 10, "end": 11, "text": "are", "no_speech_prob": 0.3}, {"start": 11, "end": 12, "text": "are", "no_speech_prob": 0.3},
+        {"start": 12, "end": 15, "text": "我们先做一个部门试点，两周看效果。", "no_speech_prob": 0.05},
+        {"start": 15, "end": 16, "text": "对", "no_speech_prob": 0.3},
+        {"start": 16, "end": 17, "text": "嗯", "no_speech_prob": 0.95},
+        {"start": 17, "end": 20, "text": "预算要走集团流程，最快十月。", "no_speech_prob": 0.9, "avg_logprob": -0.4}]
+kept, removed = clean_segments(segs, PROMPT)
+reasons = [r["reason"] for r in removed]
+check("过滤：提示词回显 / 字幕幻觉 / 纯标点 / 复读 / 静音短句", reasons.count("prompt-leak") == 1 and reasons.count("phrase") == 2
+      and reasons.count("punctuation") == 1 and reasons.count("repeat") == 2 and reasons.count("silence") == 1, str(reasons))
+check("过滤：真实短句与长句保留", [k["text"] for k in kept] == ["are", "are", "我们先做一个部门试点，两周看效果。", "对", "预算要走集团流程，最快十月。"], str([k["text"] for k in kept]))
+check("过滤：单独 thank you 仅在静音证据下删除、正常英文不误伤", is_hallucination("Thank you.") == "" and is_hallucination("Thank you.", no_speech=0.7) == "phrase"
+      and is_hallucination("Thank you for the update on the budget.") == "" and is_hallucination("We can only talk to the subscribers on the list.") == "")
+dirty = c.get(f"/api/meetings/{mid3}").json()["transcript"]
+dirty = dirty.replace("## 转写\n\n", "## 转写\n\n[00:00] 请用简体中文输出。\n[00:30] 请不吝点赞 订阅 转发 打赏支持明镜与点点栏目\n[00:31] !\n", 1)
+c.post(f"/api/meetings/{mid3}/transcript", json={"content": dirty})
+pre = c.post(f"/api/meetings/{mid3}/clean", json={"apply": False}).json()
+check("清理预览：找到 3 行且不写入", pre["count"] == 3 and pre["applied"] is False and "请用简体中文输出" in pre["removed"][0]
+      and "请不吝点赞" in c.get(f"/api/meetings/{mid3}").json()["transcript"], str(pre)[:200])
+ap = c.post(f"/api/meetings/{mid3}/clean", json={"apply": True}).json()
+after = c.get(f"/api/meetings/{mid3}").json()
+check("清理应用：行已删、正文保留、备份存在", ap["applied"] is True and "请不吝点赞" not in after["transcript"] and "[00:01] 王五" in after["transcript"]
+      and after["has_preclean"] is True, after["transcript"][-160:])
+check("清理幂等", c.post(f"/api/meetings/{mid3}/clean", json={"apply": False}).json()["count"] == 0)
+
 # 14. weekly
 from coco.ai import week_bounds  # noqa: E402
 s_, e_, w_ = week_bounds("2026-08-19")

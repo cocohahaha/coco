@@ -112,7 +112,8 @@
       "loading_device": "加载模型（{device} / {compute}）…",
       "cuda_fallback": "CUDA 不可用（{detail}），改用 CPU…",
       "progress": "转写中… {done} / {total}",
-      "no_audio": "会议 {id} 没有音频文件"
+      "no_audio": "会议 {id} 没有音频文件",
+      "filtered": "已过滤 {n} 段疑似幻觉（静音杂音、字幕致谢、提示词回显、复读）"
     },
     "record": {
       "unsupported": "网页录音目前只支持 macOS（ffmpeg avfoundation）。请用系统自带的录音机 / 会议软件录好后，把音频文件上传或导入。",
@@ -347,7 +348,15 @@
       "h_ai_action": "show 查看；test 测试连接；preset <名> 应用预设；set <键> <值>；task <任务> primary|fast",
       "h_ai_name": "预设名 / 键名 / 任务名",
       "h_ai_value": "值",
-      "h_ai_profile": "作用的通道（默认 primary）"
+      "h_ai_profile": "作用的通道（默认 primary）",
+      "clean_usage": "用法：coco clean <会议> [--apply] 或 coco clean --all [--apply]（不加 --apply 只预览）",
+      "clean_meeting": "▶ {id}：{n} 行疑似幻觉",
+      "clean_preview": "预览完成：共 {n} 行可清理；加 --apply 执行（原稿备份为 transcript.preclean.md）",
+      "clean_applied": "✓ 已清理 {n} 行（原稿备份为 transcript.preclean.md）",
+      "h_clean": "清理转写里的 Whisper 幻觉（静音杂音、字幕致谢、提示词回显、复读）",
+      "h_clean_all": "处理全部会议",
+      "h_clean_apply": "真正写入（默认只预览）",
+      "h_clean_show": "每场最多显示几行示例（默认 6）"
     }
   },
   "ui": {
@@ -444,7 +453,12 @@
       "participants_saved": "参与人员已保存（已写入转写头部）",
       "participants_detecting": "识别中…",
       "participants_detected": "已填入识别结果，可修改后按回车保存",
-      "participants_failed": "识别失败：{msg}"
+      "participants_failed": "识别失败：{msg}",
+      "clean": "✦ 清理",
+      "clean_title": "清理 Whisper 幻觉：静音时脑补的开场白 / 字幕致谢、提示词回显、连续复读、纯标点行。先预览再确认，原稿自动备份",
+      "clean_none": "没有发现疑似幻觉的行",
+      "clean_confirm": "发现 {n} 行疑似幻觉，例如：\n{sample}\n\n删除这些行？原稿会备份为 transcript.preclean.md。",
+      "clean_done": "已清理 {n} 行（原稿备份为 transcript.preclean.md）"
     },
     "chat": {
       "title": "和 coco 对话",
