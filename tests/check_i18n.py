@@ -15,10 +15,10 @@ LOCALES = sorted((PKG / "locales").glob("*.json"))
 DYNAMIC = {
     "msg.source.": ["upload", "import", "record", "text", "paste", "watch"],
     "msg.files.": ["transcript", "brief", "weekly", "tracking", "prep", "prep_sources", "global",
-                   "export", "memory", "longterm", "glossary"],
+                   "export", "memory", "longterm", "glossary", "chat"],
     "ui.memory.hint_": ["content", "longterm", "glossary"],
     "ui.memory.label_": ["content", "longterm", "glossary"],
-    "ui.settings.task_": ["report", "ask", "track", "prep", "brief", "weekly", "memory", "glossary", "namefix"],
+    "ui.settings.task_": ["report", "ask", "track", "prep", "brief", "weekly", "memory", "glossary", "namefix", "participants"],
     "ui.settings.preset_": ["claude_cli", "claude_cli_fast", "deepseek_anthropic", "deepseek_openai",
                             "deepseek_via_claude_cli", "openai", "ollama", "custom"],
     "ui.audiohelp.body_": ["windows", "mac", "linux"],

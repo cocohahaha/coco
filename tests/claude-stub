@@ -7,20 +7,26 @@ output that passes coco's validation – in Chinese or English depending on the
 prompt set that was used. Never touches the network.
 """
 import json
+import os
 import re
 import sys
+import time
 
 data = sys.stdin.read()
+DELAY = float(os.environ.get("COCO_STUB_DELAY", "0") or 0)  # seconds between deltas (UI tests)
 zh = "只依据转写证据" in data or "请" in data[:4000] or "维护一份" in data
 
 
 def emit(text: str) -> None:
-    # two deltas so streaming code paths are exercised, then the final result
-    cut = max(1, len(text) // 2)
-    for part in (text[:cut], text[cut:]):
+    # several deltas so streaming code paths are exercised, then the final result
+    n = 6 if DELAY else 2
+    step = max(1, -(-len(text) // n))
+    for i in range(0, len(text), step):
+        if DELAY:
+            time.sleep(DELAY)
         print(json.dumps({"type": "stream_event", "event": {
             "type": "content_block_delta", "index": 0,
-            "delta": {"type": "text_delta", "text": part}}}, ensure_ascii=False))
+            "delta": {"type": "text_delta", "text": text[i:i + step]}}}, ensure_ascii=False), flush=True)
     print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
                       "result": text}, ensure_ascii=False))
 
@@ -57,6 +63,8 @@ elif "<current_memory>" in data:
     else:
         emit("# Long-term memory\n\n## People\n- **Lin Wei**: product lead\n\n## Projects & clients\n- **SmartCabin**: phase 2\n\n"
              "## Commitments & decisions\n- Lin Wei: schedule by 8/25 [test] in progress\n\n## Terms & phrasing\n- **SmartCabin**: cockpit")
+elif "<speaker_material" in data:
+    emit("张三（产品负责人）、李四（IT）" if zh else "Zhang San (product lead), Li Si (IT)")
 elif "Reply with exactly one word" in data:
     emit("pong")
 else:

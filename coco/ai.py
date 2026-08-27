@@ -168,7 +168,9 @@ def _context_block(meetings: list[Meeting], per_meeting: int | None = None,
             text = text[:per_meeting] + "\n" + P.CTX["truncated_one"]
         if total + len(text) > limit:
             text = text[: max(limit - total, 0)] + "\n" + P.CTX["truncated_all"]
-        parts.append(f"<meeting id=\"{m.id}\">\n{text}\n</meeting>")
+        who = " ".join(str(m.meta.get("participants", "")).split())
+        attr = f' participants="{who.replace(chr(34), chr(39))}"' if who else ""
+        parts.append(f"<meeting id=\"{m.id}\"{attr}>\n{text}\n</meeting>")
         total += len(text)
         if total >= limit:
             break
@@ -197,12 +199,35 @@ def _unique_path(folder, name: str, ext: str = ".md"):
 
 # ---------- chat / reports ----------
 
+def _participants_block(meetings: list[Meeting]) -> str:
+    """Names + roles confirmed by the user: the authority for who said what."""
+    P, _, _ = _lang_ctx()
+    who = [f"{m.title}: {' '.join(str(m.meta.get('participants')).split())}"
+           for m in meetings if str(m.meta.get("participants") or "").strip()]
+    return P.PARTICIPANTS_LINE.format(people="; ".join(who)) + "\n\n" if who else ""
+
+
+def detect_participants(mtg: Meeting) -> str:
+    """Ask the model for 'Name (role), …' from the transcript; the user confirms before saving."""
+    text = mtg.transcript_text()
+    if not text:
+        raise AIError(t("ai.no_transcript", id=mtg.id))
+    P, directive, _ = _lang_ctx()
+    prompt = (f"{_memory_block()}{P.PARTICIPANTS_PROMPT}\n{directive}\n\n"
+              f"<speaker_material id=\"{mtg.id}\">\n{text[:20_000]}\n</speaker_material>")
+    out = _strip_fence(run_model(prompt, task="participants", timeout=300)).strip()
+    out = " ".join(l.strip(" -*") for l in out.splitlines() if l.strip())
+    if not out or len(out) > 400:
+        raise AIError(t("ai.participants_bad"))
+    return out
+
+
 def ask(question: str, meetings: list[Meeting], on_delta=None) -> str:
     P, directive, _ = _lang_ctx()
     ctx = _context_block(meetings, limit=context_limit(profile_for_task("ask")))
     if not ctx:
         raise AIError(t("ai.refs_no_transcript"))
-    prompt = (f"{P.CHAT_SYSTEM}\n{directive}\n\n{_memory_block()}{ctx}\n\n"
+    prompt = (f"{P.CHAT_SYSTEM}\n{directive}\n\n{_memory_block()}{_participants_block(meetings)}{ctx}\n\n"
               f"<question>\n{question}\n</question>")
     return run_model(prompt, task="ask", on_delta=on_delta)
 
@@ -218,7 +243,7 @@ def generate_report(mtg: Meeting, template: str, on_delta=None) -> "tuple[str, s
     P, directive, _ = _lang_ctx()
     limit = context_limit(profile_for_task("report"))
     prompt = (
-        f"{P.CHAT_SYSTEM}\n\n{_memory_block()}"
+        f"{P.CHAT_SYSTEM}\n\n{_memory_block()}{_participants_block([mtg])}"
         f"<meeting id=\"{mtg.id}\">\n{text[:limit]}\n</meeting>\n\n"
         f"<task>\n{P.TEMPLATES[tid]}\n</task>\n\n{P.REPORT_TAIL}\n{directive}"
     )

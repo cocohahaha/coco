@@ -249,6 +249,18 @@ GLOSSARY_PROMPT = (
     "Output the full updated text directly, starting with '# {glossary_title}', with no explanation."
 )
 
+PARTICIPANTS_LINE = (
+    "Participants and their roles (confirmed by the user): {people}. Treat this as the authority for "
+    "who said what; if the transcript attributes a statement to the wrong person or misspells a name, "
+    "correct it before analysing."
+)
+
+PARTICIPANTS_PROMPT = (
+    "Below is a meeting transcript (possibly only its beginning). Identify the participants and each "
+    "one's role or position. Output a single line in the form: Name (role), Name (role) … — as many as "
+    "you can determine, 'role unknown' where unsure; never invent; no explanation."
+)
+
 CHAT_SYSTEM = (
     "You are coco, my local meeting analysis assistant. Answer using the meeting transcripts and "
     "memory provided.\n"

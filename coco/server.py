@@ -27,7 +27,8 @@ from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP
 from .i18n import get_lang, memory_placeholder, set_lang, t
 from .ingest import TEXT_EXTS, TIMED_EXTS, import_text, import_transcript_file
 from .library import (AUDIO_EXTS, Meeting, create_meeting, delete_meeting, find_meeting,
-                      list_meetings, search_library)
+                      list_meetings, participants_from_transcript, search_library,
+                      set_participants)
 from .recorder import Recorder, record_supported, record_unsupported_hint
 from .templates import (list_templates, list_track_modes, report_label, resolve_track_mode,
                         track_label)
@@ -849,6 +850,7 @@ class TranscriptBody(BaseModel):
 class MeetingMetaBody(BaseModel):
     title: str | None = None
     date: str | None = None  # YYYY-MM-DD, manual recording date
+    participants: str | None = None  # "Name (role), Name (role)" – also written into the transcript header
 
 
 @app.post("/api/meetings/{mid}/meta")
@@ -871,10 +873,45 @@ def api_save_meeting_meta(mid: str, body: MeetingMetaBody):
         except ValueError:
             _err(ValueError(t("server.bad_date")))
         updates["date"] = d
+    if body.participants is not None:
+        if len(body.participants) > 1000:
+            _err(ValueError(t("server.participants_too_long")))
+        with ai.TRANSCRIPT_LOCK:
+            set_participants(m, body.participants)
+        updates["participants"] = m.meta.get("participants", "")
     if not updates:
         _err(ValueError(t("server.nothing_to_update")))
-    m.save_meta(**updates)
+    m.save_meta(**{k: v for k, v in updates.items() if k != "participants"})
     return {"ok": True, **m.summary()}
+
+
+@app.post("/api/meetings/{mid}/participants/detect")
+def api_detect_participants(mid: str):
+    """Suggest 'Name (role), …' from the transcript; the UI lets the user confirm before saving."""
+    try:
+        m = find_meeting(mid)
+        return {"participants": ai.detect_participants(m)}
+    except (LookupError, ai.AIError) as e:
+        _err(e)
+
+
+class ChatSaveBody(BaseModel):
+    content: str
+
+
+@app.post("/api/meetings/{mid}/chat")
+def api_save_chat(mid: str, body: ChatSaveBody):
+    """Store an exported chat as reports/chat-HHMM.md so it shows up as a tab of the meeting."""
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if not body.content.strip():
+        _err(ValueError(t("server.content_empty")))
+    m.reports_dir.mkdir(exist_ok=True)
+    path = ai._unique_path(m.reports_dir, f"chat-{dt.datetime.now().strftime('%H%M')}")
+    path.write_text(body.content.rstrip() + "\n", encoding="utf-8")
+    return {"ok": True, "name": path.stem, "label": report_label(path.stem)}
 
 
 @app.post("/api/meetings/{mid}/transcript")
@@ -887,7 +924,11 @@ def api_save_transcript(mid: str, body: TranscriptBody):
         _err(ValueError(t("server.content_empty")))
     with ai.TRANSCRIPT_LOCK:
         m.transcript_md.write_text(body.content.rstrip() + "\n", encoding="utf-8")
-        m.save_meta(edited_at=dt.datetime.now().isoformat(timespec="seconds"))
+        meta = {"edited_at": dt.datetime.now().isoformat(timespec="seconds")}
+        who = participants_from_transcript(body.content)  # header line edited by hand → keep meta in sync
+        if who is not None:
+            meta["participants"] = who
+        m.save_meta(**meta)
     return {"ok": True}
 
 

@@ -80,6 +80,14 @@
   .tab { padding: 7px 14px; font-size: 13px; cursor: pointer; border-radius: 8px 8px 0 0;
     color: var(--muted); border: 1px solid transparent; border-bottom: none; }
   .tab.active { color: var(--ink); background: var(--bg); border-color: var(--line); font-weight: 500; }
+  .tab.pending { color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+  #participants-row { margin-top: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+  #participants-row .plabel { color: var(--muted); }
+  #participants-row .muted { color: var(--muted); font-style: italic; }
+  #participants-row button.mini { padding: 2px 8px; font-size: 11px; border-radius: 6px; }
+  #participants-row input { font: inherit; font-size: 12px; padding: 4px 8px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--bg); color: var(--ink); min-width: 360px; flex: 1; }
+  #chat .section button { padding: 2px 8px; font-size: 11px; letter-spacing: 0; text-transform: none; }
   #report-actions { margin-left: auto; display: flex; gap: 8px; padding-bottom: 8px;
     flex-wrap: nowrap; align-items: center; }
   #report-actions button, #report-actions select { white-space: nowrap; flex-shrink: 0; }
@@ -333,7 +341,8 @@
   </section>
 
   <aside id="chat">
-    <div class="section" data-i18n="chat.title"></div>
+    <div class="section" style="display:flex;align-items:center;gap:8px"><span data-i18n="chat.title"></span><span style="flex:1"></span>
+      <button id="btn-chat-export" data-i18n="chat.export" data-i18n-title="chat.export_title"></button></div>
     <div id="chat-log">
       <div class="bubble coco" data-i18n="chat.welcome"></div>
     </div>
@@ -542,7 +551,7 @@ const $ = id => document.getElementById(id);
 const GUESS_PLATFORM = /win/i.test(navigator.platform) ? 'windows' : /mac/i.test(navigator.platform) ? 'mac' : 'linux';
 let state = { caps: { transcribe: 'mlx', record: true, platform: GUESS_PLATFORM, device: '' },
               meetings: [], current: null, tab: 'transcript', recording: false,
-  recSeconds: 0, selected: new Set(), filterFrom: '', filterTo: '', cfg: {} };
+  recSeconds: 0, selected: new Set(), filterFrom: '', filterTo: '', cfg: {}, chat: [], pending: null };
 
 /* ---------- i18n ---------- */
 let I18N = { lang: 'en', strings: {}, available: [] };
@@ -913,6 +922,7 @@ async function renderMeeting() {
     + `${m.duration || (m.language === 'imported' ? t('doc.meta_text') : t('doc.meta_untranscribed'))} · ${m.source_label || m.source}`;
   if (m.language && !['auto', 'imported', ''].includes(m.language)) metaLine += ' · ' + t('doc.meta_lang', { lang: m.language });
   $('mtg-meta').textContent = metaLine;
+  renderParticipants(m);
   const tabs = $('tabs'); tabs.innerHTML = '';
   const addTab = (key, label) => {
     const el = document.createElement('div');
@@ -923,6 +933,14 @@ async function renderMeeting() {
   };
   addTab('transcript', t('doc.tab_transcript'));
   m.report_list.forEach(r => addTab('r:' + r.name, r.label || r.name));
+  const pendingHere = state.pending && state.pending.mid === m.id;
+  if (pendingHere) {  // the report being generated gets its own tab right away; other tabs stay readable
+    const el = document.createElement('div');
+    el.className = 'tab pending' + (state.tab === 'gen' ? ' active' : '');
+    el.textContent = '⏳ ' + state.pending.tplName;
+    el.onclick = () => { state.tab = 'gen'; state.editing = false; renderMeeting(); };
+    tabs.appendChild(el);
+  } else if (state.tab === 'gen') state.tab = 'transcript';
   const actions = document.createElement('div');
   actions.id = 'report-actions';
   tabs.appendChild(actions);
@@ -951,9 +969,10 @@ async function renderMeeting() {
       <option value="md">.md</option><option value="txt">.txt</option>
       ${m.has_segments ? '<option value="srt">.srt</option><option value="vtt">.vtt</option><option value="json">.json</option>' : ''}
     </select>` : '';
-  actions.innerHTML = `${extra}${fmtSel}<button id="btn-dl">${esc(isT ? t('doc.download') : t('common.download_md'))}</button>${delBtn}
+  const isGen = state.tab === 'gen';
+  actions.innerHTML = `${isGen ? '' : extra + fmtSel + `<button id="btn-dl">${esc(isT ? t('doc.download') : t('common.download_md'))}</button>` + delBtn}
     <select id="tpl-select"></select>
-    <button id="btn-gen" class="primary">${esc(t('doc.generate'))}</button>`;
+    <button id="btn-gen" class="primary"${pendingHere ? ' disabled' : ''}>${esc(pendingHere ? t('doc.generating') : t('doc.generate'))}</button>`;
   const sel = actions.querySelector('#tpl-select');
   (state.templates || []).forEach(tp => {
     const o = document.createElement('option');
@@ -962,6 +981,7 @@ async function renderMeeting() {
   });
   if (state.lastTemplate) sel.value = state.lastTemplate;
   actions.querySelector('#btn-gen').onclick = genReport;
+  if (isGen) { renderLive(); updateChatRef(); return; }
   actions.querySelector('#btn-dl').onclick = () => {
     const mid = encodeURIComponent(state.current);
     const url = isT
@@ -1033,7 +1053,7 @@ async function restoreRaw() {
 }
 
 function renderDocIfStale() {
-  if (state.editing || state.generating) return;
+  if (state.editing || state.tab === 'gen') return;
   const cur = state.meetings.find(m => m.id === state.current);
   if (!cur) return;
   if (state.currentData && cur.status !== state.currentData.status) { renderMeeting(); return; }
@@ -1043,29 +1063,85 @@ function renderDocIfStale() {
   }
 }
 
-/* ---------- reports (streamed) ---------- */
+/* ---------- reports (streamed into their own pending tab) ---------- */
+function renderLive() {
+  const p = state.pending; if (!p) return;
+  $('doc-md').innerHTML = `<div class="live-head pulsing"><span id="live-status"></span></div><div id="live-md" class="md live-cursor"></div>`;
+  updateLiveStatus();
+  $('live-md').innerHTML = md(p.acc);
+}
+function updateLiveStatus() {
+  const p = state.pending, el = $('live-status'); if (!p || !el) return;
+  const s = Math.round((Date.now() - p.startedAt) / 1000);
+  el.textContent = p.acc ? t('report.generating_elapsed', { tpl: p.tplName, s }) : t('report.thinking', { tpl: p.tplName, s });
+}
 async function genReport() {
+  if (state.pending) { toast(t('report.busy')); return; }
   const sel = $('tpl-select'); const tpl = sel.value; state.lastTemplate = tpl;
   const tplName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : tpl;
   const mid = state.current;
-  const btn = $('btn-gen');
-  btn.disabled = true; btn.textContent = t('doc.generating');
-  state.generating = true;
-  $('doc-md').innerHTML = `<div class="live-head pulsing">${esc(t('report.generating_live', { tpl: tplName }))}</div><div id="live-md" class="md live-cursor"></div>`;
-  let acc = '';
-  const paint = throttle(() => { const el = $('live-md'); if (el && state.current === mid) { el.innerHTML = md(acc); $('doc').scrollTop = $('doc').scrollHeight; } }, 160);
+  const p = state.pending = { mid, tpl, tplName, acc: '', startedAt: Date.now(), timer: null };
+  p.timer = setInterval(updateLiveStatus, 1000);
+  state.tab = 'gen'; state.editing = false;
+  await renderMeeting();
+  const paint = throttle(() => {
+    const el = $('live-md');
+    if (el && state.current === mid && state.tab === 'gen') { el.innerHTML = md(p.acc); $('doc').scrollTop = $('doc').scrollHeight; }
+  }, 160);
   try {
-    const r = await streamApi('/api/stream/report', { id: mid, template: tpl }, txt => { acc += txt; paint(); });
+    const r = await streamApi('/api/stream/report', { id: mid, template: tpl }, txt => { p.acc += txt; paint(); updateLiveStatus(); });
+    clearInterval(p.timer); state.pending = null;
     toast(t('report.done'));
-    state.generating = false;
-    if (state.current === mid) { state.tab = 'r:' + r.name; await renderMeeting(); }
+    if (state.current === mid) { if (state.tab === 'gen') state.tab = 'r:' + r.name; await renderMeeting(); }
     else loadMeetings();
   } catch (e) {
-    state.generating = false;
+    clearInterval(p.timer); state.pending = null;
     toast(t('report.failed', { msg: e.message }), 8000);
-    if (state.current === mid) renderMeeting();
+    if (state.current === mid) { if (state.tab === 'gen') state.tab = 'transcript'; renderMeeting(); }
   }
-  const b = $('btn-gen'); if (b) { b.disabled = false; b.textContent = t('doc.generate'); }
+}
+
+/* ---------- participants (names + roles, written into the transcript header) ---------- */
+function renderParticipants(m) {
+  const row = document.createElement('div');
+  row.id = 'participants-row';
+  row.innerHTML = `<span class="plabel">${esc(t('doc.participants'))}:</span>
+    <span id="participants-text" class="${m.participants ? '' : 'muted'}">${esc(m.participants || t('doc.participants_empty'))}</span>
+    <button class="mini" id="btn-participants-edit" title="${esc(t('doc.participants_edit_title'))}">${esc(t('doc.participants_edit'))}</button>
+    <button class="mini" id="btn-participants-detect" title="${esc(t('doc.participants_detect_title'))}">${esc(t('doc.participants_detect'))}</button>`;
+  $('mtg-meta').appendChild(row);
+  row.querySelector('#btn-participants-edit').onclick = () => editParticipants(m, m.participants || '');
+  row.querySelector('#btn-participants-detect').onclick = async () => {
+    const b = row.querySelector('#btn-participants-detect'); const label = b.textContent;
+    b.disabled = true; b.textContent = t('doc.participants_detecting');
+    try {
+      const r = await api(`/api/meetings/${encodeURIComponent(m.id)}/participants/detect`, { method: 'POST' });
+      editParticipants(m, r.participants);
+      toast(t('doc.participants_detected'), 6000);
+    } catch (e) { toast(t('doc.participants_failed', { msg: e.message }), 8000); b.disabled = false; b.textContent = label; }
+  };
+}
+function editParticipants(m, value) {
+  const row = $('participants-row'); if (!row) return;
+  const span = row.querySelector('#participants-text');
+  const input = document.createElement('input');
+  input.type = 'text'; input.value = value; input.placeholder = t('doc.participants_placeholder');
+  span.replaceWith(input); input.focus();
+  row.querySelectorAll('button').forEach(b => b.style.display = 'none');
+  let done = false;
+  const finish = async save => {
+    if (done) return; done = true;
+    if (save && input.value.trim() !== (m.participants || '')) {
+      try {
+        await api(`/api/meetings/${encodeURIComponent(m.id)}/meta`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ participants: input.value.trim() }) });
+        toast(t('doc.participants_saved'));
+      } catch (e) { toast(t('common.save_failed', { msg: e.message }), 6000); }
+    }
+    if (state.current === m.id && !state.editing) renderMeeting();
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); } };
+  input.onblur = () => finish(true);
 }
 
 /* ---------- chat (streamed) ---------- */
@@ -1087,6 +1163,9 @@ async function send() {
   $('chat-input').value = '';
   const all = $('chat-all').checked;
   const log = $('chat-log');
+  const ref = all ? t('chat.ref_all') : (state.currentData ? state.currentData.title : '');
+  const stamp = new Date().toTimeString().slice(0, 5);
+  state.chat.push({ role: 'user', text: q, ref, time: stamp });
   log.insertAdjacentHTML('beforeend', `<div class="bubble user">${esc(q)}</div>`);
   const tip = document.createElement('div');
   tip.className = 'bubble coco thinking';
@@ -1098,9 +1177,36 @@ async function send() {
     const r = await streamApi('/api/stream/ask', { question: q, ids: !all && state.current ? [state.current] : [], all },
       txt => { acc += txt; paint(); });
     tip.className = 'bubble coco'; tip.innerHTML = md(r.answer || acc);
+    state.chat.push({ role: 'coco', text: r.answer || acc, ref, time: stamp });
   } catch (e) { tip.className = 'bubble coco'; tip.textContent = t('chat.error', { msg: e.message }); }
   log.scrollTop = log.scrollHeight;
 }
+
+function chatMarkdown() {
+  const now = new Date();
+  const lines = [`# ${t('chat.md_title')} · ${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 5)}`, ''];
+  for (const m of state.chat) {
+    if (m.role === 'user') lines.push(`## ${t('chat.md_question')} ${m.time}${m.ref ? ' · ' + m.ref : ''}`, '', m.text, '');
+    else lines.push('**coco**', '', m.text, '', '---', '');
+  }
+  return lines.join('\n').trim() + '\n';
+}
+$('btn-chat-export').onclick = async () => {
+  if (!state.chat.length) { toast(t('chat.export_empty')); return; }
+  const content = chatMarkdown();
+  const now = new Date();
+  const stamp = now.toISOString().slice(0, 10).replace(/-/g, '') + '-' + now.toTimeString().slice(0, 5).replace(':', '');
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = `coco-chat-${stamp}.md`; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  if (state.current) {
+    try {
+      await api(`/api/meetings/${encodeURIComponent(state.current)}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+      toast(t('chat.saved_to_meeting', { title: state.currentData ? state.currentData.title : state.current }), 6000);
+      if (!state.editing && state.tab !== 'gen') renderMeeting();
+    } catch (e) { toast(t('chat.exported') + ' · ' + t('common.save_failed', { msg: e.message }), 6000); }
+  } else toast(t('chat.exported'));
+};
 $('btn-send').onclick = send;
 $('chat-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -1781,7 +1887,7 @@ $('btn-export-go').onclick = async () => {
 /* ---------- settings (languages + AI channels) ---------- */
 function closeSettings() { $('settings-overlay').classList.remove('show'); }
 $('settings-overlay').onclick = e => { if (e.target === $('settings-overlay')) closeSettings(); };
-const TASK_KEYS = ['report', 'ask', 'track', 'prep', 'brief', 'weekly', 'memory', 'glossary', 'namefix'];
+const TASK_KEYS = ['report', 'ask', 'track', 'prep', 'brief', 'weekly', 'memory', 'glossary', 'namefix', 'participants'];
 
 function profPanel(name) { return document.querySelector(`.prof[data-prof="${name}"]`); }
 function fillProfile(name, p, presets) {

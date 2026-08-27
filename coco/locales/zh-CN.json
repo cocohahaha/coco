@@ -1,6 +1,8 @@
 {
-  "_meta": {"name": "简体中文", "code": "zh-CN"},
-
+  "_meta": {
+    "name": "简体中文",
+    "code": "zh-CN"
+  },
   "sections": {
     "memory_title": "全局记忆",
     "longterm_title": "长期记忆",
@@ -14,25 +16,58 @@
     "misheard": "误写",
     "transcript": "转写"
   },
-
   "templates": {
-    "minutes": {"name": "纪要", "desc": "结构化会议纪要：议题、讨论要点、结论、待办"},
-    "actions": {"name": "行动项", "desc": "只提取行动项：事项、负责人、截止时间、依赖"},
-    "mood": {"name": "情绪曲线", "desc": "按时间线描绘对话情绪与能量变化，标出转折点"},
-    "tension": {"name": "张力与分歧", "desc": "识别未说破的分歧、回避的话题、立场差异"},
-    "bias": {"name": "认知偏误", "desc": "检测讨论与决策中的认知偏误"},
-    "topics": {"name": "话题延伸", "desc": "值得深挖的话题、未回答的问题、下一步研究方向"},
-    "client": {"name": "客户跟进", "desc": "客户会议复盘：信号、异议、关系温度、跟进动作"},
-    "hiring": {"name": "招聘评估", "desc": "面试复盘：能力证据、亮点、风险、追问建议"},
-    "followup": {"name": "跟进草稿", "desc": "会后可直接发出的跟进消息草稿 + 48 小时行动清单"}
+    "minutes": {
+      "name": "纪要",
+      "desc": "结构化会议纪要：议题、讨论要点、结论、待办"
+    },
+    "actions": {
+      "name": "行动项",
+      "desc": "只提取行动项：事项、负责人、截止时间、依赖"
+    },
+    "mood": {
+      "name": "情绪曲线",
+      "desc": "按时间线描绘对话情绪与能量变化，标出转折点"
+    },
+    "tension": {
+      "name": "张力与分歧",
+      "desc": "识别未说破的分歧、回避的话题、立场差异"
+    },
+    "bias": {
+      "name": "认知偏误",
+      "desc": "检测讨论与决策中的认知偏误"
+    },
+    "topics": {
+      "name": "话题延伸",
+      "desc": "值得深挖的话题、未回答的问题、下一步研究方向"
+    },
+    "client": {
+      "name": "客户跟进",
+      "desc": "客户会议复盘：信号、异议、关系温度、跟进动作"
+    },
+    "hiring": {
+      "name": "招聘评估",
+      "desc": "面试复盘：能力证据、亮点、风险、追问建议"
+    },
+    "followup": {
+      "name": "跟进草稿",
+      "desc": "会后可直接发出的跟进消息草稿 + 48 小时行动清单"
+    }
   },
-
   "track_modes": {
-    "track": {"name": "追踪", "desc": "承诺履行 / 表态变化 / 反复未决的问题"},
-    "signals": {"name": "深层信号", "desc": "非共识 / 潜台词 / 立场与利益 / 观点漂移 / 盲区"},
-    "synthesis": {"name": "调研综合", "desc": "多方交叉对比：痛点矩阵 / 共识分歧 / 落地方向（FDE 调研）"}
+    "track": {
+      "name": "追踪",
+      "desc": "承诺履行 / 表态变化 / 反复未决的问题"
+    },
+    "signals": {
+      "name": "深层信号",
+      "desc": "非共识 / 潜台词 / 立场与利益 / 观点漂移 / 盲区"
+    },
+    "synthesis": {
+      "name": "调研综合",
+      "desc": "多方交叉对比：痛点矩阵 / 共识分歧 / 落地方向（FDE 调研）"
+    }
   },
-
   "msg": {
     "placeholder": {
       "memory": "这里的内容会注入每一次 AI 分析：人名、术语、公司背景、个人偏好等",
@@ -50,7 +85,8 @@
       "export": "导出",
       "memory": "全局记忆",
       "longterm": "长期记忆",
-      "glossary": "词表"
+      "glossary": "词表",
+      "chat": "对话"
     },
     "source": {
       "upload": "上传",
@@ -65,7 +101,9 @@
       "duration": "时长",
       "source": "来源",
       "language": "语言",
-      "by_model": "{model} 转写"
+      "by_model": "{model} 转写",
+      "participants": "参与人员",
+      "participants_empty": "（未填写）"
     },
     "transcribe": {
       "no_engine": "本机没有可用的转写引擎，无法转写音频。可以先用其他工具（会议软件的转写导出、在线转写服务、Whisper 等）把录音转成文字稿，再以 txt / docx / pdf / srt / vtt / json 等格式上传或导入，分析功能不受影响。要在本机转写，请安装 faster-whisper：pip install faster-whisper",
@@ -151,7 +189,8 @@
       "glossary_too_short": "词表输出比原有内容短太多，疑似丢失词条，本次未更新",
       "glossary_changed_meanwhile": "词表在提炼期间被修改过，为保护你的编辑已放弃写回，请重试",
       "no_meetings_on": "{date} 没有已转写的会议",
-      "no_meetings_in_week": "{week}（{start} ~ {end}）没有已转写的会议"
+      "no_meetings_in_week": "{week}（{start} ~ {end}）没有已转写的会议",
+      "participants_bad": "参与人识别结果格式异常，请手动填写"
     },
     "server": {
       "file_missing": "文件不存在：{name}",
@@ -185,7 +224,8 @@
       "bad_memory_which": "which 只能是 content、longterm 或 glossary",
       "export_nothing_selected": "没有选择任何文件",
       "export_files_missing": "选中的文件都不存在",
-      "internal_error": "服务器内部错误，请查看运行 coco 的终端日志"
+      "internal_error": "服务器内部错误，请查看运行 coco 的终端日志",
+      "participants_too_long": "参与人员文字过长（上限 1000 字）"
     },
     "cli": {
       "description": "coco — 本地会议录音 / 转写 / AI 分析工具",
@@ -310,37 +350,65 @@
       "h_ai_profile": "作用的通道（默认 primary）"
     }
   },
-
   "ui": {
-    "app": {"subtitle": "本地会议参谋"},
+    "app": {
+      "subtitle": "本地会议参谋"
+    },
     "common": {
-      "cancel": "取消", "delete": "✕ 删除", "save": "保存", "download_md": "↓ 下载 .md", "loading": "加载中…",
-      "failed": "出错了：{msg}", "load_failed": "加载失败：{msg}", "save_failed": "保存失败：{msg}",
-      "delete_failed": "删除失败：{msg}", "stream_interrupted": "连接中断，没有收到完整结果"
+      "cancel": "取消",
+      "delete": "✕ 删除",
+      "save": "保存",
+      "download_md": "↓ 下载 .md",
+      "loading": "加载中…",
+      "failed": "出错了：{msg}",
+      "load_failed": "加载失败：{msg}",
+      "save_failed": "保存失败：{msg}",
+      "delete_failed": "删除失败：{msg}",
+      "stream_interrupted": "连接中断，没有收到完整结果"
     },
     "header": {
       "ui_lang_title": "界面语言",
-      "model_turbo": "模型：turbo（快）", "model_large": "模型：large（最准）", "model_title": "对之后的转写生效",
+      "model_turbo": "模型：turbo（快）",
+      "model_large": "模型：large（最准）",
+      "model_title": "对之后的转写生效",
       "lang_title": "转写语言（对之后的转写生效）；AI 输出语言在「⚙ 设置」里改",
       "lang_auto": "转写语言：自动识别",
-      "record": "● 录音", "record_title": "用本机麦克风直接录音，停止后自动转写",
-      "upload": "↑ 上传", "upload_title": "上传音频/视频，或已有的文字稿（txt / docx / pdf / srt / vtt / json…）",
-      "import": "⌖ 导入", "import_title": "导入本地路径（文件夹批量）或直接粘贴文字材料",
-      "prep": "◎ 会前", "prep_title": "会前调查：汇总历史会议与记忆，先看懂局再进会",
-      "insight": "⛓ 洞察", "insight_title": "跨会议洞察：追踪 / 深层信号 / 调研综合",
-      "brief": "☀ 简报", "brief_title": "每日简报 / 周报（含历史）",
-      "knowledge": "☷ 底座", "knowledge_title": "知识底座：人物、项目、承诺、词表的沉淀总览",
-      "export": "⬇ 导出", "memory": "◈ 记忆",
-      "settings": "⚙ 设置", "settings_title": "语言、AI 模型通道、记忆策略"
+      "record": "● 录音",
+      "record_title": "用本机麦克风直接录音，停止后自动转写",
+      "upload": "↑ 上传",
+      "upload_title": "上传音频/视频，或已有的文字稿（txt / docx / pdf / srt / vtt / json…）",
+      "import": "⌖ 导入",
+      "import_title": "导入本地路径（文件夹批量）或直接粘贴文字材料",
+      "prep": "◎ 会前",
+      "prep_title": "会前调查：汇总历史会议与记忆，先看懂局再进会",
+      "insight": "⛓ 洞察",
+      "insight_title": "跨会议洞察：追踪 / 深层信号 / 调研综合",
+      "brief": "☀ 简报",
+      "brief_title": "每日简报 / 周报（含历史）",
+      "knowledge": "☷ 底座",
+      "knowledge_title": "知识底座：人物、项目、承诺、词表的沉淀总览",
+      "export": "⬇ 导出",
+      "memory": "◈ 记忆",
+      "settings": "⚙ 设置",
+      "settings_title": "语言、AI 模型通道、记忆策略"
     },
     "sidebar": {
       "search_placeholder": "🔍 搜索全部转写与报告…",
-      "filter_from_title": "起始日期（含）", "filter_to_title": "结束日期（含）", "filter_clear": "清除",
-      "sel_insight": "⛓ 洞察", "sel_insight_title": "对勾选的会议做跨会议洞察（如多方访谈的调研综合）",
-      "sel_download": "↓ 下载", "library": "会议库", "empty": "空空如也",
-      "no_match_date": "没有符合所选日期范围的会议", "no_results": "没有匹配结果",
-      "selected": "已选 {n} 场会议", "selected_hidden": "已选 {n} 场（{hidden} 场被日期筛选隐藏）",
-      "sel_title": "勾选以批量导出或跨会议洞察", "date_title": "点击校准录音日期", "del_title": "删除（移入回收站）"
+      "filter_from_title": "起始日期（含）",
+      "filter_to_title": "结束日期（含）",
+      "filter_clear": "清除",
+      "sel_insight": "⛓ 洞察",
+      "sel_insight_title": "对勾选的会议做跨会议洞察（如多方访谈的调研综合）",
+      "sel_download": "↓ 下载",
+      "library": "会议库",
+      "empty": "空空如也",
+      "no_match_date": "没有符合所选日期范围的会议",
+      "no_results": "没有匹配结果",
+      "selected": "已选 {n} 场会议",
+      "selected_hidden": "已选 {n} 场（{hidden} 场被日期筛选隐藏）",
+      "sel_title": "勾选以批量导出或跨会议洞察",
+      "date_title": "点击校准录音日期",
+      "del_title": "删除（移入回收站）"
     },
     "empty": {
       "title": "还没有选中的会议",
@@ -350,67 +418,139 @@
       "line3": "开会前用「◎ 会前」生成会前简报；积累几场后用「⛓ 洞察」「☷ 底座」看全局。"
     },
     "doc": {
-      "tab_transcript": "转写", "edit": "✎ 编辑", "restore": "↺ 恢复原稿", "restore_title": "把转写恢复到人名校正前的原稿",
-      "download": "↓ 下载", "download_format_title": "下载格式：md / txt / srt / vtt / json",
-      "generate": "生成报告", "generating": "生成中…", "save_transcript": "保存转写", "save_report": "保存报告",
-      "no_transcript": "（还没有转写内容）", "transcribing": "转写进行中…", "transcribe_error": "转写失败，请查看会议状态或重新上传",
-      "meta_text": "文字材料", "meta_untranscribed": "未转写", "meta_lang": "识别语言：{lang}"
+      "tab_transcript": "转写",
+      "edit": "✎ 编辑",
+      "restore": "↺ 恢复原稿",
+      "restore_title": "把转写恢复到人名校正前的原稿",
+      "download": "↓ 下载",
+      "download_format_title": "下载格式：md / txt / srt / vtt / json",
+      "generate": "生成报告",
+      "generating": "生成中…",
+      "save_transcript": "保存转写",
+      "save_report": "保存报告",
+      "no_transcript": "（还没有转写内容）",
+      "transcribing": "转写进行中…",
+      "transcribe_error": "转写失败，请查看会议状态或重新上传",
+      "meta_text": "文字材料",
+      "meta_untranscribed": "未转写",
+      "meta_lang": "识别语言：{lang}",
+      "participants": "参与人员",
+      "participants_empty": "未填写——点「✎」补充「姓名（角色）」，后续纪要与分析会以此为准纠正说话人",
+      "participants_edit": "✎",
+      "participants_edit_title": "手动填写或修改参与人员及角色，会同步写进转写头部",
+      "participants_detect": "✦ 识别",
+      "participants_detect_title": "让 AI 从转写里识别参与人员与角色，填入后由你确认保存",
+      "participants_placeholder": "例如：张三（产品负责人）、李四（IT）",
+      "participants_saved": "参与人员已保存（已写入转写头部）",
+      "participants_detecting": "识别中…",
+      "participants_detected": "已填入识别结果，可修改后按回车保存",
+      "participants_failed": "识别失败：{msg}"
     },
     "chat": {
       "title": "和 coco 对话",
       "welcome": "你好，我是 coco。选中左侧会议后，可以问我任何关于这场对话的问题：决策、情绪、行动项、隐藏的分歧……勾选「跨全部会议」还能问跨场次的问题。开会前记得用「◎ 会前」让我先帮你看懂局。",
       "all": "跨全部会议提问（承诺、变化、对比…）",
-      "placeholder": "对这场会议提问…（回车发送）", "placeholder_all": "向全部会议提问…（回车发送）", "placeholder_none": "先选一场会议…",
-      "send": "发送", "ref_all": "对话引用：全部已转写会议", "ref": "对话引用：{title}",
+      "placeholder": "对这场会议提问…（回车发送）",
+      "placeholder_all": "向全部会议提问…（回车发送）",
+      "placeholder_none": "先选一场会议…",
+      "send": "发送",
+      "ref_all": "对话引用：全部已转写会议",
+      "ref": "对话引用：{title}",
       "ref_none": "请先在左侧选择一场会议，或勾选「跨全部会议」",
-      "thinking": "coco 思考中…", "thinking_all": "coco 翻阅全部会议中…", "error": "出错了：{msg}"
+      "thinking": "coco 思考中…",
+      "thinking_all": "coco 翻阅全部会议中…",
+      "error": "出错了：{msg}",
+      "export": "↓ 导出",
+      "export_title": "把这次对话保存为 Markdown；选中会议时同时存进该会议的报告页签",
+      "exported": "对话已导出 .md",
+      "saved_to_meeting": "对话已导出，并保存到会议「{title}」的页签",
+      "export_empty": "还没有对话内容",
+      "md_title": "与 coco 的对话",
+      "md_question": "提问"
     },
     "memory": {
       "title": "记忆（注入每一次 AI 分析）",
-      "tab_manual": "手动记忆", "tab_long": "长期记忆（自动）", "tab_glossary": "词表",
+      "tab_manual": "手动记忆",
+      "tab_long": "长期记忆（自动）",
+      "tab_glossary": "词表",
       "fix_all": "✦ 按词表校正全部会议人名与术语",
-      "extract": "✦ 提炼词表", "extract_title": "AI 从长期记忆与最近转写中提炼人名/专有名词，合并进词表",
-      "compact": "⟲ 压缩长期记忆", "compact_title": "整份重写一次长期记忆：合并零散条目、压缩过时内容（日常增量合并不会做这件事）",
+      "extract": "✦ 提炼词表",
+      "extract_title": "AI 从长期记忆与最近转写中提炼人名/专有名词，合并进词表",
+      "compact": "⟲ 压缩长期记忆",
+      "compact_title": "整份重写一次长期记忆：合并零散条目、压缩过时内容（日常增量合并不会做这件事）",
       "fix_hint": "校正以词表与记忆里的写法为准，统一修正所有会议的转写与报告（耗时数分钟）。",
       "clear": "✕ 清空",
       "hint_content": "人名、术语、公司背景、个人偏好。手动维护，注入每一次 AI 分析与校正。",
       "hint_longterm": "人物、项目与客户、承诺与决定、术语。每次转写完成后 coco 自动提取合并（增量），可手动修订。",
       "hint_glossary": "人名与专有名词的标准写法：- 正确写法（误写：错1、错2）｜备注。正确写法会注入转写提示提高识别率；全表是人名与术语校正的最高依据。",
-      "saved": "已保存（原内容备份为 .bak.md）", "no_change": "没有改动",
-      "label_content": "手动记忆", "label_longterm": "长期记忆", "label_glossary": "词表",
+      "saved": "已保存（原内容备份为 .bak.md）",
+      "no_change": "没有改动",
+      "label_content": "手动记忆",
+      "label_longterm": "长期记忆",
+      "label_glossary": "词表",
       "confirm_clear": "清空{label}？\n原内容会备份为 memory/ 下的 .bak.md，可手动找回。",
       "confirm_clear_long": "\n之后可用命令「coco memorize --all --force」从全部会议重新提取。",
-      "cleared": "{label}已清空（原内容备份为 .bak.md）", "clear_failed": "清空失败：{msg}",
+      "cleared": "{label}已清空（原内容备份为 .bak.md）",
+      "clear_failed": "清空失败：{msg}",
       "fixall_confirm": "按词表与记忆里的写法，校正【全部会议】转写与报告中的人名与专有名词？\n建议先保存好词表。原文会自动备份，可逐场「↺ 恢复原稿」回退转写。\n会议较多时需要数分钟，期间请勿关闭页面。",
-      "fixing": "校正中…", "fixall_done": "全库校正完成", "fixall_start_failed": "无法启动校正：{msg}",
+      "fixing": "校正中…",
+      "fixall_done": "全库校正完成",
+      "fixall_start_failed": "无法启动校正：{msg}",
       "extract_confirm_unsaved": "词表文本框里有未保存的编辑。提炼基于已保存的版本，完成后会刷新文本框，未保存的编辑将丢失。\n建议先点「保存」。仍要继续提炼？",
       "extract_confirm": "让 AI 从长期记忆与最近的转写中提炼人名/专有名词，合并进词表？\n原词表会自动备份为 glossary.bak.md。",
-      "extracting": "提炼中…", "extract_toast": "提炼词表中（约 30-90 秒）…", "extract_done": "词表已更新（原文备份 .bak.md）",
+      "extracting": "提炼中…",
+      "extract_toast": "提炼词表中（约 30-90 秒）…",
+      "extract_done": "词表已更新（原文备份 .bak.md）",
       "extract_failed": "提炼失败：{msg}",
       "compact_confirm": "整份重写长期记忆以合并压缩？会花几分钟，原文自动备份为 longterm.bak.md。",
-      "compacting": "压缩中…", "compact_done": "长期记忆已压缩整理"
+      "compacting": "压缩中…",
+      "compact_done": "长期记忆已压缩整理"
     },
     "export": {
-      "title": "导出 .md", "hint": "勾选要导出的文件，打包成一个 zip 下载。也可直接在左侧会议列表勾选后点「↓ 下载」。",
-      "all": "全选", "go": "↓ 打包下载 zip", "none": "还没有可导出的 .md",
-      "group_meetings": "会议（转写 / 报告）", "group_briefs": "每日简报", "group_weeklies": "周报",
-      "group_tracking": "跨会议洞察", "group_preps": "会前调查",
-      "count": "已选 {n} 个文件", "pick": "请先勾选要导出的文件",
-      "nothing": "选中的会议还没有可导出的 .md（转写/报告）", "packing": "正在打包 zip…", "done": "已打包下载", "failed": "导出失败：{msg}"
+      "title": "导出 .md",
+      "hint": "勾选要导出的文件，打包成一个 zip 下载。也可直接在左侧会议列表勾选后点「↓ 下载」。",
+      "all": "全选",
+      "go": "↓ 打包下载 zip",
+      "none": "还没有可导出的 .md",
+      "group_meetings": "会议（转写 / 报告）",
+      "group_briefs": "每日简报",
+      "group_weeklies": "周报",
+      "group_tracking": "跨会议洞察",
+      "group_preps": "会前调查",
+      "count": "已选 {n} 个文件",
+      "pick": "请先勾选要导出的文件",
+      "nothing": "选中的会议还没有可导出的 .md（转写/报告）",
+      "packing": "正在打包 zip…",
+      "done": "已打包下载",
+      "failed": "导出失败：{msg}"
     },
     "import": {
-      "title": "导入材料", "tab_path": "本地路径", "tab_paste": "粘贴文本",
+      "title": "导入材料",
+      "tab_path": "本地路径",
+      "tab_paste": "粘贴文本",
       "path_hint": "粘贴文件或文件夹的完整路径。音频/视频会转写；txt / md / docx / pdf / srt / vtt / json 等文字材料直接入库。指向文件夹则批量导入其中全部可识别文件。",
-      "path_tip_mac": "Finder 选中后按 Option+Cmd+C 可拷贝路径。", "path_tip_win": "资源管理器里右键文件 →「复制文件地址」即可得到路径。",
+      "path_tip_mac": "Finder 选中后按 Option+Cmd+C 可拷贝路径。",
+      "path_tip_win": "资源管理器里右键文件 →「复制文件地址」即可得到路径。",
       "paste_hint": "把文字稿、聊天记录、邮件、他人会议纪要直接粘进来。SRT / VTT / JSON 格式的转写会自动识别并保留时间轴。coco 会像对待本地转写一样分析它，并并入长期记忆。",
-      "paste_placeholder": "粘贴内容…", "title_label": "标题", "title_placeholder": "例如：与张三的沟通", "date_label": "材料日期（可选）",
-      "go": "导入", "need_path": "请先粘贴路径", "need_content": "请先粘贴内容",
-      "done_count": "已导入 {n} 个文件", "done_failed": "，{n} 个失败：{err}", "done_queued": "，转写排队中…",
-      "failed": "导入失败：{msg}", "pasted": "已入库，将自动并入长期记忆", "pasted_fmt": "已入库（识别为 {fmt}，时间轴已保留）"
+      "paste_placeholder": "粘贴内容…",
+      "title_label": "标题",
+      "title_placeholder": "例如：与张三的沟通",
+      "date_label": "材料日期（可选）",
+      "go": "导入",
+      "need_path": "请先粘贴路径",
+      "need_content": "请先粘贴内容",
+      "done_count": "已导入 {n} 个文件",
+      "done_failed": "，{n} 个失败：{err}",
+      "done_queued": "，转写排队中…",
+      "failed": "导入失败：{msg}",
+      "pasted": "已入库，将自动并入长期记忆",
+      "pasted_fmt": "已入库（识别为 {fmt}，时间轴已保留）"
     },
     "upload": {
-      "uploading": "上传 {name} …", "text_done": "{name} 已入库（文字材料，无需转写）",
-      "queued": "{name} 已入库，转写排队中…", "failed": "{name} 上传失败：{msg}"
+      "uploading": "上传 {name} …",
+      "text_done": "{name} 已入库（文字材料，无需转写）",
+      "queued": "{name} 已入库，转写排队中…",
+      "failed": "{name} 上传失败：{msg}"
     },
     "audiohelp": {
       "title": "这台电脑暂时不能本地转写音频",
@@ -433,32 +573,51 @@
       "cpu_hint": "本机用 CPU 转写（没有 NVIDIA 显卡），45 分钟录音可能需要 10–30 分钟。急用时可先用别的工具转成文字稿再导入。"
     },
     "record": {
-      "stop": "■ 停止 {time}", "started": "录音中…再次点击「■ 停止」结束并自动转写",
-      "start_failed": "无法开始录音：{msg}", "stopped": "录音已停止，转写排队中…", "stop_failed": "停止录音失败：{msg}"
+      "stop": "■ 停止 {time}",
+      "started": "录音中…再次点击「■ 停止」结束并自动转写",
+      "start_failed": "无法开始录音：{msg}",
+      "stopped": "录音已停止，转写排队中…",
+      "stop_failed": "停止录音失败：{msg}"
     },
     "job": {
-      "done": "转写完成", "done_editing": "转写已完成，保存或取消编辑后即可查看",
-      "failed": "转写失败：{msg}", "transcribing": "转写中…"
+      "done": "转写完成",
+      "done_editing": "转写已完成，保存或取消编辑后即可查看",
+      "failed": "转写失败：{msg}",
+      "transcribing": "转写中…"
     },
     "report": {
       "generating_live": "正在生成「{tpl}」报告，内容会边生成边显示…",
-      "done": "报告已生成", "failed": "生成失败：{msg}", "saved": "报告已保存",
+      "done": "报告已生成",
+      "failed": "生成失败：{msg}",
+      "saved": "报告已保存",
       "delete_confirm": "删除报告「{name}」？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。",
-      "deleted": "报告已删除（回收站可找回）", "delete_failed": "删除失败：{msg}"
+      "deleted": "报告已删除（回收站可找回）",
+      "delete_failed": "删除失败：{msg}",
+      "thinking": "「{tpl}」生成中：模型正在阅读与思考… {s} 秒",
+      "generating_elapsed": "「{tpl}」生成中 · {s} 秒 · 内容边生成边显示；可以切到其他页签，回来继续看",
+      "busy": "已有一份报告在生成中，请等它完成"
     },
     "transcript": {
       "saved": "转写已保存",
       "restore_confirm": "恢复人名校正前的原稿？当前转写（含校正后的人名及之后的手动编辑）会被原稿覆盖，且备份随之移除。",
-      "restored": "已恢复校正前原稿", "restore_failed": "恢复失败：{msg}"
+      "restored": "已恢复校正前原稿",
+      "restore_failed": "恢复失败：{msg}"
     },
     "meeting": {
       "delete_confirm": "删除「{title}」？\n整个会议（音频、转写、报告）会移入回收站 library/_trash，需要时可手动找回。",
-      "deleted": "已移入回收站", "delete_failed": "删除失败：{msg}",
-      "date_updated": "录音日期已更新", "update_failed": "更新失败：{msg}"
+      "deleted": "已移入回收站",
+      "delete_failed": "删除失败：{msg}",
+      "date_updated": "录音日期已更新",
+      "update_failed": "更新失败：{msg}"
     },
     "brief": {
-      "title": "每日简报", "day": "日报", "week": "周报", "none": "还没有任何已转写的会议", "not_generated": "（未生成）",
-      "generate": "生成简报", "regenerate": "重新生成",
+      "title": "每日简报",
+      "day": "日报",
+      "week": "周报",
+      "none": "还没有任何已转写的会议",
+      "not_generated": "（未生成）",
+      "generate": "生成简报",
+      "regenerate": "重新生成",
       "generating_toast": "正在生成 {date} 的简报（汇总当天所有会议）…",
       "done": "简报已生成，将自动并入长期记忆",
       "delete_confirm": "删除 {date} 的简报？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。",
@@ -466,7 +625,8 @@
       "empty": "这一天还没有简报。点「生成简报」汇总当天全部会议的行动项与洞察。"
     },
     "weekly": {
-      "title": "周报", "generate": "生成周报",
+      "title": "周报",
+      "generate": "生成周报",
       "generating_toast": "正在生成 {week} 周报（汇总整周会议，可能需要几分钟）…",
       "done": "周报已生成",
       "delete_confirm": "删除 {week} 的周报？\n会移入回收站 library/_trash 可手动找回，也可随时重新生成。",
@@ -476,67 +636,122 @@
     "prep": {
       "title": "◎ 会前调查",
       "hint": "先看懂局，再进会。coco 会自动挑出与主题/参会人最相关的历史会议，结合长期记忆与词表，生成关键人立场、阻力与机会、建议打法和问题清单。",
-      "topic": "会议主题 *", "topic_placeholder": "例如：与项目组对齐二期排期",
-      "people": "参会人（逗号分隔，可选）", "people_placeholder": "例如：林炜, 王总, 李工",
-      "goal": "我这次的目标（可选）", "goal_placeholder": "例如：拿到二期预算的口头承诺",
+      "topic": "会议主题 *",
+      "topic_placeholder": "例如：与项目组对齐二期排期",
+      "people": "参会人（逗号分隔，可选）",
+      "people_placeholder": "例如：林炜, 王总, 李工",
+      "goal": "我这次的目标（可选）",
+      "goal_placeholder": "例如：拿到二期预算的口头承诺",
       "web": "联网搜索参会人 / 公司的公开信息（需要网络，耗时更久，结果注明来源；仅 Claude CLI 通道）",
-      "go": "生成会前简报", "view_title": "会前调查", "new": "◎ 新建调查",
-      "delete_confirm": "删除这份会前简报？\n会移入回收站 library/_trash，可手动找回。", "deleted": "会前简报已删除（回收站可找回）",
-      "busy": "已有一个会前调查在进行中，请等它结束", "need_topic": "请先填写会议主题", "running": "◎ 调查中…",
-      "toast_web": "会前调查中（含联网搜索，可能需要几分钟）…", "toast": "会前调查中（汇总相关历史会议与记忆，内容会边生成边显示）…",
+      "go": "生成会前简报",
+      "view_title": "会前调查",
+      "new": "◎ 新建调查",
+      "delete_confirm": "删除这份会前简报？\n会移入回收站 library/_trash，可手动找回。",
+      "deleted": "会前简报已删除（回收站可找回）",
+      "busy": "已有一个会前调查在进行中，请等它结束",
+      "need_topic": "请先填写会议主题",
+      "running": "◎ 调查中…",
+      "toast_web": "会前调查中（含联网搜索，可能需要几分钟）…",
+      "toast": "会前调查中（汇总相关历史会议与记忆，内容会边生成边显示）…",
       "done": "会前简报已生成"
     },
     "insight": {
-      "title": "⛓ 跨会议洞察", "hint": "跨多场会议交叉分析。会议较多时需要数分钟，内容会边生成边显示。",
-      "focus": "聚焦（可选）：某个人 / 项目 / 客户", "focus_placeholder": "留空 = 全局",
-      "scope": "分析范围", "scope_all": "全部已转写会议", "scope_sel": "左侧勾选的 {n} 场已转写会议",
-      "scope_sel_hint": "（先勾选至少 2 场，适合做多方访谈对比）", "scope_limited": "限定 {n} 场",
-      "go": "开始分析", "running": "⛓ 分析中…", "toast": "「{mode}」分析中（{scope}）…",
-      "view_title": "跨会议洞察 · {mode} · {focus}", "global": "全局",
-      "delete_confirm": "删除这份洞察报告？\n会移入回收站 library/_trash，可手动找回。", "deleted": "洞察报告已删除（回收站可找回）"
+      "title": "⛓ 跨会议洞察",
+      "hint": "跨多场会议交叉分析。会议较多时需要数分钟，内容会边生成边显示。",
+      "focus": "聚焦（可选）：某个人 / 项目 / 客户",
+      "focus_placeholder": "留空 = 全局",
+      "scope": "分析范围",
+      "scope_all": "全部已转写会议",
+      "scope_sel": "左侧勾选的 {n} 场已转写会议",
+      "scope_sel_hint": "（先勾选至少 2 场，适合做多方访谈对比）",
+      "scope_limited": "限定 {n} 场",
+      "go": "开始分析",
+      "running": "⛓ 分析中…",
+      "toast": "「{mode}」分析中（{scope}）…",
+      "view_title": "跨会议洞察 · {mode} · {focus}",
+      "global": "全局",
+      "delete_confirm": "删除这份洞察报告？\n会移入回收站 library/_trash，可手动找回。",
+      "deleted": "洞察报告已删除（回收站可找回）"
     },
     "knowledge": {
-      "title": "知识底座", "edit": "✎ 编辑记忆与词表",
-      "stat_meetings": "已转写会议", "stat_persons": "人物", "stat_projects": "项目与客户", "stat_promises": "承诺与决定", "stat_glossary": "词表词条",
+      "title": "知识底座",
+      "edit": "✎ 编辑记忆与词表",
+      "stat_meetings": "已转写会议",
+      "stat_persons": "人物",
+      "stat_projects": "项目与客户",
+      "stat_promises": "承诺与决定",
+      "stat_glossary": "词表词条",
       "pick_person": "点一个人，跨全部会议梳理 TA：",
       "person_prompt": "梳理【{name}】：TA 的角色、历次会议中的表态与变化、未兑现的承诺、当前最关心什么。"
     },
     "settings": {
       "title": "⚙ 设置",
-      "ui_lang": "界面语言", "output_lang": "AI 输出语言",
-      "output_ui": "跟随界面语言", "output_source": "跟随材料语言（转写是什么语言就用什么语言）",
+      "ui_lang": "界面语言",
+      "output_lang": "AI 输出语言",
+      "output_ui": "跟随界面语言",
+      "output_source": "跟随材料语言（转写是什么语言就用什么语言）",
       "output_hint": "输出语言影响报告、纪要、简报、洞察、会前调查、对话回答，以及长期记忆和词表的写法。转写语言在顶栏单独设置。",
       "ai_title": "AI 模型通道",
       "ai_hint": "默认走已登录的 Claude Code CLI，不需要 API Key。也可以接任何 Anthropic 兼容（如 DeepSeek 的 /anthropic 端点）或 OpenAI 兼容（DeepSeek、OpenAI、本机 Ollama）接口。把后台任务交给更快更便宜的通道，报告质量不受影响。",
       "claude_missing": "没有在 PATH 里找到 claude 命令。请安装并登录 Claude Code（https://claude.com/claude-code），或把主通道改为 API 类型。",
-      "profile_primary": "主通道：报告 / 洞察 / 会前调查 / 对话", "profile_fast": "后台通道：长期记忆 / 词表 / 人名校正",
-      "profile_primary_short": "主通道", "profile_fast_short": "后台通道",
+      "profile_primary": "主通道：报告 / 洞察 / 会前调查 / 对话",
+      "profile_fast": "后台通道：长期记忆 / 词表 / 人名校正",
+      "profile_primary_short": "主通道",
+      "profile_fast_short": "后台通道",
       "fast_same": "后台任务与主通道使用同一个模型",
-      "preset": "预设", "preset_custom": "（自定义）",
-      "preset_claude_cli": "Claude Code CLI（默认模型）", "preset_claude_cli_fast": "Claude Code CLI · Haiku（快）",
-      "preset_deepseek_anthropic": "DeepSeek · Anthropic 兼容端点", "preset_deepseek_openai": "DeepSeek · OpenAI 兼容端点",
-      "preset_deepseek_via_claude_cli": "DeepSeek · 通过 Claude CLI（--bare）", "preset_openai": "OpenAI", "preset_ollama": "Ollama（本机，全离线）",
-      "type": "类型", "type_claude": "Claude Code CLI（已登录账号）", "type_anthropic": "Anthropic 兼容 API", "type_openai": "OpenAI 兼容 API",
-      "model": "模型", "model_placeholder": "留空 = 通道默认", "base_url": "Base URL", "base_url_placeholder": "留空 = 官方端点",
-      "api_key": "API Key", "api_key_placeholder": "只保存在本机 coco.config.json", "api_key_stored": "已保存（留空不改；填写则替换）",
-      "api_key_env": "或环境变量名", "max_context": "上下文上限（字符，0 = 默认 40 万）",
-      "test": "测试连接", "testing": "测试中…", "test_ok": "连接正常：{model}，{ms} 毫秒，回复「{reply}」", "test_failed": "连接失败：{msg}",
-      "tasks_title": "任务分配", "tasks_hint": "每类任务走哪条通道。建议：深度分析走主通道，长期记忆 / 词表 / 人名校正走后台通道。",
-      "task_report": "单场报告", "task_ask": "对话问答", "task_track": "跨会议洞察", "task_prep": "会前调查",
-      "task_brief": "每日简报", "task_weekly": "周报", "task_memory": "长期记忆合并", "task_glossary": "词表提炼", "task_namefix": "人名与术语校正",
+      "preset": "预设",
+      "preset_custom": "（自定义）",
+      "preset_claude_cli": "Claude Code CLI（默认模型）",
+      "preset_claude_cli_fast": "Claude Code CLI · Haiku（快）",
+      "preset_deepseek_anthropic": "DeepSeek · Anthropic 兼容端点",
+      "preset_deepseek_openai": "DeepSeek · OpenAI 兼容端点",
+      "preset_deepseek_via_claude_cli": "DeepSeek · 通过 Claude CLI（--bare）",
+      "preset_openai": "OpenAI",
+      "preset_ollama": "Ollama（本机，全离线）",
+      "type": "类型",
+      "type_claude": "Claude Code CLI（已登录账号）",
+      "type_anthropic": "Anthropic 兼容 API",
+      "type_openai": "OpenAI 兼容 API",
+      "model": "模型",
+      "model_placeholder": "留空 = 通道默认",
+      "base_url": "Base URL",
+      "base_url_placeholder": "留空 = 官方端点",
+      "api_key": "API Key",
+      "api_key_placeholder": "只保存在本机 coco.config.json",
+      "api_key_stored": "已保存（留空不改；填写则替换）",
+      "api_key_env": "或环境变量名",
+      "max_context": "上下文上限（字符，0 = 默认 40 万）",
+      "test": "测试连接",
+      "testing": "测试中…",
+      "test_ok": "连接正常：{model}，{ms} 毫秒，回复「{reply}」",
+      "test_failed": "连接失败：{msg}",
+      "tasks_title": "任务分配",
+      "tasks_hint": "每类任务走哪条通道。建议：深度分析走主通道，长期记忆 / 词表 / 人名校正走后台通道。",
+      "task_report": "单场报告",
+      "task_ask": "对话问答",
+      "task_track": "跨会议洞察",
+      "task_prep": "会前调查",
+      "task_brief": "每日简报",
+      "task_weekly": "周报",
+      "task_memory": "长期记忆合并",
+      "task_glossary": "词表提炼",
+      "task_namefix": "人名与术语校正",
       "memory_title": "长期记忆合并方式",
       "memory_delta": "增量（推荐）：模型只输出新增/变化的条目，coco 按名称合并，几秒完成",
       "memory_full": "全量：每次让模型重写整份长期记忆（慢，记忆越大越慢）",
       "memory_hint": "增量模式下，定期在「◈ 记忆」里点「⟲ 压缩长期记忆」做一次整体合并压缩。",
-      "saved": "设置已保存"
+      "saved": "设置已保存",
+      "task_participants": "参与人识别"
     },
     "conn": {
       "down": "⚠️ 连不上 coco 服务，正在自动重连…（若长时间未恢复，请{hint}）",
-      "hint_win": "双击 run.bat", "hint_mac": "双击 coco.command 或在终端运行 ./run.sh"
+      "hint_win": "双击 run.bat",
+      "hint_mac": "双击 coco.command 或在终端运行 ./run.sh"
     },
     "config": {
       "model_switched": "转写模型已切换为 {model}（对之后的转写生效）",
-      "lang_switched": "转写语言已设为 {lang}（对之后的转写生效）", "switch_failed": "切换失败：{msg}"
+      "lang_switched": "转写语言已设为 {lang}（对之后的转写生效）",
+      "switch_failed": "切换失败：{msg}"
     }
   }
 }

@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .config import load_config, resolve_model_repo, setup_hf_endpoint
 from .i18n import sections, t
-from .library import Meeting
+from .library import Meeting, participants_line
 
 
 class TranscriberUnavailable(RuntimeError):
@@ -247,6 +247,7 @@ def transcribe_meeting(mtg: Meeting, model: str | None = None,
         f"- {t('transcript.source')}: {t('source.' + src) if src else ''} "
         f"({t('transcript.by_model', model=result['model'])})",
         f"- {t('transcript.language')}: {result.get('language') or 'auto'}",
+        participants_line(mtg.meta.get("participants", "")),
         "", f"## {sections()['transcript']}", "",
     ]
     for s in result["segments"]:

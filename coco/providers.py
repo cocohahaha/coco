@@ -52,7 +52,7 @@ PROFILE_DEFAULTS = {
 TASK_PROFILE_DEFAULTS = {
     "report": "primary", "ask": "primary", "track": "primary", "prep": "primary",
     "brief": "primary", "weekly": "primary",
-    "memory": "fast", "glossary": "fast", "namefix": "fast",
+    "memory": "fast", "glossary": "fast", "namefix": "fast", "participants": "fast",
 }
 # Ready-made settings for the settings dialog / `coco ai preset`. Model names are the
 # ones documented by each vendor at the time of writing (August 2026); check the

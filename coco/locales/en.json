@@ -1,6 +1,8 @@
 {
-  "_meta": {"name": "English", "code": "en"},
-
+  "_meta": {
+    "name": "English",
+    "code": "en"
+  },
   "sections": {
     "memory_title": "Global memory",
     "longterm_title": "Long-term memory",
@@ -14,25 +16,58 @@
     "misheard": "misheard",
     "transcript": "Transcript"
   },
-
   "templates": {
-    "minutes": {"name": "Minutes", "desc": "Structured minutes: topics, discussion points, decisions, to-dos"},
-    "actions": {"name": "Action items", "desc": "Action items only: item, owner, due date, dependencies"},
-    "mood": {"name": "Mood curve", "desc": "Emotional and energy dynamics over time, with turning points"},
-    "tension": {"name": "Tensions", "desc": "Unspoken disagreements, avoided topics, gaps between positions"},
-    "bias": {"name": "Cognitive biases", "desc": "Biases in the discussion and decisions"},
-    "topics": {"name": "Open threads", "desc": "Topics worth exploring, unanswered questions, next research steps"},
-    "client": {"name": "Client debrief", "desc": "Client meeting review: signals, objections, relationship temperature, follow-up"},
-    "hiring": {"name": "Interview debrief", "desc": "Interview review: evidence, highlights, risks, follow-up questions"},
-    "followup": {"name": "Follow-up draft", "desc": "Ready-to-send follow-up message + 48-hour action list"}
+    "minutes": {
+      "name": "Minutes",
+      "desc": "Structured minutes: topics, discussion points, decisions, to-dos"
+    },
+    "actions": {
+      "name": "Action items",
+      "desc": "Action items only: item, owner, due date, dependencies"
+    },
+    "mood": {
+      "name": "Mood curve",
+      "desc": "Emotional and energy dynamics over time, with turning points"
+    },
+    "tension": {
+      "name": "Tensions",
+      "desc": "Unspoken disagreements, avoided topics, gaps between positions"
+    },
+    "bias": {
+      "name": "Cognitive biases",
+      "desc": "Biases in the discussion and decisions"
+    },
+    "topics": {
+      "name": "Open threads",
+      "desc": "Topics worth exploring, unanswered questions, next research steps"
+    },
+    "client": {
+      "name": "Client debrief",
+      "desc": "Client meeting review: signals, objections, relationship temperature, follow-up"
+    },
+    "hiring": {
+      "name": "Interview debrief",
+      "desc": "Interview review: evidence, highlights, risks, follow-up questions"
+    },
+    "followup": {
+      "name": "Follow-up draft",
+      "desc": "Ready-to-send follow-up message + 48-hour action list"
+    }
   },
-
   "track_modes": {
-    "track": {"name": "Tracking", "desc": "Commitments kept / changed positions / recurring open issues"},
-    "signals": {"name": "Deep signals", "desc": "False consensus / subtext / positions & interests / drift / blind spots"},
-    "synthesis": {"name": "Research synthesis", "desc": "Cross-interview comparison: pain-point matrix / consensus vs disagreement / implementation (FDE research)"}
+    "track": {
+      "name": "Tracking",
+      "desc": "Commitments kept / changed positions / recurring open issues"
+    },
+    "signals": {
+      "name": "Deep signals",
+      "desc": "False consensus / subtext / positions & interests / drift / blind spots"
+    },
+    "synthesis": {
+      "name": "Research synthesis",
+      "desc": "Cross-interview comparison: pain-point matrix / consensus vs disagreement / implementation (FDE research)"
+    }
   },
-
   "msg": {
     "placeholder": {
       "memory": "Everything here is injected into every AI analysis: names, terms, company background, personal preferences",
@@ -50,7 +85,8 @@
       "export": "export",
       "memory": "Global memory",
       "longterm": "Long-term memory",
-      "glossary": "Glossary"
+      "glossary": "Glossary",
+      "chat": "Chat"
     },
     "source": {
       "upload": "Upload",
@@ -65,7 +101,9 @@
       "duration": "Duration",
       "source": "Source",
       "language": "Language",
-      "by_model": "transcribed with {model}"
+      "by_model": "transcribed with {model}",
+      "participants": "Participants",
+      "participants_empty": "(not set)"
     },
     "transcribe": {
       "no_engine": "This computer has no usable transcription engine, so audio cannot be transcribed here. Turn the recording into a transcript with another tool first (your meeting software's export, an online transcription service, Whisper …) and upload or import it as txt / docx / pdf / srt / vtt / json; every analysis feature works the same. To transcribe locally, install faster-whisper: pip install faster-whisper",
@@ -151,7 +189,8 @@
       "glossary_too_short": "The glossary output is far shorter than before — entries may be lost; not updated",
       "glossary_changed_meanwhile": "The glossary was edited during extraction; discarded to protect your edits — please retry",
       "no_meetings_on": "No transcribed meetings on {date}",
-      "no_meetings_in_week": "No transcribed meetings in {week} ({start} ~ {end})"
+      "no_meetings_in_week": "No transcribed meetings in {week} ({start} ~ {end})",
+      "participants_bad": "Unexpected participant detection output; please fill it in by hand"
     },
     "server": {
       "file_missing": "File not found: {name}",
@@ -185,7 +224,8 @@
       "bad_memory_which": "which must be content, longterm or glossary",
       "export_nothing_selected": "No files selected",
       "export_files_missing": "None of the selected files exist",
-      "internal_error": "Internal server error — see the terminal running coco"
+      "internal_error": "Internal server error — see the terminal running coco",
+      "participants_too_long": "Participants text is too long (max 1000 characters)"
     },
     "cli": {
       "description": "coco — local meeting recording / transcription / AI analysis",
@@ -310,37 +350,65 @@
       "h_ai_profile": "Channel to act on (default primary)"
     }
   },
-
   "ui": {
-    "app": {"subtitle": "local meeting strategist"},
+    "app": {
+      "subtitle": "local meeting strategist"
+    },
     "common": {
-      "cancel": "Cancel", "delete": "✕ Delete", "save": "Save", "download_md": "↓ Download .md", "loading": "Loading…",
-      "failed": "Something went wrong: {msg}", "load_failed": "Could not load: {msg}", "save_failed": "Could not save: {msg}",
-      "delete_failed": "Could not delete: {msg}", "stream_interrupted": "The connection dropped before the result arrived"
+      "cancel": "Cancel",
+      "delete": "✕ Delete",
+      "save": "Save",
+      "download_md": "↓ Download .md",
+      "loading": "Loading…",
+      "failed": "Something went wrong: {msg}",
+      "load_failed": "Could not load: {msg}",
+      "save_failed": "Could not save: {msg}",
+      "delete_failed": "Could not delete: {msg}",
+      "stream_interrupted": "The connection dropped before the result arrived"
     },
     "header": {
       "ui_lang_title": "Interface language",
-      "model_turbo": "Model: turbo (fast)", "model_large": "Model: large (most accurate)", "model_title": "Applies to future transcriptions",
+      "model_turbo": "Model: turbo (fast)",
+      "model_large": "Model: large (most accurate)",
+      "model_title": "Applies to future transcriptions",
       "lang_title": "Transcription language (applies to future transcriptions); the AI output language is in ⚙ Settings",
       "lang_auto": "Transcription: auto-detect",
-      "record": "● Record", "record_title": "Record from this computer's microphone; transcribed automatically when stopped",
-      "upload": "↑ Upload", "upload_title": "Upload audio / video, or an existing transcript (txt / docx / pdf / srt / vtt / json …)",
-      "import": "⌖ Import", "import_title": "Import a local path (folders in bulk) or paste text material",
-      "prep": "◎ Prep", "prep_title": "Pre-meeting brief: past meetings + memory, so you understand the situation before you walk in",
-      "insight": "⛓ Insight", "insight_title": "Cross-meeting insight: tracking / deep signals / research synthesis",
-      "brief": "☀ Briefs", "brief_title": "Daily brief / weekly report (with history)",
-      "knowledge": "☷ Knowledge", "knowledge_title": "Knowledge base: people, projects, commitments and glossary at a glance",
-      "export": "⬇ Export", "memory": "◈ Memory",
-      "settings": "⚙ Settings", "settings_title": "Languages, AI model channels, memory strategy"
+      "record": "● Record",
+      "record_title": "Record from this computer's microphone; transcribed automatically when stopped",
+      "upload": "↑ Upload",
+      "upload_title": "Upload audio / video, or an existing transcript (txt / docx / pdf / srt / vtt / json …)",
+      "import": "⌖ Import",
+      "import_title": "Import a local path (folders in bulk) or paste text material",
+      "prep": "◎ Prep",
+      "prep_title": "Pre-meeting brief: past meetings + memory, so you understand the situation before you walk in",
+      "insight": "⛓ Insight",
+      "insight_title": "Cross-meeting insight: tracking / deep signals / research synthesis",
+      "brief": "☀ Briefs",
+      "brief_title": "Daily brief / weekly report (with history)",
+      "knowledge": "☷ Knowledge",
+      "knowledge_title": "Knowledge base: people, projects, commitments and glossary at a glance",
+      "export": "⬇ Export",
+      "memory": "◈ Memory",
+      "settings": "⚙ Settings",
+      "settings_title": "Languages, AI model channels, memory strategy"
     },
     "sidebar": {
       "search_placeholder": "🔍 Search all transcripts and reports…",
-      "filter_from_title": "From date (inclusive)", "filter_to_title": "To date (inclusive)", "filter_clear": "Clear",
-      "sel_insight": "⛓ Insight", "sel_insight_title": "Cross-meeting insight on the selected meetings (e.g. a synthesis of several interviews)",
-      "sel_download": "↓ Download", "library": "Library", "empty": "Nothing here yet",
-      "no_match_date": "No meetings in the selected date range", "no_results": "No matches",
-      "selected": "{n} meetings selected", "selected_hidden": "{n} selected ({hidden} hidden by the date filter)",
-      "sel_title": "Select for bulk export or cross-meeting insight", "date_title": "Click to correct the recording date", "del_title": "Delete (moves to trash)"
+      "filter_from_title": "From date (inclusive)",
+      "filter_to_title": "To date (inclusive)",
+      "filter_clear": "Clear",
+      "sel_insight": "⛓ Insight",
+      "sel_insight_title": "Cross-meeting insight on the selected meetings (e.g. a synthesis of several interviews)",
+      "sel_download": "↓ Download",
+      "library": "Library",
+      "empty": "Nothing here yet",
+      "no_match_date": "No meetings in the selected date range",
+      "no_results": "No matches",
+      "selected": "{n} meetings selected",
+      "selected_hidden": "{n} selected ({hidden} hidden by the date filter)",
+      "sel_title": "Select for bulk export or cross-meeting insight",
+      "date_title": "Click to correct the recording date",
+      "del_title": "Delete (moves to trash)"
     },
     "empty": {
       "title": "No meeting selected",
@@ -350,67 +418,139 @@
       "line3": "Before a meeting, use ◎ Prep for a pre-meeting brief; after a few meetings, ⛓ Insight and ☷ Knowledge show the big picture."
     },
     "doc": {
-      "tab_transcript": "Transcript", "edit": "✎ Edit", "restore": "↺ Restore original", "restore_title": "Restore the transcript as it was before name correction",
-      "download": "↓ Download", "download_format_title": "Download format: md / txt / srt / vtt / json",
-      "generate": "Generate report", "generating": "Generating…", "save_transcript": "Save transcript", "save_report": "Save report",
-      "no_transcript": "(no transcript yet)", "transcribing": "Transcription in progress…", "transcribe_error": "Transcription failed — check the meeting status or upload again",
-      "meta_text": "text material", "meta_untranscribed": "not transcribed", "meta_lang": "detected language: {lang}"
+      "tab_transcript": "Transcript",
+      "edit": "✎ Edit",
+      "restore": "↺ Restore original",
+      "restore_title": "Restore the transcript as it was before name correction",
+      "download": "↓ Download",
+      "download_format_title": "Download format: md / txt / srt / vtt / json",
+      "generate": "Generate report",
+      "generating": "Generating…",
+      "save_transcript": "Save transcript",
+      "save_report": "Save report",
+      "no_transcript": "(no transcript yet)",
+      "transcribing": "Transcription in progress…",
+      "transcribe_error": "Transcription failed — check the meeting status or upload again",
+      "meta_text": "text material",
+      "meta_untranscribed": "not transcribed",
+      "meta_lang": "detected language: {lang}",
+      "participants": "Participants",
+      "participants_empty": "Not set — click ✎ to add \"Name (role)\"; later minutes and analyses use it to correct who said what",
+      "participants_edit": "✎",
+      "participants_edit_title": "Enter or edit participants and roles; written into the transcript header",
+      "participants_detect": "✦ Detect",
+      "participants_detect_title": "Let the AI identify participants and roles from the transcript; you confirm before saving",
+      "participants_placeholder": "e.g. Alex Chen (product lead), Sam Lee (IT)",
+      "participants_saved": "Participants saved (written into the transcript header)",
+      "participants_detecting": "Detecting…",
+      "participants_detected": "Suggestion filled in — edit if needed, then press Enter to save",
+      "participants_failed": "Detection failed: {msg}"
     },
     "chat": {
       "title": "Chat with coco",
       "welcome": "Hi, I'm coco. Select a meeting on the left and ask me anything about it: decisions, mood, action items, hidden disagreements… Tick \"across all meetings\" to ask about several meetings at once. Before a meeting, use ◎ Prep and I'll brief you.",
       "all": "Ask across all meetings (commitments, changes, comparisons…)",
-      "placeholder": "Ask about this meeting… (Enter to send)", "placeholder_all": "Ask across all meetings… (Enter to send)", "placeholder_none": "Select a meeting first…",
-      "send": "Send", "ref_all": "Context: all transcribed meetings", "ref": "Context: {title}",
+      "placeholder": "Ask about this meeting… (Enter to send)",
+      "placeholder_all": "Ask across all meetings… (Enter to send)",
+      "placeholder_none": "Select a meeting first…",
+      "send": "Send",
+      "ref_all": "Context: all transcribed meetings",
+      "ref": "Context: {title}",
       "ref_none": "Select a meeting on the left, or tick \"across all meetings\"",
-      "thinking": "coco is thinking…", "thinking_all": "coco is reading all meetings…", "error": "Something went wrong: {msg}"
+      "thinking": "coco is thinking…",
+      "thinking_all": "coco is reading all meetings…",
+      "error": "Something went wrong: {msg}",
+      "export": "↓ Export",
+      "export_title": "Save this conversation as Markdown; with a meeting selected it is also stored as a tab of that meeting",
+      "exported": "Chat exported as .md",
+      "saved_to_meeting": "Chat exported and saved as a tab of \"{title}\"",
+      "export_empty": "No conversation yet",
+      "md_title": "Conversation with coco",
+      "md_question": "Question"
     },
     "memory": {
       "title": "Memory (injected into every AI analysis)",
-      "tab_manual": "Manual memory", "tab_long": "Long-term memory (automatic)", "tab_glossary": "Glossary",
+      "tab_manual": "Manual memory",
+      "tab_long": "Long-term memory (automatic)",
+      "tab_glossary": "Glossary",
       "fix_all": "✦ Correct names & terms in all meetings",
-      "extract": "✦ Extract glossary", "extract_title": "Let the AI extract names / proper nouns from long-term memory and recent transcripts into the glossary",
-      "compact": "⟲ Compact long-term memory", "compact_title": "Rewrite long-term memory once: merge scattered entries, compress stale ones (the everyday incremental merge never does this)",
+      "extract": "✦ Extract glossary",
+      "extract_title": "Let the AI extract names / proper nouns from long-term memory and recent transcripts into the glossary",
+      "compact": "⟲ Compact long-term memory",
+      "compact_title": "Rewrite long-term memory once: merge scattered entries, compress stale ones (the everyday incremental merge never does this)",
       "fix_hint": "Correction uses the spellings in the glossary and memory and rewrites every transcript and report in the library (takes minutes).",
       "clear": "✕ Clear",
       "hint_content": "Names, terms, company background, personal preferences. Maintained by hand; injected into every analysis and correction.",
       "hint_longterm": "People, projects & clients, commitments & decisions, terms. Extracted and merged automatically (incrementally) after each transcript; you may edit.",
       "hint_glossary": "Standard spelling of names and proper nouns: - Correct spelling (misheard: wrong1, wrong2) | note. Correct spellings are injected into the transcription prompt; the whole glossary is the authority for name / term correction.",
-      "saved": "Saved (previous content backed up as .bak.md)", "no_change": "No changes",
-      "label_content": "Manual memory", "label_longterm": "Long-term memory", "label_glossary": "Glossary",
+      "saved": "Saved (previous content backed up as .bak.md)",
+      "no_change": "No changes",
+      "label_content": "Manual memory",
+      "label_longterm": "Long-term memory",
+      "label_glossary": "Glossary",
       "confirm_clear": "Clear {label}?\nThe previous content is backed up as .bak.md under memory/.",
       "confirm_clear_long": "\nYou can rebuild it afterwards with \"coco memorize --all --force\".",
-      "cleared": "{label} cleared (previous content backed up as .bak.md)", "clear_failed": "Could not clear: {msg}",
+      "cleared": "{label} cleared (previous content backed up as .bak.md)",
+      "clear_failed": "Could not clear: {msg}",
       "fixall_confirm": "Correct names and proper nouns in the transcripts and reports of ALL meetings, using the glossary and memory?\nSave the glossary first. Originals are backed up; each transcript can be restored with ↺ Restore original.\nWith many meetings this takes several minutes — keep the page open.",
-      "fixing": "Correcting…", "fixall_done": "Library-wide correction complete", "fixall_start_failed": "Could not start the correction: {msg}",
+      "fixing": "Correcting…",
+      "fixall_done": "Library-wide correction complete",
+      "fixall_start_failed": "Could not start the correction: {msg}",
       "extract_confirm_unsaved": "The glossary box has unsaved edits. Extraction works on the saved version and will refresh the box, so unsaved edits will be lost.\nSave first? Continue anyway?",
       "extract_confirm": "Let the AI extract names / proper nouns from long-term memory and recent transcripts into the glossary?\nThe current glossary is backed up as glossary.bak.md.",
-      "extracting": "Extracting…", "extract_toast": "Extracting the glossary (about 30–90 s)…", "extract_done": "Glossary updated (original backed up as .bak.md)",
+      "extracting": "Extracting…",
+      "extract_toast": "Extracting the glossary (about 30–90 s)…",
+      "extract_done": "Glossary updated (original backed up as .bak.md)",
       "extract_failed": "Extraction failed: {msg}",
       "compact_confirm": "Rewrite the whole long-term memory to merge and compress it? Takes a few minutes; the original is backed up as longterm.bak.md.",
-      "compacting": "Compacting…", "compact_done": "Long-term memory compacted"
+      "compacting": "Compacting…",
+      "compact_done": "Long-term memory compacted"
     },
     "export": {
-      "title": "Export .md", "hint": "Tick the files to export and download them as one zip. You can also tick meetings in the sidebar and click ↓ Download.",
-      "all": "Select all", "go": "↓ Download zip", "none": "Nothing to export yet",
-      "group_meetings": "Meetings (transcripts / reports)", "group_briefs": "Daily briefs", "group_weeklies": "Weekly reports",
-      "group_tracking": "Cross-meeting insights", "group_preps": "Pre-meeting briefs",
-      "count": "{n} files selected", "pick": "Tick the files to export first",
-      "nothing": "The selected meetings have no exportable .md yet (transcript / reports)", "packing": "Packing the zip…", "done": "Downloaded", "failed": "Export failed: {msg}"
+      "title": "Export .md",
+      "hint": "Tick the files to export and download them as one zip. You can also tick meetings in the sidebar and click ↓ Download.",
+      "all": "Select all",
+      "go": "↓ Download zip",
+      "none": "Nothing to export yet",
+      "group_meetings": "Meetings (transcripts / reports)",
+      "group_briefs": "Daily briefs",
+      "group_weeklies": "Weekly reports",
+      "group_tracking": "Cross-meeting insights",
+      "group_preps": "Pre-meeting briefs",
+      "count": "{n} files selected",
+      "pick": "Tick the files to export first",
+      "nothing": "The selected meetings have no exportable .md yet (transcript / reports)",
+      "packing": "Packing the zip…",
+      "done": "Downloaded",
+      "failed": "Export failed: {msg}"
     },
     "import": {
-      "title": "Import material", "tab_path": "Local path", "tab_paste": "Paste text",
+      "title": "Import material",
+      "tab_path": "Local path",
+      "tab_paste": "Paste text",
       "path_hint": "Paste the full path of a file or folder. Audio / video is transcribed; txt / md / docx / pdf / srt / vtt / json … goes straight into the library. A folder imports every recognised file inside it.",
-      "path_tip_mac": "In Finder, select the item and press Option+Cmd+C to copy its path.", "path_tip_win": "In Explorer, right-click the file → \"Copy as path\".",
+      "path_tip_mac": "In Finder, select the item and press Option+Cmd+C to copy its path.",
+      "path_tip_win": "In Explorer, right-click the file → \"Copy as path\".",
       "paste_hint": "Paste a transcript, chat log, e-mail or someone else's minutes. SRT / VTT / JSON transcripts are detected and keep their timestamps. coco analyses it exactly like a local transcription and merges it into long-term memory.",
-      "paste_placeholder": "Paste here…", "title_label": "Title", "title_placeholder": "e.g. Chat with Alex about the roadmap", "date_label": "Date of the material (optional)",
-      "go": "Import", "need_path": "Paste a path first", "need_content": "Paste some content first",
-      "done_count": "{n} files imported", "done_failed": ", {n} failed: {err}", "done_queued": ", transcription queued…",
-      "failed": "Import failed: {msg}", "pasted": "Imported; it will be merged into long-term memory", "pasted_fmt": "Imported (detected as {fmt}, timestamps kept)"
+      "paste_placeholder": "Paste here…",
+      "title_label": "Title",
+      "title_placeholder": "e.g. Chat with Alex about the roadmap",
+      "date_label": "Date of the material (optional)",
+      "go": "Import",
+      "need_path": "Paste a path first",
+      "need_content": "Paste some content first",
+      "done_count": "{n} files imported",
+      "done_failed": ", {n} failed: {err}",
+      "done_queued": ", transcription queued…",
+      "failed": "Import failed: {msg}",
+      "pasted": "Imported; it will be merged into long-term memory",
+      "pasted_fmt": "Imported (detected as {fmt}, timestamps kept)"
     },
     "upload": {
-      "uploading": "Uploading {name} …", "text_done": "{name} imported (text material, no transcription needed)",
-      "queued": "{name} imported, transcription queued…", "failed": "{name} upload failed: {msg}"
+      "uploading": "Uploading {name} …",
+      "text_done": "{name} imported (text material, no transcription needed)",
+      "queued": "{name} imported, transcription queued…",
+      "failed": "{name} upload failed: {msg}"
     },
     "audiohelp": {
       "title": "This computer cannot transcribe audio locally right now",
@@ -433,32 +573,51 @@
       "cpu_hint": "Transcription runs on the CPU here (no NVIDIA GPU): a 45-minute recording can take 10–30 minutes. In a hurry, transcribe with another tool and import the text."
     },
     "record": {
-      "stop": "■ Stop {time}", "started": "Recording… click ■ Stop to finish and transcribe automatically",
-      "start_failed": "Could not start recording: {msg}", "stopped": "Recording stopped, transcription queued…", "stop_failed": "Could not stop recording: {msg}"
+      "stop": "■ Stop {time}",
+      "started": "Recording… click ■ Stop to finish and transcribe automatically",
+      "start_failed": "Could not start recording: {msg}",
+      "stopped": "Recording stopped, transcription queued…",
+      "stop_failed": "Could not stop recording: {msg}"
     },
     "job": {
-      "done": "Transcription complete", "done_editing": "Transcription complete — save or cancel your edit to view it",
-      "failed": "Transcription failed: {msg}", "transcribing": "Transcribing…"
+      "done": "Transcription complete",
+      "done_editing": "Transcription complete — save or cancel your edit to view it",
+      "failed": "Transcription failed: {msg}",
+      "transcribing": "Transcribing…"
     },
     "report": {
       "generating_live": "Generating the \"{tpl}\" report — the text appears as it is written…",
-      "done": "Report generated", "failed": "Generation failed: {msg}", "saved": "Report saved",
+      "done": "Report generated",
+      "failed": "Generation failed: {msg}",
+      "saved": "Report saved",
       "delete_confirm": "Delete the report \"{name}\"?\nIt moves to the trash library/_trash and can be regenerated at any time.",
-      "deleted": "Report deleted (recoverable from the trash)", "delete_failed": "Could not delete: {msg}"
+      "deleted": "Report deleted (recoverable from the trash)",
+      "delete_failed": "Could not delete: {msg}",
+      "thinking": "Generating \"{tpl}\": the model is reading and thinking… {s} s",
+      "generating_elapsed": "Generating \"{tpl}\" · {s} s · text appears as it is written; switch tabs freely and come back",
+      "busy": "A report is already being generated; wait for it to finish"
     },
     "transcript": {
       "saved": "Transcript saved",
       "restore_confirm": "Restore the transcript as it was before name correction? The current transcript (corrected names and any later manual edits) is replaced and the backup removed.",
-      "restored": "Original transcript restored", "restore_failed": "Could not restore: {msg}"
+      "restored": "Original transcript restored",
+      "restore_failed": "Could not restore: {msg}"
     },
     "meeting": {
       "delete_confirm": "Delete \"{title}\"?\nThe whole meeting (audio, transcript, reports) moves to the trash library/_trash and can be recovered by hand.",
-      "deleted": "Moved to trash", "delete_failed": "Could not delete: {msg}",
-      "date_updated": "Recording date updated", "update_failed": "Update failed: {msg}"
+      "deleted": "Moved to trash",
+      "delete_failed": "Could not delete: {msg}",
+      "date_updated": "Recording date updated",
+      "update_failed": "Update failed: {msg}"
     },
     "brief": {
-      "title": "Daily brief", "day": "Daily", "week": "Weekly", "none": "No transcribed meetings yet", "not_generated": " (not generated)",
-      "generate": "Generate brief", "regenerate": "Regenerate",
+      "title": "Daily brief",
+      "day": "Daily",
+      "week": "Weekly",
+      "none": "No transcribed meetings yet",
+      "not_generated": " (not generated)",
+      "generate": "Generate brief",
+      "regenerate": "Regenerate",
       "generating_toast": "Generating the brief for {date} (all meetings of that day)…",
       "done": "Brief generated; it will be merged into long-term memory",
       "delete_confirm": "Delete the brief for {date}?\nIt moves to the trash library/_trash and can be regenerated at any time.",
@@ -466,7 +625,8 @@
       "empty": "No brief for this day yet. Click Generate brief to summarise the action items and insights of all its meetings."
     },
     "weekly": {
-      "title": "Weekly report", "generate": "Generate weekly report",
+      "title": "Weekly report",
+      "generate": "Generate weekly report",
       "generating_toast": "Generating the weekly report for {week} (all meetings of the week; may take a few minutes)…",
       "done": "Weekly report generated",
       "delete_confirm": "Delete the weekly report for {week}?\nIt moves to the trash library/_trash and can be regenerated at any time.",
@@ -476,67 +636,122 @@
     "prep": {
       "title": "◎ Pre-meeting brief",
       "hint": "Understand the situation before walking in. coco picks the past meetings most relevant to the topic / participants and, together with long-term memory and the glossary, produces key people's positions, obstacles and opportunities, a suggested approach and a question list.",
-      "topic": "Meeting topic *", "topic_placeholder": "e.g. Align the phase-2 schedule with the project team",
-      "people": "Participants (comma-separated, optional)", "people_placeholder": "e.g. Alex Chen, Ms Wang, Lee",
-      "goal": "My goal (optional)", "goal_placeholder": "e.g. Get a verbal commitment on the phase-2 budget",
+      "topic": "Meeting topic *",
+      "topic_placeholder": "e.g. Align the phase-2 schedule with the project team",
+      "people": "Participants (comma-separated, optional)",
+      "people_placeholder": "e.g. Alex Chen, Ms Wang, Lee",
+      "goal": "My goal (optional)",
+      "goal_placeholder": "e.g. Get a verbal commitment on the phase-2 budget",
       "web": "Search the web for public information on the participants / companies (slower, sources cited; Claude CLI channel only)",
-      "go": "Generate brief", "view_title": "Pre-meeting brief", "new": "◎ New brief",
-      "delete_confirm": "Delete this pre-meeting brief?\nIt moves to the trash library/_trash.", "deleted": "Pre-meeting brief deleted (recoverable from the trash)",
-      "busy": "A pre-meeting brief is already being generated; wait for it to finish", "need_topic": "Enter the meeting topic first", "running": "◎ Working…",
-      "toast_web": "Preparing the brief (with web search, may take a few minutes)…", "toast": "Preparing the brief from relevant past meetings and memory — the text appears as it is written…",
+      "go": "Generate brief",
+      "view_title": "Pre-meeting brief",
+      "new": "◎ New brief",
+      "delete_confirm": "Delete this pre-meeting brief?\nIt moves to the trash library/_trash.",
+      "deleted": "Pre-meeting brief deleted (recoverable from the trash)",
+      "busy": "A pre-meeting brief is already being generated; wait for it to finish",
+      "need_topic": "Enter the meeting topic first",
+      "running": "◎ Working…",
+      "toast_web": "Preparing the brief (with web search, may take a few minutes)…",
+      "toast": "Preparing the brief from relevant past meetings and memory — the text appears as it is written…",
       "done": "Pre-meeting brief generated"
     },
     "insight": {
-      "title": "⛓ Cross-meeting insight", "hint": "Cross-analysis of several meetings. With many meetings this takes minutes; the text appears as it is written.",
-      "focus": "Focus (optional): a person / project / client", "focus_placeholder": "empty = overall",
-      "scope": "Scope", "scope_all": "All transcribed meetings", "scope_sel": "The {n} transcribed meetings selected on the left",
-      "scope_sel_hint": " (select at least 2 first — ideal for comparing several interviews)", "scope_limited": "limited to {n} meetings",
-      "go": "Analyse", "running": "⛓ Analysing…", "toast": "Running \"{mode}\" ({scope})…",
-      "view_title": "Cross-meeting insight · {mode} · {focus}", "global": "overall",
-      "delete_confirm": "Delete this insight report?\nIt moves to the trash library/_trash.", "deleted": "Insight report deleted (recoverable from the trash)"
+      "title": "⛓ Cross-meeting insight",
+      "hint": "Cross-analysis of several meetings. With many meetings this takes minutes; the text appears as it is written.",
+      "focus": "Focus (optional): a person / project / client",
+      "focus_placeholder": "empty = overall",
+      "scope": "Scope",
+      "scope_all": "All transcribed meetings",
+      "scope_sel": "The {n} transcribed meetings selected on the left",
+      "scope_sel_hint": " (select at least 2 first — ideal for comparing several interviews)",
+      "scope_limited": "limited to {n} meetings",
+      "go": "Analyse",
+      "running": "⛓ Analysing…",
+      "toast": "Running \"{mode}\" ({scope})…",
+      "view_title": "Cross-meeting insight · {mode} · {focus}",
+      "global": "overall",
+      "delete_confirm": "Delete this insight report?\nIt moves to the trash library/_trash.",
+      "deleted": "Insight report deleted (recoverable from the trash)"
     },
     "knowledge": {
-      "title": "Knowledge base", "edit": "✎ Edit memory & glossary",
-      "stat_meetings": "transcribed meetings", "stat_persons": "people", "stat_projects": "projects & clients", "stat_promises": "commitments & decisions", "stat_glossary": "glossary entries",
+      "title": "Knowledge base",
+      "edit": "✎ Edit memory & glossary",
+      "stat_meetings": "transcribed meetings",
+      "stat_persons": "people",
+      "stat_projects": "projects & clients",
+      "stat_promises": "commitments & decisions",
+      "stat_glossary": "glossary entries",
       "pick_person": "Click a person to review them across all meetings:",
       "person_prompt": "Profile {name}: their role, what they said in each meeting and how it changed, unfulfilled commitments, and what they care about most right now."
     },
     "settings": {
       "title": "⚙ Settings",
-      "ui_lang": "Interface language", "output_lang": "AI output language",
-      "output_ui": "Same as the interface", "output_source": "Same as the material (whatever language the transcript is in)",
+      "ui_lang": "Interface language",
+      "output_lang": "AI output language",
+      "output_ui": "Same as the interface",
+      "output_source": "Same as the material (whatever language the transcript is in)",
       "output_hint": "The output language applies to reports, minutes, briefs, insights, pre-meeting briefs, chat answers, and the wording of long-term memory and the glossary. The transcription language is set separately in the top bar.",
       "ai_title": "AI model channels",
       "ai_hint": "By default coco uses the logged-in Claude Code CLI — no API key needed. You can also connect any Anthropic-compatible endpoint (e.g. DeepSeek's /anthropic) or OpenAI-compatible API (DeepSeek, OpenAI, a local Ollama). Send background work to a faster, cheaper channel without touching report quality.",
       "claude_missing": "The claude command was not found on PATH. Install and log in to Claude Code (https://claude.com/claude-code), or switch the primary channel to an API type.",
-      "profile_primary": "Primary channel: reports / insights / pre-meeting briefs / chat", "profile_fast": "Background channel: long-term memory / glossary / name correction",
-      "profile_primary_short": "primary", "profile_fast_short": "background",
+      "profile_primary": "Primary channel: reports / insights / pre-meeting briefs / chat",
+      "profile_fast": "Background channel: long-term memory / glossary / name correction",
+      "profile_primary_short": "primary",
+      "profile_fast_short": "background",
       "fast_same": "Background tasks use the same model as the primary channel",
-      "preset": "Preset", "preset_custom": "(custom)",
-      "preset_claude_cli": "Claude Code CLI (default model)", "preset_claude_cli_fast": "Claude Code CLI · Haiku (fast)",
-      "preset_deepseek_anthropic": "DeepSeek · Anthropic-compatible endpoint", "preset_deepseek_openai": "DeepSeek · OpenAI-compatible endpoint",
-      "preset_deepseek_via_claude_cli": "DeepSeek · through the Claude CLI (--bare)", "preset_openai": "OpenAI", "preset_ollama": "Ollama (local, fully offline)",
-      "type": "Type", "type_claude": "Claude Code CLI (logged-in account)", "type_anthropic": "Anthropic-compatible API", "type_openai": "OpenAI-compatible API",
-      "model": "Model", "model_placeholder": "empty = channel default", "base_url": "Base URL", "base_url_placeholder": "empty = official endpoint",
-      "api_key": "API key", "api_key_placeholder": "stored only in coco.config.json on this computer", "api_key_stored": "stored (leave empty to keep; type to replace)",
-      "api_key_env": "or environment variable name", "max_context": "Context cap (characters, 0 = default 400,000)",
-      "test": "Test connection", "testing": "Testing…", "test_ok": "Connected: {model}, {ms} ms, reply \"{reply}\"", "test_failed": "Connection failed: {msg}",
-      "tasks_title": "Task assignment", "tasks_hint": "Which channel each kind of task uses. Suggested: deep analysis on the primary channel; long-term memory / glossary / name correction on the background channel.",
-      "task_report": "Single-meeting reports", "task_ask": "Chat", "task_track": "Cross-meeting insight", "task_prep": "Pre-meeting brief",
-      "task_brief": "Daily brief", "task_weekly": "Weekly report", "task_memory": "Long-term memory merge", "task_glossary": "Glossary extraction", "task_namefix": "Name & term correction",
+      "preset": "Preset",
+      "preset_custom": "(custom)",
+      "preset_claude_cli": "Claude Code CLI (default model)",
+      "preset_claude_cli_fast": "Claude Code CLI · Haiku (fast)",
+      "preset_deepseek_anthropic": "DeepSeek · Anthropic-compatible endpoint",
+      "preset_deepseek_openai": "DeepSeek · OpenAI-compatible endpoint",
+      "preset_deepseek_via_claude_cli": "DeepSeek · through the Claude CLI (--bare)",
+      "preset_openai": "OpenAI",
+      "preset_ollama": "Ollama (local, fully offline)",
+      "type": "Type",
+      "type_claude": "Claude Code CLI (logged-in account)",
+      "type_anthropic": "Anthropic-compatible API",
+      "type_openai": "OpenAI-compatible API",
+      "model": "Model",
+      "model_placeholder": "empty = channel default",
+      "base_url": "Base URL",
+      "base_url_placeholder": "empty = official endpoint",
+      "api_key": "API key",
+      "api_key_placeholder": "stored only in coco.config.json on this computer",
+      "api_key_stored": "stored (leave empty to keep; type to replace)",
+      "api_key_env": "or environment variable name",
+      "max_context": "Context cap (characters, 0 = default 400,000)",
+      "test": "Test connection",
+      "testing": "Testing…",
+      "test_ok": "Connected: {model}, {ms} ms, reply \"{reply}\"",
+      "test_failed": "Connection failed: {msg}",
+      "tasks_title": "Task assignment",
+      "tasks_hint": "Which channel each kind of task uses. Suggested: deep analysis on the primary channel; long-term memory / glossary / name correction on the background channel.",
+      "task_report": "Single-meeting reports",
+      "task_ask": "Chat",
+      "task_track": "Cross-meeting insight",
+      "task_prep": "Pre-meeting brief",
+      "task_brief": "Daily brief",
+      "task_weekly": "Weekly report",
+      "task_memory": "Long-term memory merge",
+      "task_glossary": "Glossary extraction",
+      "task_namefix": "Name & term correction",
       "memory_title": "Long-term memory merge",
       "memory_delta": "Incremental (recommended): the model outputs only new / changed entries and coco merges them by name — seconds",
       "memory_full": "Full: the model rewrites the whole long-term memory every time (slow, and slower as memory grows)",
       "memory_hint": "In incremental mode, run ⟲ Compact long-term memory under ◈ Memory from time to time for a full merge and compression pass.",
-      "saved": "Settings saved"
+      "saved": "Settings saved",
+      "task_participants": "Participant detection"
     },
     "conn": {
       "down": "⚠️ Cannot reach the coco server, reconnecting… (if this persists, {hint})",
-      "hint_win": "double-click run.bat", "hint_mac": "double-click coco.command or run ./run.sh in a terminal"
+      "hint_win": "double-click run.bat",
+      "hint_mac": "double-click coco.command or run ./run.sh in a terminal"
     },
     "config": {
       "model_switched": "Transcription model set to {model} (applies to future transcriptions)",
-      "lang_switched": "Transcription language set to {lang} (applies to future transcriptions)", "switch_failed": "Could not switch: {msg}"
+      "lang_switched": "Transcription language set to {lang} (applies to future transcriptions)",
+      "switch_failed": "Could not switch: {msg}"
     }
   }
 }

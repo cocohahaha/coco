@@ -251,6 +251,34 @@ check("搜索", len(c.get("/api/search", params={"q": "痛点"}).json()) >= 1)
 check("配置读取", c.get("/api/config").status_code == 200)
 check("全库校正预览（不执行）", c.post("/api/fix-all-names", json={}).json().get("preview") is True)
 
+# 13.5 participants: header line, meta sync both ways, detection, prompt injection; chat export as a tab
+d = c.get(f"/api/meetings/{mid1}").json()
+check("转写头部含参与人员占位行", "- 参与人员: （未填写）" in d["transcript"] and d["participants"] == "", d["transcript"][:200])
+r = c.post(f"/api/meetings/{mid1}/meta", json={"participants": "张三（IT 负责人）、李四（数据）"})
+check("保存参与人员", r.status_code == 200 and r.json()["participants"] == "张三（IT 负责人）、李四（数据）", r.text[:160])
+d = c.get(f"/api/meetings/{mid1}").json()
+check("参与人员写入转写头部（替换占位行）", "- 参与人员: 张三（IT 负责人）、李四（数据）" in d["transcript"] and d["transcript"].count("参与人员") == 1)
+edited = d["transcript"].replace("- 参与人员: 张三（IT 负责人）、李四（数据）", "- 参与人员: 张三（IT 负责人）、李四（数据）、王五（财务）")
+c.post(f"/api/meetings/{mid1}/transcript", json={"content": edited})
+check("手改转写头部行 → meta 同步", c.get(f"/api/meetings/{mid1}").json()["participants"].endswith("王五（财务）"))
+from coco.library import set_participants, find_meeting as _fm  # noqa: E402
+legacy = _fm(mid2); legacy.transcript_md.write_text("# 旧会议\n\n- 日期：2026-08-20\n- 来源：粘贴\n\n## 转写\n\n李四：老转写没有参与人行。\n", encoding="utf-8")
+set_participants(legacy, "李四（IT）")
+lt = legacy.transcript_text()
+check("旧转写无参与人行时插入到头部末尾", lt.splitlines()[4] == "- 参与人员: 李四（IT）" and lt.count("## 转写") == 1, lt[:160])
+r = c.post(f"/api/meetings/{mid1}/participants/detect")
+check("AI 识别参与人", r.status_code == 200 and r.json()["participants"] == "张三（产品负责人）、李四（IT）", r.text[:160])
+check("英文请求识别参与人", "Zhang San" in c.post(f"/api/meetings/{mid1}/participants/detect", headers=EN).json()["participants"])
+from coco.ai import _participants_block  # noqa: E402
+check("参与人注入分析提示词", "王五（财务）" in _participants_block([_fm(mid1)]) and _participants_block([]) == "")
+from coco.ai import _context_block  # noqa: E402
+check("多会议上下文带 participants 属性", 'participants="张三（IT 负责人）' in _context_block([_fm(mid1)]))
+check("参与人过长 400", c.post(f"/api/meetings/{mid1}/meta", json={"participants": "x" * 1001}).status_code == 400)
+r = c.post(f"/api/meetings/{mid1}/chat", json={"content": "# 与 coco 的对话\n\n## 提问 10:00\n李四怎么看？\n\n**coco**\n\n模拟回答\n"})
+check("对话保存为会议页签", r.status_code == 200 and r.json()["name"].startswith("chat-") and r.json()["label"].startswith("对话 "), r.text[:160])
+check("对话页签英文标签", c.get(f"/api/meetings/{mid1}", headers=EN).json()["report_list"][-1]["label"].startswith("Chat "))
+check("空对话 400", c.post(f"/api/meetings/{mid1}/chat", json={"content": " "}).status_code == 400)
+
 # 14. weekly
 from coco.ai import week_bounds  # noqa: E402
 s_, e_, w_ = week_bounds("2026-08-19")

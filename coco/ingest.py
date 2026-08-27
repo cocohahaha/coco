@@ -22,7 +22,7 @@ import shutil
 from pathlib import Path
 
 from .i18n import sections, t
-from .library import Meeting, create_meeting
+from .library import Meeting, create_meeting, participants_line
 from .transcriber import _fmt_ts
 
 TEXT_EXTS = {".txt", ".md", ".markdown", ".docx", ".odt", ".pdf", ".rtf", ".html", ".htm",
@@ -651,7 +651,8 @@ def _write_meeting(mtg: Meeting, data: dict, fmt: str, source_label: str) -> Non
     header = [f"# {mtg.title}", "", f"- {t('transcript.date')}: {date_line}"]
     if duration:
         header.append(f"- {t('transcript.duration')}: {duration}")
-    header += [f"- {t('transcript.source')}: {source_label} ({fmt})", "",
+    header += [f"- {t('transcript.source')}: {source_label} ({fmt})",
+               participants_line(mtg.meta.get("participants", "")), "",
                f"## {sections()['transcript']}", ""]
     mtg.transcript_md.write_text("\n".join(header + body).rstrip() + "\n", encoding="utf-8")
     mtg.transcript_json.write_text(json.dumps({

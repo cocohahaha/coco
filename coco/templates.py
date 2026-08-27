@@ -102,7 +102,7 @@ def report_label(stem: str, lang: "str | None" = None) -> str:
     m = _STAMP.search(stem)
     base = stem[:m.start()] if m else stem
     tid = resolve_template(base)
-    label = template_label(tid, lang) if tid else base
+    label = template_label(tid, lang) if tid else (t("files.chat", lang) if base == "chat" else base)
     return f"{label} {m.group(1)}:{m.group(2)}" if m else label
 
 

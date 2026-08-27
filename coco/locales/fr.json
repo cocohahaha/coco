@@ -1,6 +1,8 @@
 {
-  "_meta": {"name": "Français", "code": "fr"},
-
+  "_meta": {
+    "name": "Français",
+    "code": "fr"
+  },
   "sections": {
     "memory_title": "Mémoire globale",
     "longterm_title": "Mémoire à long terme",
@@ -14,25 +16,58 @@
     "misheard": "variantes",
     "transcript": "Transcription"
   },
-
   "templates": {
-    "minutes": {"name": "Compte rendu", "desc": "Compte rendu structuré : sujets, points discutés, décisions, actions"},
-    "actions": {"name": "Actions", "desc": "Actions uniquement : tâche, responsable, échéance, dépendances"},
-    "mood": {"name": "Courbe émotionnelle", "desc": "Dynamique émotionnelle et énergie au fil du temps, avec les points de bascule"},
-    "tension": {"name": "Tensions", "desc": "Désaccords non exprimés, sujets évités, écarts entre positions"},
-    "bias": {"name": "Biais cognitifs", "desc": "Biais dans la discussion et les décisions"},
-    "topics": {"name": "Pistes ouvertes", "desc": "Sujets à approfondir, questions sans réponse, prochaines recherches"},
-    "client": {"name": "Débrief client", "desc": "Relecture d'une réunion client : signaux, objections, température de la relation, suivi"},
-    "hiring": {"name": "Débrief entretien", "desc": "Relecture d'un entretien : preuves, points forts, risques, questions à poser"},
-    "followup": {"name": "Brouillon de suivi", "desc": "Message de suivi prêt à envoyer + liste d'actions à 48 h"}
+    "minutes": {
+      "name": "Compte rendu",
+      "desc": "Compte rendu structuré : sujets, points discutés, décisions, actions"
+    },
+    "actions": {
+      "name": "Actions",
+      "desc": "Actions uniquement : tâche, responsable, échéance, dépendances"
+    },
+    "mood": {
+      "name": "Courbe émotionnelle",
+      "desc": "Dynamique émotionnelle et énergie au fil du temps, avec les points de bascule"
+    },
+    "tension": {
+      "name": "Tensions",
+      "desc": "Désaccords non exprimés, sujets évités, écarts entre positions"
+    },
+    "bias": {
+      "name": "Biais cognitifs",
+      "desc": "Biais dans la discussion et les décisions"
+    },
+    "topics": {
+      "name": "Pistes ouvertes",
+      "desc": "Sujets à approfondir, questions sans réponse, prochaines recherches"
+    },
+    "client": {
+      "name": "Débrief client",
+      "desc": "Relecture d'une réunion client : signaux, objections, température de la relation, suivi"
+    },
+    "hiring": {
+      "name": "Débrief entretien",
+      "desc": "Relecture d'un entretien : preuves, points forts, risques, questions à poser"
+    },
+    "followup": {
+      "name": "Brouillon de suivi",
+      "desc": "Message de suivi prêt à envoyer + liste d'actions à 48 h"
+    }
   },
-
   "track_modes": {
-    "track": {"name": "Suivi", "desc": "Engagements tenus / positions qui changent / questions récurrentes sans réponse"},
-    "signals": {"name": "Signaux profonds", "desc": "Faux consensus / sous-entendus / positions et intérêts / dérive / angles morts"},
-    "synthesis": {"name": "Synthèse d'enquête", "desc": "Comparaison croisée d'entretiens : matrice des irritants / consensus et désaccords / mise en œuvre (enquête FDE)"}
+    "track": {
+      "name": "Suivi",
+      "desc": "Engagements tenus / positions qui changent / questions récurrentes sans réponse"
+    },
+    "signals": {
+      "name": "Signaux profonds",
+      "desc": "Faux consensus / sous-entendus / positions et intérêts / dérive / angles morts"
+    },
+    "synthesis": {
+      "name": "Synthèse d'enquête",
+      "desc": "Comparaison croisée d'entretiens : matrice des irritants / consensus et désaccords / mise en œuvre (enquête FDE)"
+    }
   },
-
   "msg": {
     "placeholder": {
       "memory": "Tout ce qui figure ici est injecté dans chaque analyse : noms, termes, contexte de l'entreprise, préférences personnelles",
@@ -50,7 +85,8 @@
       "export": "export",
       "memory": "Mémoire globale",
       "longterm": "Mémoire à long terme",
-      "glossary": "Glossaire"
+      "glossary": "Glossaire",
+      "chat": "Conversation"
     },
     "source": {
       "upload": "Téléversement",
@@ -65,7 +101,9 @@
       "duration": "Durée",
       "source": "Source",
       "language": "Langue",
-      "by_model": "transcrit avec {model}"
+      "by_model": "transcrit avec {model}",
+      "participants": "Participants",
+      "participants_empty": "(non renseigné)"
     },
     "transcribe": {
       "no_engine": "Cet ordinateur n'a pas de moteur de transcription utilisable : l'audio ne peut pas être transcrit ici. Convertissez d'abord l'enregistrement en texte avec un autre outil (export de votre logiciel de réunion, service de transcription en ligne, Whisper…) puis téléversez ou importez le fichier en txt / docx / pdf / srt / vtt / json ; toutes les analyses fonctionnent à l'identique. Pour transcrire en local, installez faster-whisper : pip install faster-whisper",
@@ -151,7 +189,8 @@
       "glossary_too_short": "Le glossaire produit est bien plus court qu'avant, des entrées seraient perdues ; non mis à jour",
       "glossary_changed_meanwhile": "Le glossaire a été modifié pendant l'extraction ; abandon pour protéger vos modifications, réessayez",
       "no_meetings_on": "Aucune réunion transcrite le {date}",
-      "no_meetings_in_week": "Aucune réunion transcrite en {week} ({start} ~ {end})"
+      "no_meetings_in_week": "Aucune réunion transcrite en {week} ({start} ~ {end})",
+      "participants_bad": "Résultat de détection des participants inattendu ; renseignez-les à la main"
     },
     "server": {
       "file_missing": "Fichier introuvable : {name}",
@@ -185,7 +224,8 @@
       "bad_memory_which": "which doit être content, longterm ou glossary",
       "export_nothing_selected": "Aucun fichier sélectionné",
       "export_files_missing": "Aucun des fichiers sélectionnés n'existe",
-      "internal_error": "Erreur interne du serveur : consultez le terminal qui exécute coco"
+      "internal_error": "Erreur interne du serveur : consultez le terminal qui exécute coco",
+      "participants_too_long": "Texte des participants trop long (1000 caractères max)"
     },
     "cli": {
       "description": "coco — enregistrement / transcription / analyse IA de réunions, en local",
@@ -310,37 +350,65 @@
       "h_ai_profile": "Canal concerné (par défaut primary)"
     }
   },
-
   "ui": {
-    "app": {"subtitle": "stratège de réunion local"},
+    "app": {
+      "subtitle": "stratège de réunion local"
+    },
     "common": {
-      "cancel": "Annuler", "delete": "✕ Supprimer", "save": "Enregistrer", "download_md": "↓ Télécharger .md", "loading": "Chargement…",
-      "failed": "Une erreur est survenue : {msg}", "load_failed": "Chargement impossible : {msg}", "save_failed": "Enregistrement impossible : {msg}",
-      "delete_failed": "Suppression impossible : {msg}", "stream_interrupted": "La connexion a été coupée avant la fin du résultat"
+      "cancel": "Annuler",
+      "delete": "✕ Supprimer",
+      "save": "Enregistrer",
+      "download_md": "↓ Télécharger .md",
+      "loading": "Chargement…",
+      "failed": "Une erreur est survenue : {msg}",
+      "load_failed": "Chargement impossible : {msg}",
+      "save_failed": "Enregistrement impossible : {msg}",
+      "delete_failed": "Suppression impossible : {msg}",
+      "stream_interrupted": "La connexion a été coupée avant la fin du résultat"
     },
     "header": {
       "ui_lang_title": "Langue de l'interface",
-      "model_turbo": "Modèle : turbo (rapide)", "model_large": "Modèle : large (le plus précis)", "model_title": "S'applique aux prochaines transcriptions",
+      "model_turbo": "Modèle : turbo (rapide)",
+      "model_large": "Modèle : large (le plus précis)",
+      "model_title": "S'applique aux prochaines transcriptions",
       "lang_title": "Langue de transcription (prochaines transcriptions) ; la langue de sortie IA se règle dans ⚙ Réglages",
       "lang_auto": "Transcription : détection automatique",
-      "record": "● Enregistrer", "record_title": "Enregistrer avec le micro de cet ordinateur ; transcription automatique à l'arrêt",
-      "upload": "↑ Téléverser", "upload_title": "Téléverser un audio / une vidéo, ou une transcription existante (txt / docx / pdf / srt / vtt / json…)",
-      "import": "⌖ Importer", "import_title": "Importer un chemin local (dossiers en lot) ou coller du texte",
-      "prep": "◎ Préparer", "prep_title": "Note de préparation : réunions passées + mémoire, pour comprendre la situation avant d'entrer",
-      "insight": "⛓ Analyse", "insight_title": "Analyse croisée : suivi / signaux profonds / synthèse d'enquête",
-      "brief": "☀ Synthèses", "brief_title": "Synthèse du jour / rapport hebdomadaire (avec historique)",
-      "knowledge": "☷ Socle", "knowledge_title": "Socle de connaissances : personnes, projets, engagements et glossaire en un coup d'œil",
-      "export": "⬇ Exporter", "memory": "◈ Mémoire",
-      "settings": "⚙ Réglages", "settings_title": "Langues, canaux de modèles IA, stratégie de mémoire"
+      "record": "● Enregistrer",
+      "record_title": "Enregistrer avec le micro de cet ordinateur ; transcription automatique à l'arrêt",
+      "upload": "↑ Téléverser",
+      "upload_title": "Téléverser un audio / une vidéo, ou une transcription existante (txt / docx / pdf / srt / vtt / json…)",
+      "import": "⌖ Importer",
+      "import_title": "Importer un chemin local (dossiers en lot) ou coller du texte",
+      "prep": "◎ Préparer",
+      "prep_title": "Note de préparation : réunions passées + mémoire, pour comprendre la situation avant d'entrer",
+      "insight": "⛓ Analyse",
+      "insight_title": "Analyse croisée : suivi / signaux profonds / synthèse d'enquête",
+      "brief": "☀ Synthèses",
+      "brief_title": "Synthèse du jour / rapport hebdomadaire (avec historique)",
+      "knowledge": "☷ Socle",
+      "knowledge_title": "Socle de connaissances : personnes, projets, engagements et glossaire en un coup d'œil",
+      "export": "⬇ Exporter",
+      "memory": "◈ Mémoire",
+      "settings": "⚙ Réglages",
+      "settings_title": "Langues, canaux de modèles IA, stratégie de mémoire"
     },
     "sidebar": {
       "search_placeholder": "🔍 Rechercher dans toutes les transcriptions et rapports…",
-      "filter_from_title": "Date de début (incluse)", "filter_to_title": "Date de fin (incluse)", "filter_clear": "Effacer",
-      "sel_insight": "⛓ Analyse", "sel_insight_title": "Analyse croisée des réunions cochées (ex. synthèse de plusieurs entretiens)",
-      "sel_download": "↓ Télécharger", "library": "Bibliothèque", "empty": "Rien pour l'instant",
-      "no_match_date": "Aucune réunion dans la plage de dates choisie", "no_results": "Aucun résultat",
-      "selected": "{n} réunions sélectionnées", "selected_hidden": "{n} sélectionnées ({hidden} masquées par le filtre de dates)",
-      "sel_title": "Cocher pour l'export en lot ou l'analyse croisée", "date_title": "Cliquer pour corriger la date d'enregistrement", "del_title": "Supprimer (vers la corbeille)"
+      "filter_from_title": "Date de début (incluse)",
+      "filter_to_title": "Date de fin (incluse)",
+      "filter_clear": "Effacer",
+      "sel_insight": "⛓ Analyse",
+      "sel_insight_title": "Analyse croisée des réunions cochées (ex. synthèse de plusieurs entretiens)",
+      "sel_download": "↓ Télécharger",
+      "library": "Bibliothèque",
+      "empty": "Rien pour l'instant",
+      "no_match_date": "Aucune réunion dans la plage de dates choisie",
+      "no_results": "Aucun résultat",
+      "selected": "{n} réunions sélectionnées",
+      "selected_hidden": "{n} sélectionnées ({hidden} masquées par le filtre de dates)",
+      "sel_title": "Cocher pour l'export en lot ou l'analyse croisée",
+      "date_title": "Cliquer pour corriger la date d'enregistrement",
+      "del_title": "Supprimer (vers la corbeille)"
     },
     "empty": {
       "title": "Aucune réunion sélectionnée",
@@ -350,67 +418,139 @@
       "line3": "Avant une réunion, ◎ Préparer produit une note de préparation ; après quelques réunions, ⛓ Analyse et ☷ Socle donnent la vue d'ensemble."
     },
     "doc": {
-      "tab_transcript": "Transcription", "edit": "✎ Modifier", "restore": "↺ Restaurer l'original", "restore_title": "Restaurer la transcription telle qu'elle était avant la correction des noms",
-      "download": "↓ Télécharger", "download_format_title": "Format : md / txt / srt / vtt / json",
-      "generate": "Générer un rapport", "generating": "Génération…", "save_transcript": "Enregistrer la transcription", "save_report": "Enregistrer le rapport",
-      "no_transcript": "(pas encore de transcription)", "transcribing": "Transcription en cours…", "transcribe_error": "La transcription a échoué : vérifiez l'état de la réunion ou téléversez à nouveau",
-      "meta_text": "document texte", "meta_untranscribed": "non transcrit", "meta_lang": "langue détectée : {lang}"
+      "tab_transcript": "Transcription",
+      "edit": "✎ Modifier",
+      "restore": "↺ Restaurer l'original",
+      "restore_title": "Restaurer la transcription telle qu'elle était avant la correction des noms",
+      "download": "↓ Télécharger",
+      "download_format_title": "Format : md / txt / srt / vtt / json",
+      "generate": "Générer un rapport",
+      "generating": "Génération…",
+      "save_transcript": "Enregistrer la transcription",
+      "save_report": "Enregistrer le rapport",
+      "no_transcript": "(pas encore de transcription)",
+      "transcribing": "Transcription en cours…",
+      "transcribe_error": "La transcription a échoué : vérifiez l'état de la réunion ou téléversez à nouveau",
+      "meta_text": "document texte",
+      "meta_untranscribed": "non transcrit",
+      "meta_lang": "langue détectée : {lang}",
+      "participants": "Participants",
+      "participants_empty": "Non renseigné : cliquez sur ✎ pour ajouter « Nom (rôle) » ; les comptes rendus et analyses s'en serviront pour corriger qui a dit quoi",
+      "participants_edit": "✎",
+      "participants_edit_title": "Saisir ou modifier les participants et leurs rôles ; écrit dans l'en-tête de la transcription",
+      "participants_detect": "✦ Détecter",
+      "participants_detect_title": "Laisser l'IA identifier les participants et leurs rôles dans la transcription ; vous confirmez avant d'enregistrer",
+      "participants_placeholder": "ex. Alex Chen (responsable produit), Sam Lee (IT)",
+      "participants_saved": "Participants enregistrés (écrits dans l'en-tête de la transcription)",
+      "participants_detecting": "Détection…",
+      "participants_detected": "Suggestion insérée : modifiez si besoin puis Entrée pour enregistrer",
+      "participants_failed": "Échec de la détection : {msg}"
     },
     "chat": {
       "title": "Discuter avec coco",
       "welcome": "Bonjour, je suis coco. Sélectionnez une réunion à gauche et posez-moi n'importe quelle question : décisions, ambiance, actions, désaccords cachés… Cochez « toutes les réunions » pour interroger plusieurs réunions à la fois. Avant une réunion, utilisez ◎ Préparer et je vous briefe.",
       "all": "Interroger toutes les réunions (engagements, évolutions, comparaisons…)",
-      "placeholder": "Une question sur cette réunion… (Entrée pour envoyer)", "placeholder_all": "Une question sur toutes les réunions… (Entrée pour envoyer)", "placeholder_none": "Sélectionnez d'abord une réunion…",
-      "send": "Envoyer", "ref_all": "Contexte : toutes les réunions transcrites", "ref": "Contexte : {title}",
+      "placeholder": "Une question sur cette réunion… (Entrée pour envoyer)",
+      "placeholder_all": "Une question sur toutes les réunions… (Entrée pour envoyer)",
+      "placeholder_none": "Sélectionnez d'abord une réunion…",
+      "send": "Envoyer",
+      "ref_all": "Contexte : toutes les réunions transcrites",
+      "ref": "Contexte : {title}",
       "ref_none": "Sélectionnez une réunion à gauche, ou cochez « toutes les réunions »",
-      "thinking": "coco réfléchit…", "thinking_all": "coco relit toutes les réunions…", "error": "Une erreur est survenue : {msg}"
+      "thinking": "coco réfléchit…",
+      "thinking_all": "coco relit toutes les réunions…",
+      "error": "Une erreur est survenue : {msg}",
+      "export": "↓ Exporter",
+      "export_title": "Enregistrer cette conversation en Markdown ; avec une réunion sélectionnée, elle est aussi stockée comme onglet de cette réunion",
+      "exported": "Conversation exportée en .md",
+      "saved_to_meeting": "Conversation exportée et enregistrée comme onglet de « {title} »",
+      "export_empty": "Aucune conversation pour l'instant",
+      "md_title": "Conversation avec coco",
+      "md_question": "Question"
     },
     "memory": {
       "title": "Mémoire (injectée dans chaque analyse IA)",
-      "tab_manual": "Mémoire manuelle", "tab_long": "Mémoire à long terme (automatique)", "tab_glossary": "Glossaire",
+      "tab_manual": "Mémoire manuelle",
+      "tab_long": "Mémoire à long terme (automatique)",
+      "tab_glossary": "Glossaire",
       "fix_all": "✦ Corriger noms et termes dans toutes les réunions",
-      "extract": "✦ Extraire le glossaire", "extract_title": "Laisser l'IA extraire noms et noms propres de la mémoire à long terme et des transcriptions récentes vers le glossaire",
-      "compact": "⟲ Compacter la mémoire", "compact_title": "Réécrire une fois la mémoire à long terme : fusionner les entrées dispersées, compresser les entrées périmées (la fusion incrémentale quotidienne ne le fait jamais)",
+      "extract": "✦ Extraire le glossaire",
+      "extract_title": "Laisser l'IA extraire noms et noms propres de la mémoire à long terme et des transcriptions récentes vers le glossaire",
+      "compact": "⟲ Compacter la mémoire",
+      "compact_title": "Réécrire une fois la mémoire à long terme : fusionner les entrées dispersées, compresser les entrées périmées (la fusion incrémentale quotidienne ne le fait jamais)",
       "fix_hint": "La correction s'appuie sur les orthographes du glossaire et de la mémoire et réécrit chaque transcription et rapport de la bibliothèque (quelques minutes).",
       "clear": "✕ Vider",
       "hint_content": "Noms, termes, contexte de l'entreprise, préférences personnelles. Entretenue à la main ; injectée dans chaque analyse et correction.",
       "hint_longterm": "Personnes, projets et clients, engagements et décisions, termes. Extraite et fusionnée automatiquement (par incréments) après chaque transcription ; modifiable.",
       "hint_glossary": "Orthographe de référence des noms et noms propres : - Orthographe correcte (variantes : erreur1, erreur2) | note. Les orthographes correctes sont injectées dans l'invite de transcription ; le glossaire fait autorité pour la correction des noms et termes.",
-      "saved": "Enregistré (contenu précédent sauvegardé en .bak.md)", "no_change": "Aucune modification",
-      "label_content": "Mémoire manuelle", "label_longterm": "Mémoire à long terme", "label_glossary": "Glossaire",
+      "saved": "Enregistré (contenu précédent sauvegardé en .bak.md)",
+      "no_change": "Aucune modification",
+      "label_content": "Mémoire manuelle",
+      "label_longterm": "Mémoire à long terme",
+      "label_glossary": "Glossaire",
       "confirm_clear": "Vider {label} ?\nLe contenu précédent est sauvegardé en .bak.md dans memory/.",
       "confirm_clear_long": "\nVous pourrez la reconstruire ensuite avec « coco memorize --all --force ».",
-      "cleared": "{label} vidé (contenu précédent sauvegardé en .bak.md)", "clear_failed": "Impossible de vider : {msg}",
+      "cleared": "{label} vidé (contenu précédent sauvegardé en .bak.md)",
+      "clear_failed": "Impossible de vider : {msg}",
       "fixall_confirm": "Corriger les noms et noms propres dans les transcriptions et rapports de TOUTES les réunions, d'après le glossaire et la mémoire ?\nEnregistrez d'abord le glossaire. Les originaux sont sauvegardés ; chaque transcription peut être restaurée avec ↺ Restaurer l'original.\nAvec beaucoup de réunions, cela prend plusieurs minutes : gardez la page ouverte.",
-      "fixing": "Correction…", "fixall_done": "Correction de toute la bibliothèque terminée", "fixall_start_failed": "Impossible de lancer la correction : {msg}",
+      "fixing": "Correction…",
+      "fixall_done": "Correction de toute la bibliothèque terminée",
+      "fixall_start_failed": "Impossible de lancer la correction : {msg}",
       "extract_confirm_unsaved": "Le glossaire contient des modifications non enregistrées. L'extraction part de la version enregistrée et rafraîchira la zone de texte : les modifications non enregistrées seront perdues.\nEnregistrer d'abord ? Continuer quand même ?",
       "extract_confirm": "Laisser l'IA extraire noms et noms propres de la mémoire à long terme et des transcriptions récentes vers le glossaire ?\nLe glossaire actuel est sauvegardé en glossary.bak.md.",
-      "extracting": "Extraction…", "extract_toast": "Extraction du glossaire (30 à 90 s environ)…", "extract_done": "Glossaire mis à jour (original sauvegardé en .bak.md)",
+      "extracting": "Extraction…",
+      "extract_toast": "Extraction du glossaire (30 à 90 s environ)…",
+      "extract_done": "Glossaire mis à jour (original sauvegardé en .bak.md)",
       "extract_failed": "Échec de l'extraction : {msg}",
       "compact_confirm": "Réécrire toute la mémoire à long terme pour la fusionner et la compresser ? Quelques minutes ; l'original est sauvegardé en longterm.bak.md.",
-      "compacting": "Compactage…", "compact_done": "Mémoire à long terme compactée"
+      "compacting": "Compactage…",
+      "compact_done": "Mémoire à long terme compactée"
     },
     "export": {
-      "title": "Exporter en .md", "hint": "Cochez les fichiers à exporter pour les télécharger en un seul zip. Vous pouvez aussi cocher des réunions dans la barre latérale et cliquer sur ↓ Télécharger.",
-      "all": "Tout sélectionner", "go": "↓ Télécharger le zip", "none": "Rien à exporter pour l'instant",
-      "group_meetings": "Réunions (transcriptions / rapports)", "group_briefs": "Synthèses du jour", "group_weeklies": "Rapports hebdomadaires",
-      "group_tracking": "Analyses croisées", "group_preps": "Notes de préparation",
-      "count": "{n} fichiers sélectionnés", "pick": "Cochez d'abord les fichiers à exporter",
-      "nothing": "Les réunions sélectionnées n'ont encore aucun .md exportable (transcription / rapports)", "packing": "Création du zip…", "done": "Téléchargé", "failed": "Échec de l'export : {msg}"
+      "title": "Exporter en .md",
+      "hint": "Cochez les fichiers à exporter pour les télécharger en un seul zip. Vous pouvez aussi cocher des réunions dans la barre latérale et cliquer sur ↓ Télécharger.",
+      "all": "Tout sélectionner",
+      "go": "↓ Télécharger le zip",
+      "none": "Rien à exporter pour l'instant",
+      "group_meetings": "Réunions (transcriptions / rapports)",
+      "group_briefs": "Synthèses du jour",
+      "group_weeklies": "Rapports hebdomadaires",
+      "group_tracking": "Analyses croisées",
+      "group_preps": "Notes de préparation",
+      "count": "{n} fichiers sélectionnés",
+      "pick": "Cochez d'abord les fichiers à exporter",
+      "nothing": "Les réunions sélectionnées n'ont encore aucun .md exportable (transcription / rapports)",
+      "packing": "Création du zip…",
+      "done": "Téléchargé",
+      "failed": "Échec de l'export : {msg}"
     },
     "import": {
-      "title": "Importer des documents", "tab_path": "Chemin local", "tab_paste": "Coller du texte",
+      "title": "Importer des documents",
+      "tab_path": "Chemin local",
+      "tab_paste": "Coller du texte",
       "path_hint": "Collez le chemin complet d'un fichier ou d'un dossier. L'audio / la vidéo est transcrit ; txt / md / docx / pdf / srt / vtt / json… entre directement dans la bibliothèque. Un dossier importe tous les fichiers reconnus qu'il contient.",
-      "path_tip_mac": "Dans le Finder, sélectionnez l'élément puis Option+Cmd+C pour copier son chemin.", "path_tip_win": "Dans l'Explorateur, clic droit sur le fichier → « Copier en tant que chemin d'accès ».",
+      "path_tip_mac": "Dans le Finder, sélectionnez l'élément puis Option+Cmd+C pour copier son chemin.",
+      "path_tip_win": "Dans l'Explorateur, clic droit sur le fichier → « Copier en tant que chemin d'accès ».",
       "paste_hint": "Collez une transcription, un historique de discussion, un e-mail ou le compte rendu de quelqu'un d'autre. Les transcriptions SRT / VTT / JSON sont détectées et gardent leurs repères temporels. coco l'analyse exactement comme une transcription locale et l'intègre à la mémoire à long terme.",
-      "paste_placeholder": "Collez ici…", "title_label": "Titre", "title_placeholder": "ex. Échange avec Alex sur la feuille de route", "date_label": "Date du document (facultatif)",
-      "go": "Importer", "need_path": "Collez d'abord un chemin", "need_content": "Collez d'abord du contenu",
-      "done_count": "{n} fichiers importés", "done_failed": ", {n} en échec : {err}", "done_queued": ", transcription en attente…",
-      "failed": "Échec de l'import : {msg}", "pasted": "Importé ; sera fusionné dans la mémoire à long terme", "pasted_fmt": "Importé (détecté comme {fmt}, repères temporels conservés)"
+      "paste_placeholder": "Collez ici…",
+      "title_label": "Titre",
+      "title_placeholder": "ex. Échange avec Alex sur la feuille de route",
+      "date_label": "Date du document (facultatif)",
+      "go": "Importer",
+      "need_path": "Collez d'abord un chemin",
+      "need_content": "Collez d'abord du contenu",
+      "done_count": "{n} fichiers importés",
+      "done_failed": ", {n} en échec : {err}",
+      "done_queued": ", transcription en attente…",
+      "failed": "Échec de l'import : {msg}",
+      "pasted": "Importé ; sera fusionné dans la mémoire à long terme",
+      "pasted_fmt": "Importé (détecté comme {fmt}, repères temporels conservés)"
     },
     "upload": {
-      "uploading": "Téléversement de {name} …", "text_done": "{name} importé (document texte, pas de transcription nécessaire)",
-      "queued": "{name} importé, transcription en attente…", "failed": "Échec du téléversement de {name} : {msg}"
+      "uploading": "Téléversement de {name} …",
+      "text_done": "{name} importé (document texte, pas de transcription nécessaire)",
+      "queued": "{name} importé, transcription en attente…",
+      "failed": "Échec du téléversement de {name} : {msg}"
     },
     "audiohelp": {
       "title": "Cet ordinateur ne peut pas transcrire l'audio en local pour le moment",
@@ -433,32 +573,51 @@
       "cpu_hint": "La transcription tourne ici sur le CPU (pas de carte NVIDIA) : 45 minutes d'audio peuvent prendre 10 à 30 minutes. Si vous êtes pressé, transcrivez avec un autre outil et importez le texte."
     },
     "record": {
-      "stop": "■ Arrêter {time}", "started": "Enregistrement… cliquez sur ■ Arrêter pour terminer et transcrire automatiquement",
-      "start_failed": "Impossible de démarrer l'enregistrement : {msg}", "stopped": "Enregistrement arrêté, transcription en attente…", "stop_failed": "Impossible d'arrêter l'enregistrement : {msg}"
+      "stop": "■ Arrêter {time}",
+      "started": "Enregistrement… cliquez sur ■ Arrêter pour terminer et transcrire automatiquement",
+      "start_failed": "Impossible de démarrer l'enregistrement : {msg}",
+      "stopped": "Enregistrement arrêté, transcription en attente…",
+      "stop_failed": "Impossible d'arrêter l'enregistrement : {msg}"
     },
     "job": {
-      "done": "Transcription terminée", "done_editing": "Transcription terminée : enregistrez ou annulez votre modification pour la voir",
-      "failed": "Échec de la transcription : {msg}", "transcribing": "Transcription…"
+      "done": "Transcription terminée",
+      "done_editing": "Transcription terminée : enregistrez ou annulez votre modification pour la voir",
+      "failed": "Échec de la transcription : {msg}",
+      "transcribing": "Transcription…"
     },
     "report": {
       "generating_live": "Génération du rapport « {tpl} » : le texte apparaît au fil de la rédaction…",
-      "done": "Rapport généré", "failed": "Échec de la génération : {msg}", "saved": "Rapport enregistré",
+      "done": "Rapport généré",
+      "failed": "Échec de la génération : {msg}",
+      "saved": "Rapport enregistré",
       "delete_confirm": "Supprimer le rapport « {name} » ?\nIl part dans la corbeille library/_trash et peut être régénéré à tout moment.",
-      "deleted": "Rapport supprimé (récupérable dans la corbeille)", "delete_failed": "Suppression impossible : {msg}"
+      "deleted": "Rapport supprimé (récupérable dans la corbeille)",
+      "delete_failed": "Suppression impossible : {msg}",
+      "thinking": "Génération de « {tpl} » : le modèle lit et réfléchit… {s} s",
+      "generating_elapsed": "Génération de « {tpl} » · {s} s · le texte apparaît au fil de la rédaction ; changez d'onglet librement et revenez",
+      "busy": "Un rapport est déjà en cours de génération ; attendez qu'il se termine"
     },
     "transcript": {
       "saved": "Transcription enregistrée",
       "restore_confirm": "Restaurer la transcription telle qu'elle était avant la correction des noms ? La version actuelle (noms corrigés et modifications manuelles ultérieures) est remplacée et la sauvegarde supprimée.",
-      "restored": "Transcription originale restaurée", "restore_failed": "Restauration impossible : {msg}"
+      "restored": "Transcription originale restaurée",
+      "restore_failed": "Restauration impossible : {msg}"
     },
     "meeting": {
       "delete_confirm": "Supprimer « {title} » ?\nToute la réunion (audio, transcription, rapports) part dans la corbeille library/_trash et peut être récupérée à la main.",
-      "deleted": "Déplacé vers la corbeille", "delete_failed": "Suppression impossible : {msg}",
-      "date_updated": "Date d'enregistrement mise à jour", "update_failed": "Échec de la mise à jour : {msg}"
+      "deleted": "Déplacé vers la corbeille",
+      "delete_failed": "Suppression impossible : {msg}",
+      "date_updated": "Date d'enregistrement mise à jour",
+      "update_failed": "Échec de la mise à jour : {msg}"
     },
     "brief": {
-      "title": "Synthèse du jour", "day": "Jour", "week": "Semaine", "none": "Aucune réunion transcrite pour l'instant", "not_generated": " (non générée)",
-      "generate": "Générer la synthèse", "regenerate": "Régénérer",
+      "title": "Synthèse du jour",
+      "day": "Jour",
+      "week": "Semaine",
+      "none": "Aucune réunion transcrite pour l'instant",
+      "not_generated": " (non générée)",
+      "generate": "Générer la synthèse",
+      "regenerate": "Régénérer",
       "generating_toast": "Génération de la synthèse du {date} (toutes les réunions du jour)…",
       "done": "Synthèse générée ; elle sera fusionnée dans la mémoire à long terme",
       "delete_confirm": "Supprimer la synthèse du {date} ?\nElle part dans la corbeille library/_trash et peut être régénérée à tout moment.",
@@ -466,7 +625,8 @@
       "empty": "Pas encore de synthèse pour ce jour. Cliquez sur Générer la synthèse pour résumer les actions et enseignements de toutes ses réunions."
     },
     "weekly": {
-      "title": "Rapport hebdomadaire", "generate": "Générer le rapport hebdomadaire",
+      "title": "Rapport hebdomadaire",
+      "generate": "Générer le rapport hebdomadaire",
       "generating_toast": "Génération du rapport hebdomadaire {week} (toutes les réunions de la semaine ; quelques minutes)…",
       "done": "Rapport hebdomadaire généré",
       "delete_confirm": "Supprimer le rapport hebdomadaire {week} ?\nIl part dans la corbeille library/_trash et peut être régénéré à tout moment.",
@@ -476,67 +636,122 @@
     "prep": {
       "title": "◎ Note de préparation",
       "hint": "Comprendre la situation avant d'entrer. coco sélectionne les réunions passées les plus liées au sujet / aux participants et, avec la mémoire à long terme et le glossaire, produit les positions des personnes clés, obstacles et opportunités, une approche conseillée et une liste de questions.",
-      "topic": "Sujet de la réunion *", "topic_placeholder": "ex. Aligner le calendrier de la phase 2 avec l'équipe projet",
-      "people": "Participants (séparés par des virgules, facultatif)", "people_placeholder": "ex. Alex Chen, Mme Wang, Lee",
-      "goal": "Mon objectif (facultatif)", "goal_placeholder": "ex. Obtenir un engagement oral sur le budget de la phase 2",
+      "topic": "Sujet de la réunion *",
+      "topic_placeholder": "ex. Aligner le calendrier de la phase 2 avec l'équipe projet",
+      "people": "Participants (séparés par des virgules, facultatif)",
+      "people_placeholder": "ex. Alex Chen, Mme Wang, Lee",
+      "goal": "Mon objectif (facultatif)",
+      "goal_placeholder": "ex. Obtenir un engagement oral sur le budget de la phase 2",
       "web": "Rechercher sur le web des informations publiques sur les participants / entreprises (plus lent, sources citées ; canal Claude CLI uniquement)",
-      "go": "Générer la note", "view_title": "Note de préparation", "new": "◎ Nouvelle note",
-      "delete_confirm": "Supprimer cette note de préparation ?\nElle part dans la corbeille library/_trash.", "deleted": "Note de préparation supprimée (récupérable dans la corbeille)",
-      "busy": "Une note de préparation est déjà en cours de génération ; attendez qu'elle se termine", "need_topic": "Indiquez d'abord le sujet de la réunion", "running": "◎ En cours…",
-      "toast_web": "Préparation de la note (avec recherche web, quelques minutes)…", "toast": "Préparation de la note à partir des réunions pertinentes et de la mémoire : le texte apparaît au fil de la rédaction…",
+      "go": "Générer la note",
+      "view_title": "Note de préparation",
+      "new": "◎ Nouvelle note",
+      "delete_confirm": "Supprimer cette note de préparation ?\nElle part dans la corbeille library/_trash.",
+      "deleted": "Note de préparation supprimée (récupérable dans la corbeille)",
+      "busy": "Une note de préparation est déjà en cours de génération ; attendez qu'elle se termine",
+      "need_topic": "Indiquez d'abord le sujet de la réunion",
+      "running": "◎ En cours…",
+      "toast_web": "Préparation de la note (avec recherche web, quelques minutes)…",
+      "toast": "Préparation de la note à partir des réunions pertinentes et de la mémoire : le texte apparaît au fil de la rédaction…",
       "done": "Note de préparation générée"
     },
     "insight": {
-      "title": "⛓ Analyse croisée", "hint": "Analyse croisée de plusieurs réunions. Avec beaucoup de réunions, cela prend quelques minutes ; le texte apparaît au fil de la rédaction.",
-      "focus": "Focus (facultatif) : une personne / un projet / un client", "focus_placeholder": "vide = global",
-      "scope": "Périmètre", "scope_all": "Toutes les réunions transcrites", "scope_sel": "Les {n} réunions transcrites cochées à gauche",
-      "scope_sel_hint": " (cochez d'abord au moins 2 réunions ; idéal pour comparer plusieurs entretiens)", "scope_limited": "limitée à {n} réunions",
-      "go": "Analyser", "running": "⛓ Analyse…", "toast": "Analyse « {mode} » ({scope})…",
-      "view_title": "Analyse croisée · {mode} · {focus}", "global": "global",
-      "delete_confirm": "Supprimer ce rapport d'analyse ?\nIl part dans la corbeille library/_trash.", "deleted": "Rapport d'analyse supprimé (récupérable dans la corbeille)"
+      "title": "⛓ Analyse croisée",
+      "hint": "Analyse croisée de plusieurs réunions. Avec beaucoup de réunions, cela prend quelques minutes ; le texte apparaît au fil de la rédaction.",
+      "focus": "Focus (facultatif) : une personne / un projet / un client",
+      "focus_placeholder": "vide = global",
+      "scope": "Périmètre",
+      "scope_all": "Toutes les réunions transcrites",
+      "scope_sel": "Les {n} réunions transcrites cochées à gauche",
+      "scope_sel_hint": " (cochez d'abord au moins 2 réunions ; idéal pour comparer plusieurs entretiens)",
+      "scope_limited": "limitée à {n} réunions",
+      "go": "Analyser",
+      "running": "⛓ Analyse…",
+      "toast": "Analyse « {mode} » ({scope})…",
+      "view_title": "Analyse croisée · {mode} · {focus}",
+      "global": "global",
+      "delete_confirm": "Supprimer ce rapport d'analyse ?\nIl part dans la corbeille library/_trash.",
+      "deleted": "Rapport d'analyse supprimé (récupérable dans la corbeille)"
     },
     "knowledge": {
-      "title": "Socle de connaissances", "edit": "✎ Modifier mémoire et glossaire",
-      "stat_meetings": "réunions transcrites", "stat_persons": "personnes", "stat_projects": "projets et clients", "stat_promises": "engagements et décisions", "stat_glossary": "entrées de glossaire",
+      "title": "Socle de connaissances",
+      "edit": "✎ Modifier mémoire et glossaire",
+      "stat_meetings": "réunions transcrites",
+      "stat_persons": "personnes",
+      "stat_projects": "projets et clients",
+      "stat_promises": "engagements et décisions",
+      "stat_glossary": "entrées de glossaire",
       "pick_person": "Cliquez sur une personne pour la passer en revue à travers toutes les réunions :",
       "person_prompt": "Dresser le profil de {name} : son rôle, ce qu'il ou elle a dit à chaque réunion et comment cela a évolué, ses engagements non tenus, et ce qui compte le plus pour cette personne en ce moment."
     },
     "settings": {
       "title": "⚙ Réglages",
-      "ui_lang": "Langue de l'interface", "output_lang": "Langue de sortie de l'IA",
-      "output_ui": "Comme l'interface", "output_source": "Comme le document (la langue de la transcription, quelle qu'elle soit)",
+      "ui_lang": "Langue de l'interface",
+      "output_lang": "Langue de sortie de l'IA",
+      "output_ui": "Comme l'interface",
+      "output_source": "Comme le document (la langue de la transcription, quelle qu'elle soit)",
       "output_hint": "La langue de sortie s'applique aux rapports, comptes rendus, synthèses, analyses, notes de préparation, réponses du chat, ainsi qu'à la rédaction de la mémoire à long terme et du glossaire. La langue de transcription se règle à part dans la barre du haut.",
       "ai_title": "Canaux de modèles IA",
       "ai_hint": "Par défaut, coco passe par le CLI Claude Code connecté : aucune clé API nécessaire. Vous pouvez aussi brancher tout point d'accès compatible Anthropic (ex. /anthropic de DeepSeek) ou compatible OpenAI (DeepSeek, OpenAI, un Ollama local). Confiez les tâches de fond à un canal plus rapide et moins cher sans toucher à la qualité des rapports.",
       "claude_missing": "La commande claude est introuvable dans le PATH. Installez Claude Code et connectez-vous (https://claude.com/claude-code), ou passez le canal principal sur un type API.",
-      "profile_primary": "Canal principal : rapports / analyses / notes de préparation / chat", "profile_fast": "Canal de fond : mémoire à long terme / glossaire / correction des noms",
-      "profile_primary_short": "principal", "profile_fast_short": "fond",
+      "profile_primary": "Canal principal : rapports / analyses / notes de préparation / chat",
+      "profile_fast": "Canal de fond : mémoire à long terme / glossaire / correction des noms",
+      "profile_primary_short": "principal",
+      "profile_fast_short": "fond",
       "fast_same": "Les tâches de fond utilisent le même modèle que le canal principal",
-      "preset": "Préréglage", "preset_custom": "(personnalisé)",
-      "preset_claude_cli": "Claude Code CLI (modèle par défaut)", "preset_claude_cli_fast": "Claude Code CLI · Haiku (rapide)",
-      "preset_deepseek_anthropic": "DeepSeek · point d'accès compatible Anthropic", "preset_deepseek_openai": "DeepSeek · point d'accès compatible OpenAI",
-      "preset_deepseek_via_claude_cli": "DeepSeek · via le CLI Claude (--bare)", "preset_openai": "OpenAI", "preset_ollama": "Ollama (local, entièrement hors ligne)",
-      "type": "Type", "type_claude": "Claude Code CLI (compte connecté)", "type_anthropic": "API compatible Anthropic", "type_openai": "API compatible OpenAI",
-      "model": "Modèle", "model_placeholder": "vide = défaut du canal", "base_url": "URL de base", "base_url_placeholder": "vide = point d'accès officiel",
-      "api_key": "Clé API", "api_key_placeholder": "stockée uniquement dans coco.config.json sur cet ordinateur", "api_key_stored": "enregistrée (laisser vide pour conserver ; saisir pour remplacer)",
-      "api_key_env": "ou nom de variable d'environnement", "max_context": "Plafond de contexte (caractères, 0 = 400 000 par défaut)",
-      "test": "Tester la connexion", "testing": "Test…", "test_ok": "Connecté : {model}, {ms} ms, réponse « {reply} »", "test_failed": "Échec de la connexion : {msg}",
-      "tasks_title": "Répartition des tâches", "tasks_hint": "Quel canal utilise chaque type de tâche. Conseil : analyses approfondies sur le canal principal ; mémoire à long terme / glossaire / correction des noms sur le canal de fond.",
-      "task_report": "Rapports d'une réunion", "task_ask": "Chat", "task_track": "Analyse croisée", "task_prep": "Note de préparation",
-      "task_brief": "Synthèse du jour", "task_weekly": "Rapport hebdomadaire", "task_memory": "Fusion de la mémoire à long terme", "task_glossary": "Extraction du glossaire", "task_namefix": "Correction des noms et termes",
+      "preset": "Préréglage",
+      "preset_custom": "(personnalisé)",
+      "preset_claude_cli": "Claude Code CLI (modèle par défaut)",
+      "preset_claude_cli_fast": "Claude Code CLI · Haiku (rapide)",
+      "preset_deepseek_anthropic": "DeepSeek · point d'accès compatible Anthropic",
+      "preset_deepseek_openai": "DeepSeek · point d'accès compatible OpenAI",
+      "preset_deepseek_via_claude_cli": "DeepSeek · via le CLI Claude (--bare)",
+      "preset_openai": "OpenAI",
+      "preset_ollama": "Ollama (local, entièrement hors ligne)",
+      "type": "Type",
+      "type_claude": "Claude Code CLI (compte connecté)",
+      "type_anthropic": "API compatible Anthropic",
+      "type_openai": "API compatible OpenAI",
+      "model": "Modèle",
+      "model_placeholder": "vide = défaut du canal",
+      "base_url": "URL de base",
+      "base_url_placeholder": "vide = point d'accès officiel",
+      "api_key": "Clé API",
+      "api_key_placeholder": "stockée uniquement dans coco.config.json sur cet ordinateur",
+      "api_key_stored": "enregistrée (laisser vide pour conserver ; saisir pour remplacer)",
+      "api_key_env": "ou nom de variable d'environnement",
+      "max_context": "Plafond de contexte (caractères, 0 = 400 000 par défaut)",
+      "test": "Tester la connexion",
+      "testing": "Test…",
+      "test_ok": "Connecté : {model}, {ms} ms, réponse « {reply} »",
+      "test_failed": "Échec de la connexion : {msg}",
+      "tasks_title": "Répartition des tâches",
+      "tasks_hint": "Quel canal utilise chaque type de tâche. Conseil : analyses approfondies sur le canal principal ; mémoire à long terme / glossaire / correction des noms sur le canal de fond.",
+      "task_report": "Rapports d'une réunion",
+      "task_ask": "Chat",
+      "task_track": "Analyse croisée",
+      "task_prep": "Note de préparation",
+      "task_brief": "Synthèse du jour",
+      "task_weekly": "Rapport hebdomadaire",
+      "task_memory": "Fusion de la mémoire à long terme",
+      "task_glossary": "Extraction du glossaire",
+      "task_namefix": "Correction des noms et termes",
       "memory_title": "Fusion de la mémoire à long terme",
       "memory_delta": "Incrémentale (recommandée) : le modèle ne produit que les entrées nouvelles / modifiées et coco les fusionne par nom, en quelques secondes",
       "memory_full": "Complète : le modèle réécrit toute la mémoire à chaque fois (lent, et de plus en plus lent à mesure qu'elle grossit)",
       "memory_hint": "En mode incrémental, lancez de temps en temps ⟲ Compacter la mémoire dans ◈ Mémoire pour une passe complète de fusion et de compression.",
-      "saved": "Réglages enregistrés"
+      "saved": "Réglages enregistrés",
+      "task_participants": "Détection des participants"
     },
     "conn": {
       "down": "⚠️ Impossible de joindre le serveur coco, reconnexion… (si cela persiste, {hint})",
-      "hint_win": "double-cliquez sur run.bat", "hint_mac": "double-cliquez sur coco.command ou lancez ./run.sh dans un terminal"
+      "hint_win": "double-cliquez sur run.bat",
+      "hint_mac": "double-cliquez sur coco.command ou lancez ./run.sh dans un terminal"
     },
     "config": {
       "model_switched": "Modèle de transcription réglé sur {model} (prochaines transcriptions)",
-      "lang_switched": "Langue de transcription réglée sur {lang} (prochaines transcriptions)", "switch_failed": "Changement impossible : {msg}"
+      "lang_switched": "Langue de transcription réglée sur {lang} (prochaines transcriptions)",
+      "switch_failed": "Changement impossible : {msg}"
     }
   }
 }

@@ -88,18 +88,26 @@ part in every cross-meeting analysis, exactly like a transcription.
 - **✦ Correct names & terms**: rewrites every transcript and report in the library to the glossary
   spellings; originals are backed up and can be restored per meeting.
 - **✎ Edit**: transcripts and reports are editable; later analyses use the edited version.
+- **Participants**: a *Participants* line under the meeting title (also written into the transcript
+  header) holds `Name (role), Name (role)`. Fill it by hand, or let *✦ Detect* propose it from the
+  transcript and confirm. Every later report, chat answer and cross-meeting analysis receives it as
+  the authority for who said what, so a mis-attributed speaker is fixed once instead of in every report.
 - **Download** a transcript as `.md`, `.txt`, `.srt`, `.vtt` or `.json`.
 
 ### Single-meeting analysis
 
-Nine templates, one click, streamed to the screen as they are written (editable, downloadable):
+Nine templates, one click. Each generation opens its own ⏳ tab and streams there as the text is
+written (with a "reading and thinking… N s" status before the first token); the other tabs stay
+readable and switching back resumes the live view. Reports are editable and downloadable:
 
 > Minutes · Action items · Mood curve · Tensions · Cognitive biases · Open threads · Client debrief
 > · Interview debrief · **Follow-up draft**
 
 *Follow-up draft* produces a **ready-to-send message** (e-mail or chat, tone matched to the
 relationship) plus a 48-hour action list. The chat panel answers free questions about the current
-meeting; tick *across all meetings* to ask about the whole library.
+meeting; tick *across all meetings* to ask about the whole library. *↓ Export* saves the
+conversation as Markdown and, when a meeting is selected, also stores it as a *Chat HH:MM* tab of
+that meeting.
 
 ### Pre-meeting brief (◎ Prep)
 

@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 
 from .config import LIBRARY_DIR, TRASH_DIR, ensure_dirs
-from .i18n import t
+from .i18n import available, t
 
 AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
               ".opus", ".webm", ".mp4", ".mov", ".mkv", ".amr", ".wma", ".aac", ".wmv", ".avi"}
@@ -113,8 +113,57 @@ class Meeting:
             "has_raw": (self.path / "transcript.raw.md").exists(),  # pre-correction original
             "has_segments": self.transcript_json.exists(),
             "names_fixed_at": m.get("names_fixed_at", ""),
+            "participants": m.get("participants", ""),
             "reports": [p.stem for p in self.reports()],
         }
+
+
+def _participants_re() -> "re.Pattern":
+    labels = {t("transcript.participants", l["code"]) for l in available()}
+    alts = "|".join(re.escape(x) for x in sorted(labels, key=len, reverse=True))
+    return re.compile(rf"^- (?:{alts})\s*[:：]\s*(.*)$", re.M)
+
+
+def _empty_markers() -> set[str]:
+    return {t("transcript.participants_empty", l["code"]).strip() for l in available()}
+
+
+def participants_line(text: str) -> str:
+    """The transcript header line for the given participants ('' → localized placeholder)."""
+    return f"- {t('transcript.participants')}: {text.strip() or t('transcript.participants_empty')}"
+
+
+def participants_from_transcript(md: str) -> "str | None":
+    """Value of the participants header line, '' when it holds the placeholder, None when absent."""
+    m = _participants_re().search(md)
+    if not m:
+        return None
+    v = " ".join(m.group(1).split())
+    return "" if v in _empty_markers() else v
+
+
+def set_participants(mtg: "Meeting", text: str) -> str:
+    """Store participants in meta and write/replace the header line in transcript.md so every
+    analysis (which reads the transcript) sees who was in the room. Returns the stored value."""
+    text = " ".join((text or "").split())
+    mtg.save_meta(participants=text)
+    md = mtg.transcript_text()
+    if md:
+        line = participants_line(text)
+        rx = _participants_re()
+        if rx.search(md):
+            md = rx.sub(lambda _m: line, md, count=1)
+        else:
+            lines = md.splitlines()
+            first_h2 = next((i for i, l in enumerate(lines) if l.startswith("## ")), len(lines))
+            last_meta = max((i for i in range(first_h2) if lines[i].startswith("- ")), default=None)
+            at = last_meta + 1 if last_meta is not None else (1 if lines and lines[0].startswith("# ") else 0)
+            if last_meta is None and at < len(lines) and lines[at].strip() == "":
+                lines.insert(at, "")
+            lines.insert(at, line)
+            md = "\n".join(lines).rstrip() + "\n"
+        mtg.transcript_md.write_text(md, encoding="utf-8")
+    return text
 
 
 def source_label(src: str) -> str:
