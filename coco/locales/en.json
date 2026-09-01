@@ -108,12 +108,13 @@
     "transcribe": {
       "no_engine": "This computer has no usable transcription engine, so audio cannot be transcribed here. Turn the recording into a transcript with another tool first (your meeting software's export, an online transcription service, Whisper …) and upload or import it as txt / docx / pdf / srt / vtt / json; every analysis feature works the same. To transcribe locally, install faster-whisper: pip install faster-whisper",
       "running": "Transcribing…",
-      "loading_model": "Loading model {model} (downloaded automatically on first use; large ≈ 3 GB)…",
+      "loading_model": "Loading model {model} (downloaded automatically on first use; slow networks may take a while)…",
       "loading_device": "Loading model ({device} / {compute})…",
       "cuda_fallback": "CUDA unavailable ({detail}), falling back to CPU…",
       "progress": "Transcribing… {done} / {total}",
       "no_audio": "Meeting {id} has no audio file",
-      "filtered": "Filtered {n} likely hallucinated segments (silence chatter, subtitle credits, prompt echo, loops)"
+      "filtered": "Filtered {n} likely hallucinated segments (silence chatter, subtitle credits, prompt echo, loops)",
+      "loading_model_sized": "Loading model {model} (first use downloads ≈ {size}; 10–30 min on slow networks)…"
     },
     "record": {
       "unsupported": "Recording from the web UI is only available on macOS (ffmpeg avfoundation). Record with your system recorder or meeting software and upload or import the audio file.",
@@ -203,7 +204,7 @@
       "folder_empty": "No recognised audio / video / text files in the folder: {path}",
       "bad_date": "The date must be a valid YYYY-MM-DD",
       "job_missing": "Job not found",
-      "bad_model": "The model must be turbo or large",
+      "bad_model": "The model must be one of: {models}",
       "bad_language": "The language must be auto or an ISO code (zh, en, fr …)",
       "bad_ui_language": "The interface language must be auto or one of: {codes}",
       "bad_output_language": "The output language must be ui, source or a language code (en, fr, ja …)",
@@ -295,7 +296,7 @@
       "ai_task_usage": "Usage: coco ai task <task> primary|fast (tasks: {tasks})",
       "h_record": "Record and transcribe automatically (Ctrl+C to stop)",
       "h_title": "Meeting title",
-      "h_model": "whisper model: turbo / large",
+      "h_model": "whisper model: turbo / large / small (light)",
       "h_device": "ffmpeg audio device, e.g. :0",
       "h_transcribe": "Import audio/video files and transcribe them",
       "h_title_default": "Meeting title (default: file name)",
@@ -399,7 +400,8 @@
       "export": "⬇ Export",
       "memory": "◈ Memory",
       "settings": "⚙ Settings",
-      "settings_title": "Languages, AI model channels, memory strategy"
+      "settings_title": "Languages, AI model channels, memory strategy",
+      "model_small": "Model: small (light)"
     },
     "sidebar": {
       "search_placeholder": "🔍 Search all transcripts and reports…",
@@ -584,7 +586,7 @@
     "caps": {
       "no_engine_toast": "No transcription engine on this computer: audio cannot be transcribed, but transcripts (txt / docx / pdf / srt …) work with every analysis feature",
       "upload_title_noengine": "Upload an existing transcript (txt / docx / pdf / srt / vtt / json …). This computer has no transcription engine — convert audio to text with another tool first",
-      "cpu_hint": "Transcription runs on the CPU here (no NVIDIA GPU): a 45-minute recording can take 10–30 minutes. In a hurry, transcribe with another tool and import the text."
+      "cpu_hint": "Transcription runs on the CPU here (no NVIDIA GPU): a 45-minute recording can take 10–30 minutes. Switch the model to small in the top bar (faster and lighter, slightly less accurate), or import a transcript made with another tool."
     },
     "record": {
       "stop": "■ Stop {time}",
@@ -766,6 +768,23 @@
       "model_switched": "Transcription model set to {model} (applies to future transcriptions)",
       "lang_switched": "Transcription language set to {lang} (applies to future transcriptions)",
       "switch_failed": "Could not switch: {msg}"
+    },
+    "aibanner": {
+      "text": "AI analysis is not set up yet: no claude command found and no API channel configured. Recording, transcription and imports work; minutes, insights and briefs need this step.",
+      "setup": "⚙ Set up AI channel",
+      "guide": "How to install Claude",
+      "dismiss": "Later"
+    },
+    "claudeguide": {
+      "title": "Install and sign in to Claude (recommended, ~5 minutes)",
+      "intro": "coco runs its AI analysis through your own Claude account (the Claude Code CLI). You only do this once.",
+      "steps_mac": "1. Open Terminal (⌘+Space, type “Terminal”)\n2. Paste and run: curl -fsSL https://claude.ai/install.sh | bash\n3. Run claude and sign in in the browser (a Claude account is required)\n4. Come back to this coco page and press “Check again” below",
+      "steps_win": "1. Install Git for Windows first: git-scm.com/download/win\n2. Open PowerShell, paste and run: irm https://claude.ai/install.ps1 | iex\n3. Run claude and sign in in the browser (a Claude account is required)\n4. Come back to this coco page and press “Check again” below",
+      "alt": "Prefer not to install Claude? Open “⚙ Set up AI channel”, pick a preset such as DeepSeek or OpenAI and paste an API key — every analysis feature works the same way.",
+      "recheck": "Check again",
+      "recheck_ok": "AI channel is ready ✓",
+      "recheck_fail": "Still no claude detected. Make sure the install and login both finished (running claude in a terminal opens a chat), then try again.",
+      "steps_linux": "1. Open a terminal\n2. Paste and run: curl -fsSL https://claude.ai/install.sh | bash\n3. Run claude and sign in (a Claude account is required)\n4. Come back to this coco page and press “Check again” below"
     }
   }
 }

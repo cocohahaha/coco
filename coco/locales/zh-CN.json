@@ -108,12 +108,13 @@
     "transcribe": {
       "no_engine": "本机没有可用的转写引擎，无法转写音频。可以先用其他工具（会议软件的转写导出、在线转写服务、Whisper 等）把录音转成文字稿，再以 txt / docx / pdf / srt / vtt / json 等格式上传或导入，分析功能不受影响。要在本机转写，请安装 faster-whisper：pip install faster-whisper",
       "running": "转写中…",
-      "loading_model": "加载模型 {model}（首次使用会自动下载，large 约 3GB）…",
+      "loading_model": "加载模型 {model}（首次使用会自动下载，低速网络可能要等较久）…",
       "loading_device": "加载模型（{device} / {compute}）…",
       "cuda_fallback": "CUDA 不可用（{detail}），改用 CPU…",
       "progress": "转写中… {done} / {total}",
       "no_audio": "会议 {id} 没有音频文件",
-      "filtered": "已过滤 {n} 段疑似幻觉（静音杂音、字幕致谢、提示词回显、复读）"
+      "filtered": "已过滤 {n} 段疑似幻觉（静音杂音、字幕致谢、提示词回显、复读）",
+      "loading_model_sized": "加载模型 {model}（首次使用会自动下载约 {size}，低速网络可能要等 10–30 分钟）…"
     },
     "record": {
       "unsupported": "网页录音目前只支持 macOS（ffmpeg avfoundation）。请用系统自带的录音机 / 会议软件录好后，把音频文件上传或导入。",
@@ -203,7 +204,7 @@
       "folder_empty": "文件夹里没有可识别的音频/视频/文字文件：{path}",
       "bad_date": "日期格式应为 YYYY-MM-DD 且是有效日期",
       "job_missing": "任务不存在",
-      "bad_model": "模型只能是 turbo 或 large",
+      "bad_model": "模型只能是 {models}",
       "bad_language": "语言只能是 auto 或 ISO 码（如 zh、en、fr）",
       "bad_ui_language": "界面语言只能是 auto 或：{codes}",
       "bad_output_language": "输出语言只能是 ui、source 或语言代码（如 en、fr、ja）",
@@ -295,7 +296,7 @@
       "ai_task_usage": "用法：coco ai task <任务> primary|fast（任务：{tasks}）",
       "h_record": "录音并自动转写（Ctrl+C 停止）",
       "h_title": "会议标题",
-      "h_model": "whisper 模型：turbo / large",
+      "h_model": "whisper 模型：turbo / large / small（省资源）",
       "h_device": "ffmpeg 音频设备，如 :0",
       "h_transcribe": "导入音频/视频文件并转写",
       "h_title_default": "会议标题（默认用文件名）",
@@ -399,7 +400,8 @@
       "export": "⬇ 导出",
       "memory": "◈ 记忆",
       "settings": "⚙ 设置",
-      "settings_title": "语言、AI 模型通道、记忆策略"
+      "settings_title": "语言、AI 模型通道、记忆策略",
+      "model_small": "模型：small（省资源）"
     },
     "sidebar": {
       "search_placeholder": "🔍 搜索全部转写与报告…",
@@ -584,7 +586,7 @@
     "caps": {
       "no_engine_toast": "本机没有转写引擎：音频无法转写，但文字稿（txt / docx / pdf / srt…）上传后分析功能完整可用",
       "upload_title_noengine": "上传已有的文字稿（txt / docx / pdf / srt / vtt / json…）。本机没有转写引擎，音频请先用其他工具转成文字稿",
-      "cpu_hint": "本机用 CPU 转写（没有 NVIDIA 显卡），45 分钟录音可能需要 10–30 分钟。急用时可先用别的工具转成文字稿再导入。"
+      "cpu_hint": "本机用 CPU 转写（没有 NVIDIA 显卡），45 分钟录音可能需要 10–30 分钟。可在顶栏把模型切成 small（更快更省内存，精度略降）；急用时也可先用别的工具转成文字稿再导入。"
     },
     "record": {
       "stop": "■ 停止 {time}",
@@ -766,6 +768,23 @@
       "model_switched": "转写模型已切换为 {model}（对之后的转写生效）",
       "lang_switched": "转写语言已设为 {lang}（对之后的转写生效）",
       "switch_failed": "切换失败：{msg}"
+    },
+    "aibanner": {
+      "text": "AI 分析还没就绪：没有检测到 claude 命令，也没有配置 API 通道。录音、转写、导入都能用，但纪要、洞察、简报等分析功能暂时不可用。",
+      "setup": "⚙ 配置 AI 通道",
+      "guide": "如何安装 Claude",
+      "dismiss": "先不管"
+    },
+    "claudeguide": {
+      "title": "安装并登录 Claude（推荐，约 5 分钟）",
+      "intro": "coco 的 AI 分析默认通过你自己的 Claude 账号完成（Claude Code 命令行工具），安装登录一次即可，之后不用再管。",
+      "steps_mac": "1. 打开「终端」（按 ⌘+空格，输入「终端」回车）\n2. 粘贴运行：curl -fsSL https://claude.ai/install.sh | bash\n3. 再运行 claude，按提示在浏览器完成登录（需要 Claude 账号）\n4. 回到 coco 页面，点下方「重新检测」",
+      "steps_win": "1. 先安装 Git for Windows：git-scm.com/download/win（一路下一步即可）\n2. 打开「PowerShell」，粘贴运行：irm https://claude.ai/install.ps1 | iex\n3. 再运行 claude，按提示在浏览器完成登录（需要 Claude 账号）\n4. 回到 coco 页面，点下方「重新检测」",
+      "alt": "不想装 Claude？点「⚙ 配置 AI 通道」，选 DeepSeek / OpenAI 等预设、填一个 API key，同样能用全部分析功能。",
+      "recheck": "重新检测",
+      "recheck_ok": "AI 通道已就绪 ✓",
+      "recheck_fail": "还没有检测到 claude。请确认安装和登录都已完成（在终端运行 claude 能正常进入对话），再回来重试。",
+      "steps_linux": "1. 打开终端\n2. 粘贴运行：curl -fsSL https://claude.ai/install.sh | bash\n3. 再运行 claude，按提示完成登录（需要 Claude 账号）\n4. 回到 coco 页面，点下方「重新检测」"
     }
   }
 }

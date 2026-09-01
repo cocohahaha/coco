@@ -178,31 +178,32 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ## 安装与启动
 
-**共同前提**：Python 3.10+ · [Claude Code](https://claude.com/claude-code) 已安装并登录
-（终端里 `claude` 可用），或在设置里配好 API 通道。Web 界面只监听 127.0.0.1。
+**AI 从哪来**：[Claude Code](https://claude.com/claude-code) 已安装并登录（终端里 `claude` 可用），
+或在「⚙ 设置」里配好 API 通道（DeepSeek / OpenAI 等，填一个 key 即可）。没配好也能先启动——
+界面顶部会一步步引导。Web 界面只监听 127.0.0.1，数据都在本机。
 
 ### macOS
 
-```bash
-git clone https://github.com/cocohahaha/coco.git
-cd coco
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-./run.sh        # 启动并打开浏览器 → http://127.0.0.1:8765
-```
+1. 下载：GitHub 页面「Code → Download ZIP」，解压到任意位置（会用 git 的话 `git clone` 也行）
+2. **双击 `coco.command`**。首次运行会自动创建环境并安装依赖（几分钟）；
+   需要 Python 3.10+，没有的话先到 [python.org](https://www.python.org/downloads/macos/) 下载安装
+3. 若提示「无法打开…来自身份不明的开发者」：右键点 `coco.command` → 打开 → 打开（只需一次）
 
-以后每次启动：双击 `coco.command`，或再跑 `./run.sh`（重复运行不会重复起服务）。Apple Silicon
-自动装 mlx-whisper；首次转写会自动下载 Whisper 模型（turbo 约 1.6GB，large 约 3GB；国内网络
-自动切 hf-mirror）。首次录音时 macOS 会请求麦克风权限。
+以后每次启动都是双击 `coco.command`（重复运行不会重复起服务）。Apple Silicon 自动装 mlx-whisper；
+首次转写会自动下载 Whisper 模型（small 约 0.5GB / turbo 约 1.6GB / large 约 3GB；国内网络
+自动切 hf-mirror）。首次录音时 macOS 会请求麦克风权限。熟悉终端的话 `./run.sh` 等价。
 
 ### Windows
 
-1. 安装 [Python 3.10+](https://www.python.org/downloads/)（安装时勾选 **Add python.exe to PATH**）
-2. 安装 [Git for Windows](https://git-scm.com/download/win)（Claude Code 依赖它）
-3. 安装并登录 [Claude Code](https://claude.com/claude-code)：在终端运行一次 `claude`
-4. 下载本仓库（`git clone` 或 GitHub 页面「Code → Download ZIP」解压），**双击 `run.bat`**
+1. 安装 Python 3.10+：最简单是打开 **Microsoft Store** 搜「Python 3.12」安装；
+   或到 [python.org](https://www.python.org/downloads/) 下载（安装时勾选 **Add python.exe to PATH**）
+2. 下载本仓库：GitHub 页面「Code → Download ZIP」解压（会用 git 的话 `git clone` 也行）
+3. **双击 `run.bat`**。SmartScreen 提示「已保护你的电脑」时点「更多信息 → 仍要运行」；
+   首次会自动创建虚拟环境并安装依赖（含 faster-whisper，几百 MB，请耐心等待）
+4. AI 分析用 Claude 的话：先装 [Git for Windows](https://git-scm.com/download/win)，再在 PowerShell
+   运行 `irm https://claude.ai/install.ps1 | iex`，然后运行 `claude` 登录。也可以以后再装——
+   界面顶部会引导，或在「⚙ 设置」里改用 DeepSeek / OpenAI 等 API 通道
 
-首次双击会自动创建虚拟环境并安装依赖（含 faster-whisper，几百 MB），然后启动服务并打开浏览器。
 关闭那个黑色窗口就是停止服务。命令行用 `bin\coco.cmd`。
 
 **Windows 上的典型用法：已有录音 → 文字稿 → 上传 → 分析。** 大多数人不需要在自己电脑上跑
@@ -212,8 +213,14 @@ coco。若 faster-whisper 安装失败，`run.bat` 会只装核心依赖，界�
 
 ### Linux
 
-同 macOS（`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`，然后
-`.venv/bin/python -m coco web --open`）；使用 faster-whisper；网页录音仅 macOS。
+`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`，然后
+`.venv/bin/python -m coco web --open`；使用 faster-whisper；网页录音仅 macOS。
+
+### 电脑配置一般 / 转写太慢？
+
+- 顶栏把模型切成 **small**（下载约 0.5GB，更快、更省内存；精度略降，人名可靠「校正」修）
+- 或者不在本机转写：会议软件 / 转写服务出文字稿（txt / docx / pdf / srt），直接上传，分析功能完整
+- AI 分析本身不吃本机配置（跑在 Claude / API 通道上），老电脑一样能用
 
 ## 命令行
 
@@ -222,7 +229,7 @@ coco。若 faster-whisper 安装失败，`run.bat` 会只装核心依赖，界�
 
 | 命令 | 作用 |
 |---|---|
-| `coco transcribe <文件…>` | 导入音频/视频转写（`--model turbo/large`） |
+| `coco transcribe <文件…>` | 导入音频/视频转写（`--model turbo/large/small`） |
 | `coco import <文件/文件夹…>` | 导入文字材料（txt/docx/pdf/srt/vtt/json…），不转写 |
 | `coco record [标题]` | 麦克风录音，Ctrl+C 停止后转写（macOS） |
 | `coco watch <文件夹>` | 监控文件夹，新音频自动转写 |
@@ -277,13 +284,20 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 ## 开发自检
 
 ```bash
-.venv/bin/python tests/smoke.py      # 约 150 项断言：临时 COCO_ROOT + stub claude
+.venv/bin/python tests/smoke.py      # 约 185 项断言：临时 COCO_ROOT + stub claude
 .venv/bin/python tests/check_i18n.py # Python / 前端用到的每个键在三个语言包里都存在
 ```
 
 都不碰真实数据、不消耗模型额度（Windows：`.venv\Scripts\python tests\smoke.py`）。
 
 ## 更新日记
+
+### 2026-09-01 · 面向非技术用户的开箱体验
+- **macOS 一键安装**：双击 `coco.command` 首次运行自动建环境、装依赖、给出缺 Python/网络失败的指引
+- **AI 未就绪引导**：没装 claude 也没配 API 通道时，界面顶部出现引导条——
+  「配置 AI 通道」直达设置，「如何安装 Claude」给分平台的复制粘贴步骤
+- **small 转写模型**：约 0.5GB，低配电脑可用；CPU 转写提示里给出切换建议
+- 首次下载模型时给出体积与等待预期；Windows 缺 Python 时提示 Microsoft Store 路线
 
 ### 2026-08-26 · 多语言、流式输出、可插拔 AI 通道
 - **三种界面语言**（简体中文、English、français），每条消息、文件标签、下载文件名都按请求语言

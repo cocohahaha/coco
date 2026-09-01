@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from pydantic import BaseModel
 
 from . import ai, i18n, providers
-from .config import (BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
+from .config import (SELECTABLE_MODELS, BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
                      TRACKING_DIR, TRASH_DIR, WEEKLY_DIR, ensure_dirs, load_config,
                      save_config)
 from .i18n import get_lang, memory_placeholder, set_lang, t
@@ -724,8 +724,8 @@ def _valid_lang(v: str) -> bool:
 def api_config_save(body: ConfigBody):
     cfg = load_config()
     if body.whisper_model is not None:
-        if body.whisper_model not in ("turbo", "large"):
-            _err(ValueError(t("server.bad_model")))
+        if body.whisper_model not in SELECTABLE_MODELS:
+            _err(ValueError(t("server.bad_model", models=" / ".join(SELECTABLE_MODELS))))
         cfg["whisper_model"] = body.whisper_model
     if body.language is not None:
         if not _valid_lang(body.language):
@@ -762,7 +762,8 @@ def _ai_settings(cfg: dict) -> dict:
         "fast_configured": bool(profiles.get("fast")),
         "tasks": tasks,
         "presets": providers.PRESETS,
-        "claude_bin_found": bool(shutil.which(cfg.get("claude_bin") or "claude")),
+        "claude_bin_found": providers.claude_found(cfg),
+        "ready": providers.is_ready(cfg),
     }
 
 

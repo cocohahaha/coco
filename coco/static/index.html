@@ -260,11 +260,16 @@
   #conn-banner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 30;
     background: var(--rec); color: #fff; padding: 9px 16px; font-size: 13px; text-align: center; }
   #conn-banner.show { display: block; }
+  #ai-banner { display: none; background: #7a5d13; color: #fff; padding: 9px 16px;
+    font-size: 13px; text-align: center; flex-shrink: 0; }
+  #ai-banner.show { display: block; }
+  #ai-banner .lk2 { text-decoration: underline; cursor: pointer; margin-left: 14px; white-space: nowrap; }
 </style>
 </head>
 <body>
 
 <div id="conn-banner"></div>
+<div id="ai-banner"></div>
 
 <header>
   <h1>coco<span data-i18n="app.subtitle"></span></h1>
@@ -273,6 +278,7 @@
   <select id="model-select" data-i18n-title="header.model_title">
     <option value="turbo" data-i18n="header.model_turbo"></option>
     <option value="large" data-i18n="header.model_large"></option>
+    <option value="small" data-i18n="header.model_small"></option>
   </select>
   <select id="lang-select" data-i18n-title="header.lang_title">
     <option value="auto" data-i18n="header.lang_auto"></option>
@@ -460,6 +466,17 @@
     <div style="margin-top:4px"><code id="audiohelp-cmd"></code></div></div>
   <div class="row">
     <button class="primary" onclick="closeAudioHelp()" data-i18n="audiohelp.close"></button>
+  </div>
+</div></div>
+
+<div id="claude-overlay" class="ovl"><div class="dlg">
+  <h3 data-i18n="claudeguide.title"></h3>
+  <div class="hint" data-i18n="claudeguide.intro"></div>
+  <pre id="claude-steps" style="white-space:pre-wrap;font-family:inherit;background:rgba(0,0,0,.05);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.8;margin:10px 0"></pre>
+  <div class="hint" data-i18n="claudeguide.alt"></div>
+  <div class="row">
+    <button onclick="closeClaudeGuide()" data-i18n="common.cancel"></button>
+    <button class="primary" id="btn-claude-recheck" data-i18n="claudeguide.recheck"></button>
   </div>
 </div></div>
 
@@ -1743,7 +1760,7 @@ let memData = { content: '', longterm: '', glossary: '' }, memTab = 'content';
 function closeModal() { $('overlay').className = ''; }
 $('overlay').onclick = e => { if (e.target === $('overlay')) closeModal(); };
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeExport(); closeImport(); closePrep(); closeInsight(); closeSettings(); closeAudioHelp(); }
+  if (e.key === 'Escape') { closeModal(); closeExport(); closeImport(); closePrep(); closeInsight(); closeSettings(); closeAudioHelp(); closeClaudeGuide(); }
 });
 function setMemTab(tab) {
   memData[memTab] = $('memory-text').value;
@@ -1986,6 +2003,7 @@ $('btn-settings-save').onclick = async () => {
       body: JSON.stringify({ output_language: $('set-output-lang').value, ui_language: uiLang }) });
     toast(t('settings.saved'));
     closeSettings();
+    try { applyAIBanner(await api('/api/config')); } catch {}  // 配好通道后引导横幅应立即消失
     if (uiLang !== I18N.lang) { localStorage.setItem('coco-lang', uiLang); location.reload(); }
   } catch (e) { toast(t('common.save_failed', { msg: e.message }), 8000); }
   btn.disabled = false;
@@ -2033,12 +2051,43 @@ function applyCaps(cfg) {
   }
 }
 
+/* ---------- AI channel not ready: first-run guidance banner ---------- */
+function aiReady(cfg) { return !cfg.ai || cfg.ai.ready !== false; }
+function applyAIBanner(cfg) {
+  const b = $('ai-banner');
+  if (aiReady(cfg) || sessionStorage.getItem('coco-aibanner-dismissed')) { b.classList.remove('show'); return; }
+  b.innerHTML = esc(t('aibanner.text'))
+    + ` <span class="lk2" id="aib-setup">${esc(t('aibanner.setup'))}</span>`
+    + ` <span class="lk2" id="aib-guide">${esc(t('aibanner.guide'))}</span>`
+    + ` <span class="lk2" id="aib-dismiss">${esc(t('aibanner.dismiss'))}</span>`;
+  b.classList.add('show');
+  $('aib-setup').onclick = () => $('btn-settings').click();
+  $('aib-guide').onclick = openClaudeGuide;
+  $('aib-dismiss').onclick = () => { sessionStorage.setItem('coco-aibanner-dismissed', '1'); b.classList.remove('show'); };
+}
+function openClaudeGuide() {
+  const key = { windows: 'claudeguide.steps_win', linux: 'claudeguide.steps_linux' }[state.caps.platform] || 'claudeguide.steps_mac';
+  $('claude-steps').textContent = t(key);
+  $('claude-overlay').classList.add('show');
+}
+function closeClaudeGuide() { $('claude-overlay').classList.remove('show'); }
+$('claude-overlay').onclick = e => { if (e.target === $('claude-overlay')) closeClaudeGuide(); };
+$('btn-claude-recheck').onclick = async () => {
+  try {
+    const cfg = await api('/api/config');
+    applyAIBanner(cfg);
+    if (aiReady(cfg)) { toast(t('claudeguide.recheck_ok')); closeClaudeGuide(); }
+    else toast(t('claudeguide.recheck_fail'), 9000);
+  } catch { toast(t('claudeguide.recheck_fail'), 9000); }
+};
+
 /* ---------- boot ---------- */
 async function bootstrap() {
   const cfg = await (await fetch('/api/config')).json();
   await loadI18n(pickLang(cfg));
   state.templates = await api('/api/templates');
   applyCaps(cfg);
+  applyAIBanner(cfg);
   $('model-select').value = cfg.whisper_model;
   $('model-select').onchange = async e => {
     try {

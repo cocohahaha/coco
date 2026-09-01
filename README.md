@@ -216,35 +216,39 @@ differ), then output speed. coco therefore:
 
 ## Install and run
 
-**Requirements:** Python 3.10+ · [Claude Code](https://claude.com/claude-code) installed and logged
-in (`claude` works in a terminal) — or an API channel configured in Settings. The web UI listens on
-127.0.0.1 only.
+**Where the AI comes from:** [Claude Code](https://claude.com/claude-code) installed and logged in
+(`claude` works in a terminal) — or an API channel configured in “⚙ Settings” (DeepSeek, OpenAI, …,
+one key is enough). You can also start without either: a banner in the UI walks you through it.
+The web UI listens on 127.0.0.1 only; your data stays on this machine.
 
 ### macOS
 
-```bash
-git clone https://github.com/cocohahaha/coco.git
-cd coco
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-./run.sh        # starts the server and opens http://127.0.0.1:8765
-```
+1. Download: *Code → Download ZIP* on the GitHub page, unzip anywhere (`git clone` works too)
+2. **Double-click `coco.command`.** The first run creates the environment and installs the
+   dependencies (a few minutes); Python 3.10+ is required — get it from
+   [python.org](https://www.python.org/downloads/macos/) if missing
+3. If macOS says the file is from an “unidentified developer”: right-click `coco.command` →
+   Open → Open (once)
 
-Later: double-click `coco.command` or run `./run.sh` again (it will not start a second server).
+From then on it is always just a double-click (running it again never starts a second server).
 Apple Silicon installs mlx-whisper automatically; the first transcription downloads the Whisper
-model (turbo ≈ 1.6 GB, large ≈ 3 GB; a mirror is used automatically when huggingface.co is
-unreachable). macOS asks for microphone permission on the first recording.
+model (small ≈ 0.5 GB / turbo ≈ 1.6 GB / large ≈ 3 GB; a mirror is used automatically when
+huggingface.co is unreachable). macOS asks for microphone permission on the first recording.
+`./run.sh` from a terminal is equivalent.
 
 ### Windows
 
-1. Install [Python 3.10+](https://www.python.org/downloads/) (tick **Add python.exe to PATH**)
-2. Install [Git for Windows](https://git-scm.com/download/win) (Claude Code needs it)
-3. Install and log in to [Claude Code](https://claude.com/claude-code): run `claude` once
-4. Download this repository (`git clone` or *Code → Download ZIP*) and **double-click `run.bat`**
+1. Install Python 3.10+: easiest via the **Microsoft Store** (search “Python 3.12”), or from
+   [python.org](https://www.python.org/downloads/) (tick **Add python.exe to PATH**)
+2. Download this repository: *Code → Download ZIP*, unzip (`git clone` works too)
+3. **Double-click `run.bat`.** When SmartScreen warns, click “More info → Run anyway”;
+   the first run creates the virtual environment and installs dependencies
+   (faster-whisper is a few hundred MB — be patient)
+4. For Claude as the AI channel: install [Git for Windows](https://git-scm.com/download/win),
+   run `irm https://claude.ai/install.ps1 | iex` in PowerShell, then run `claude` to log in.
+   This can wait — the banner in the UI guides you, or switch to an API channel in “⚙ Settings”
 
-The first run creates the virtual environment and installs dependencies (faster-whisper is a few
-hundred MB); then the server starts and the browser opens. Close the black window to stop.
-Command line: `bin\coco.cmd`.
+Close the black window to stop. Command line: `bin\coco.cmd`.
 
 **Typical Windows workflow: recording → transcript elsewhere → upload → analyse.** Most people do
 not need Whisper on their PC: let your meeting software or a transcription service produce the
@@ -254,9 +258,18 @@ is unaffected. Local transcription without an NVIDIA GPU takes 10–30 minutes f
 
 ### Linux
 
-Same as macOS (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then
-`.venv/bin/python -m coco web --open`); faster-whisper is used, recording from the web UI is
+`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then
+`.venv/bin/python -m coco web --open`; faster-whisper is used, recording from the web UI is
 macOS-only.
+
+### Modest hardware / transcription too slow?
+
+- Switch the model to **small** in the top bar (≈ 0.5 GB download, faster and lighter; slightly
+  less accurate — the name-fixing pass cleans up most of it)
+- Or skip local transcription: let your meeting software or a transcription service produce the
+  transcript (txt / docx / pdf / srt) and upload it — every analysis feature works the same
+- The AI analysis itself does not run on your hardware (it runs on Claude / the API channel),
+  so old machines are fine
 
 ## Command line
 
@@ -265,7 +278,7 @@ Output follows the interface language.
 
 | Command | Purpose |
 |---|---|
-| `coco transcribe <files…>` | Import audio/video and transcribe (`--model turbo/large`) |
+| `coco transcribe <files…>` | Import audio/video and transcribe (`--model turbo/large/small`) |
 | `coco import <files/folders…>` | Import text material (txt/docx/pdf/srt/vtt/json …) without transcription |
 | `coco record [title]` | Microphone recording, Ctrl+C to stop and transcribe (macOS) |
 | `coco watch <folder>` | Watch a folder, transcribe new audio |
@@ -321,13 +334,22 @@ Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr
 ## Development
 
 ```bash
-.venv/bin/python tests/smoke.py      # ~150 assertions against a temporary COCO_ROOT with a stub claude
+.venv/bin/python tests/smoke.py      # ~185 assertions against a temporary COCO_ROOT with a stub claude
 .venv/bin/python tests/check_i18n.py # every key used in Python / the UI exists in every locale
 ```
 
 Neither touches real data or spends model quota (Windows: `.venv\Scripts\python tests\smoke.py`).
 
 ## Changelog
+
+### 2026-09-01 · Out-of-the-box experience for non-technical users
+- **macOS one-click setup**: the first double-click of `coco.command` builds the environment,
+  installs dependencies and explains what to do when Python or the network is missing
+- **AI-not-ready guidance**: with no claude CLI and no API key, a banner in the UI leads to the
+  settings dialog or to per-platform copy-paste install steps for Claude
+- **small transcription model** (≈ 0.5 GB) for low-spec machines; the CPU hint now suggests it
+- Model downloads announce their size and expected wait; missing Python on Windows points to the
+  Microsoft Store route
 
 ### 2026-08-26 · Multilingual, streaming, pluggable AI channels
 - **Three interface languages** (English, 简体中文, français) with per-request language for every

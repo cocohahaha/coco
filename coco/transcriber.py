@@ -371,7 +371,12 @@ def transcribe_file(audio: Path, model: str | None = None, language: str | None 
     setup_hf_endpoint(cfg)
     repo = resolve_model_repo(model, backend)
 
-    progress(t("transcribe.loading_model", model=model))
+    from .config import WHISPER_MODELS
+    sizes = {k: v["size"] for k, v in WHISPER_MODELS.items()}
+    if model in sizes:  # 提前给出下载量与等待预期，首次下载不至于像卡死
+        progress(t("transcribe.loading_model_sized", model=model, size=sizes[model]))
+    else:
+        progress(t("transcribe.loading_model", model=model))
     runner = _transcribe_mlx if backend == "mlx" else _transcribe_faster
     result = runner(audio, repo, lang, cfg, progress)
     segments = result["segments"]

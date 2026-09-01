@@ -616,5 +616,16 @@ out = subprocess.run([sys.executable, "-m", "coco", "ai", "show"], capture_outpu
 check("CLI ai show", out.returncode == 0 and "[primary]" in out.stdout and "Presets" in out.stdout, out.stdout[:200] + out.stderr[:200])
 write_cfg()
 
+
+# 21. 小白/低配路线：small 模型可选；AI 就绪状态上报
+r = c.post("/api/config", json={"whisper_model": "small"})
+check("small 模型可保存", r.status_code == 200 and r.json()["whisper_model"] == "small", r.text[:120])
+check("非法模型仍 400", c.post("/api/config", json={"whisper_model": "huge"}).status_code == 400)
+c.post("/api/config", json={"whisper_model": "turbo"})
+cfg = c.get("/api/config").json()
+check("config.ai 含 ready 字段", isinstance(cfg.get("ai", {}).get("ready"), bool), str(cfg.get("ai", {}))[:160])
+from coco.config import MODEL_REPOS, FASTER_MODEL_REPOS
+check("small 两套引擎都有仓库映射", "small" in MODEL_REPOS and "small" in FASTER_MODEL_REPOS)
+
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

@@ -124,13 +124,77 @@ def public_profile(p: dict) -> dict:
 
 # ---------- claude CLI ----------
 
+def _claude_fallback_paths() -> "list[Path]":
+    """Well-known install locations, for processes whose PATH misses them.
+
+    A server started by double-clicking coco.command / run.bat inherits a minimal PATH
+    that often lacks ~/.local/bin (the official installer's target), so `claude` would
+    stay “not found” forever even after a correct install + restart."""
+    home = Path.home()
+    cands = [home / ".local" / "bin" / "claude",
+             home / ".claude" / "local" / "claude",
+             Path("/opt/homebrew/bin/claude"), Path("/usr/local/bin/claude")]
+    if os.name == "nt":
+        cands = [home / ".local" / "bin" / "claude.exe"]
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            cands.append(Path(appdata) / "npm" / "claude.cmd")
+    return cands
+
+
 def resolve_claude_bin(cfg: "dict | None" = None) -> str:
     """Locate the claude executable. On Windows npm installs claude.cmd and the official
     installer claude.exe; CreateProcess does not consult PATHEXT, so resolve through
-    shutil.which. Unknown → returned as-is so subprocess raises FileNotFoundError."""
+    shutil.which; when PATH does not cover the usual install dirs, probe them directly.
+    Unknown → returned as-is so subprocess raises FileNotFoundError."""
     cfg = cfg or load_config()
     raw = cfg.get("claude_bin") or "claude"
-    return shutil.which(raw) or raw
+    hit = shutil.which(raw)
+    if hit:
+        return hit
+    if raw == "claude":  # only for the default name; an explicit path stays as typed
+        for cand in _claude_fallback_paths():
+            if cand.exists():
+                return str(cand)
+    return raw
+
+
+def claude_found(cfg: "dict | None" = None) -> bool:
+    resolved = resolve_claude_bin(cfg)
+    return Path(resolved).exists() or shutil.which(resolved) is not None
+
+
+def _no_key_needed(base_url: str) -> bool:
+    """Endpoints that plausibly run without a key: localhost and private-network hosts
+    (Ollama / LM Studio on this or another machine in the LAN)."""
+    from urllib.parse import urlparse
+    host = (urlparse(base_url).hostname or "") if base_url else ""
+    if not host:
+        return False
+    if host in ("localhost", "::1", "0.0.0.0", "host.docker.internal") or host.endswith(".local"):
+        return True
+    if host.startswith(("127.", "10.", "192.168.")):
+        return True
+    if host.startswith("172."):
+        try:
+            return 16 <= int(host.split(".")[1]) <= 31
+        except (IndexError, ValueError):
+            return False
+    return False
+
+
+def is_ready(cfg: "dict | None" = None) -> bool:
+    """Can the primary channel plausibly answer? Drives the first-run guidance banner.
+    Heuristic only (binary / key presence) — no network round-trip on every /api/config;
+    the real check is the per-profile Test button."""
+    cfg = cfg or load_config()
+    p = get_profile("primary", cfg)
+    if p["type"] == "claude-cli":
+        ok = claude_found(cfg)
+        if p.get("base_url"):  # CLI pointed at a third-party endpoint also needs its key
+            ok = ok and (bool(resolve_api_key(p)) or _no_key_needed(p["base_url"]))
+        return ok
+    return bool(resolve_api_key(p)) or _no_key_needed(p.get("base_url") or "")
 
 
 def _claude_cwd() -> str:

@@ -108,12 +108,13 @@
     "transcribe": {
       "no_engine": "Cet ordinateur n'a pas de moteur de transcription utilisable : l'audio ne peut pas être transcrit ici. Convertissez d'abord l'enregistrement en texte avec un autre outil (export de votre logiciel de réunion, service de transcription en ligne, Whisper…) puis téléversez ou importez le fichier en txt / docx / pdf / srt / vtt / json ; toutes les analyses fonctionnent à l'identique. Pour transcrire en local, installez faster-whisper : pip install faster-whisper",
       "running": "Transcription…",
-      "loading_model": "Chargement du modèle {model} (téléchargé automatiquement à la première utilisation ; large ≈ 3 Go)…",
+      "loading_model": "Chargement du modèle {model} (téléchargé automatiquement à la première utilisation ; cela peut prendre du temps sur un réseau lent)…",
       "loading_device": "Chargement du modèle ({device} / {compute})…",
       "cuda_fallback": "CUDA indisponible ({detail}), bascule sur le CPU…",
       "progress": "Transcription… {done} / {total}",
       "no_audio": "La réunion {id} n'a pas de fichier audio",
-      "filtered": "{n} segments probablement hallucinés filtrés (bruit de silence, crédits de sous-titres, écho de l'invite, boucles)"
+      "filtered": "{n} segments probablement hallucinés filtrés (bruit de silence, crédits de sous-titres, écho de l'invite, boucles)",
+      "loading_model_sized": "Chargement du modèle {model} (premier téléchargement ≈ {size} ; 10 à 30 min sur réseau lent)…"
     },
     "record": {
       "unsupported": "L'enregistrement depuis l'interface web n'est disponible que sur macOS (ffmpeg avfoundation). Enregistrez avec le dictaphone du système ou votre logiciel de réunion, puis téléversez ou importez le fichier audio.",
@@ -203,7 +204,7 @@
       "folder_empty": "Aucun fichier audio / vidéo / texte reconnu dans le dossier : {path}",
       "bad_date": "La date doit être un AAAA-MM-JJ valide",
       "job_missing": "Tâche introuvable",
-      "bad_model": "Le modèle doit être turbo ou large",
+      "bad_model": "Le modèle doit être l'un de : {models}",
       "bad_language": "La langue doit être auto ou un code ISO (zh, en, fr…)",
       "bad_ui_language": "La langue de l'interface doit être auto ou l'une de : {codes}",
       "bad_output_language": "La langue de sortie doit être ui, source ou un code de langue (en, fr, ja…)",
@@ -295,7 +296,7 @@
       "ai_task_usage": "Usage : coco ai task <tâche> primary|fast (tâches : {tasks})",
       "h_record": "Enregistrer et transcrire automatiquement (Ctrl+C pour arrêter)",
       "h_title": "Titre de la réunion",
-      "h_model": "Modèle whisper : turbo / large",
+      "h_model": "modèle whisper : turbo / large / small (léger)",
       "h_device": "Périphérique audio ffmpeg, ex. :0",
       "h_transcribe": "Importer des fichiers audio/vidéo et les transcrire",
       "h_title_default": "Titre de la réunion (par défaut : nom du fichier)",
@@ -399,7 +400,8 @@
       "export": "⬇ Exporter",
       "memory": "◈ Mémoire",
       "settings": "⚙ Réglages",
-      "settings_title": "Langues, canaux de modèles IA, stratégie de mémoire"
+      "settings_title": "Langues, canaux de modèles IA, stratégie de mémoire",
+      "model_small": "Modèle : small (léger)"
     },
     "sidebar": {
       "search_placeholder": "🔍 Rechercher dans toutes les transcriptions et rapports…",
@@ -584,7 +586,7 @@
     "caps": {
       "no_engine_toast": "Pas de moteur de transcription sur cet ordinateur : l'audio ne peut pas être transcrit, mais les transcriptions (txt / docx / pdf / srt…) fonctionnent avec toutes les analyses",
       "upload_title_noengine": "Téléverser une transcription existante (txt / docx / pdf / srt / vtt / json…). Cet ordinateur n'a pas de moteur de transcription : convertissez d'abord l'audio en texte avec un autre outil",
-      "cpu_hint": "La transcription tourne ici sur le CPU (pas de carte NVIDIA) : 45 minutes d'audio peuvent prendre 10 à 30 minutes. Si vous êtes pressé, transcrivez avec un autre outil et importez le texte."
+      "cpu_hint": "La transcription tourne ici sur le CPU (pas de carte NVIDIA) : 45 minutes d'audio peuvent prendre 10 à 30 minutes. Passez le modèle sur small dans la barre du haut (plus rapide et plus léger, précision légèrement moindre), ou importez une transcription faite ailleurs."
     },
     "record": {
       "stop": "■ Arrêter {time}",
@@ -766,6 +768,23 @@
       "model_switched": "Modèle de transcription réglé sur {model} (prochaines transcriptions)",
       "lang_switched": "Langue de transcription réglée sur {lang} (prochaines transcriptions)",
       "switch_failed": "Changement impossible : {msg}"
+    },
+    "aibanner": {
+      "text": "L'analyse IA n'est pas encore configurée : commande claude introuvable et aucun canal API défini. Enregistrement, transcription et imports fonctionnent ; comptes rendus, insights et briefs attendent cette étape.",
+      "setup": "⚙ Configurer le canal IA",
+      "guide": "Installer Claude",
+      "dismiss": "Plus tard"
+    },
+    "claudeguide": {
+      "title": "Installer Claude et se connecter (recommandé, ~5 minutes)",
+      "intro": "coco effectue ses analyses via votre propre compte Claude (l'outil en ligne de commande Claude Code). À faire une seule fois.",
+      "steps_mac": "1. Ouvrez le Terminal (⌘+Espace, tapez « Terminal »)\n2. Collez et exécutez : curl -fsSL https://claude.ai/install.sh | bash\n3. Lancez claude et connectez-vous dans le navigateur (compte Claude requis)\n4. Revenez sur cette page coco et appuyez sur « Revérifier » ci-dessous",
+      "steps_win": "1. Installez d'abord Git for Windows : git-scm.com/download/win\n2. Ouvrez PowerShell, collez et exécutez : irm https://claude.ai/install.ps1 | iex\n3. Lancez claude et connectez-vous dans le navigateur (compte Claude requis)\n4. Revenez sur cette page coco et appuyez sur « Revérifier » ci-dessous",
+      "alt": "Vous préférez ne pas installer Claude ? Ouvrez « ⚙ Configurer le canal IA », choisissez un préréglage (DeepSeek, OpenAI…) et collez une clé API : toutes les analyses fonctionnent de la même façon.",
+      "recheck": "Revérifier",
+      "recheck_ok": "Canal IA prêt ✓",
+      "recheck_fail": "Toujours pas de claude détecté. Vérifiez que l'installation et la connexion sont terminées (lancer claude dans un terminal ouvre une conversation), puis réessayez.",
+      "steps_linux": "1. Ouvrez un terminal\n2. Collez et exécutez : curl -fsSL https://claude.ai/install.sh | bash\n3. Lancez claude et connectez-vous (compte Claude requis)\n4. Revenez sur cette page coco et appuyez sur « Revérifier » ci-dessous"
     }
   }
 }

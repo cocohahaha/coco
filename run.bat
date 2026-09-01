@@ -16,8 +16,9 @@ if not exist "%PY%" (
   if not exist "%PY%" python -m venv .venv 2>nul
 )
 if not exist "%PY%" (
-  echo [coco] Python not found. Install Python 3.10+ / 找不到 Python，请安装：https://www.python.org/downloads/
-  echo        Tick "Add python.exe to PATH" during setup, then double-click run.bat again / 安装时勾选 Add python.exe to PATH
+  echo [coco] Python not found. Easiest: open Microsoft Store and install "Python 3.12".
+  echo        找不到 Python。最简单：打开 Microsoft Store 搜索 "Python 3.12" 安装；
+  echo        或到 https://www.python.org/downloads/ 下载（安装时勾选 "Add python.exe to PATH"）。装好后重新双击 run.bat
   pause
   exit /b 1
 )
@@ -50,8 +51,9 @@ if errorlevel 1 (
 
 where claude >nul 2>&1
 if errorlevel 1 (
-  echo [coco] Note: the claude command was not found. Analysis needs a logged-in Claude Code CLI (or an API channel in Settings): / 没有找到 claude 命令
-  echo        https://claude.com/claude-code   install it, run claude once to log in, then double-click run.bat again
+  echo [coco] Note: the claude command was not found. Analysis needs a logged-in Claude Code CLI (or an API channel in Settings). / 没有找到 claude 命令
+  echo        Install: open PowerShell and run   irm https://claude.ai/install.ps1 ^| iex   then run claude once to log in.
+  echo        安装：打开 PowerShell 运行上面这行命令，然后运行 claude 登录（也可以稍后在网页「⚙ 设置」里配 API 通道）
   echo.
 )
 echo [coco] Starting → http://127.0.0.1:%PORT%   (close this window to stop / 关闭本窗口即停止服务)

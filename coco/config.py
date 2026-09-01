@@ -18,25 +18,33 @@ LONGTERM_FILE = ROOT / "memory" / "longterm.md"      # long-term memory maintain
 GLOSSARY_FILE = ROOT / "memory" / "glossary.md"      # glossary: names + proper nouns
 CONFIG_FILE = ROOT / "coco.config.json"
 
-# whisper model alias -> HuggingFace repo (mlx-whisper, Apple Silicon)
-MODEL_REPOS = {
-    "large": "mlx-community/whisper-large-v3-mlx",
-    "turbo": "mlx-community/whisper-large-v3-turbo",
-    "tiny": "mlx-community/whisper-tiny",  # quick self-test only
+# Whisper model registry — the ONE place a model alias is defined: repo per backend,
+# download size (for the loading hint) and whether the UI / API may select it.
+WHISPER_MODELS = {
+    "turbo": {"mlx": "mlx-community/whisper-large-v3-turbo",
+              "faster": "deepdml/faster-whisper-large-v3-turbo-ct2",
+              "size": "1.6GB", "selectable": True},
+    "large": {"mlx": "mlx-community/whisper-large-v3-mlx",
+              "faster": "Systran/faster-whisper-large-v3",
+              "size": "3GB", "selectable": True},
+    # low-spec machines: light and fast, slightly less accurate
+    "small": {"mlx": "mlx-community/whisper-small-mlx",
+              "faster": "Systran/faster-whisper-small",
+              "size": "0.5GB", "selectable": True},
+    "tiny": {"mlx": "mlx-community/whisper-tiny",
+             "faster": "Systran/faster-whisper-tiny",
+             "size": "75MB", "selectable": False},  # quick self-test only
 }
-# same aliases for faster-whisper (Windows / Linux / Intel Mac, CTranslate2)
-FASTER_MODEL_REPOS = {
-    "large": "Systran/faster-whisper-large-v3",
-    "turbo": "deepdml/faster-whisper-large-v3-turbo-ct2",
-    "tiny": "Systran/faster-whisper-tiny",
-}
+MODEL_REPOS = {k: v["mlx"] for k, v in WHISPER_MODELS.items()}
+FASTER_MODEL_REPOS = {k: v["faster"] for k, v in WHISPER_MODELS.items()}
+SELECTABLE_MODELS = tuple(k for k, v in WHISPER_MODELS.items() if v["selectable"])
 
 DEFAULTS = {
     # --- language ---
     "ui_language": "auto",       # interface + CLI language: auto (browser / system) | zh-CN | en | fr
     "output_language": "ui",     # AI output: ui (= interface) | source (= language of the material) | ISO code
     # --- transcription ---
-    "whisper_model": "turbo",    # turbo (fast) | large (most accurate) | tiny (self-test)
+    "whisper_model": "turbo",    # turbo (fast) | large (most accurate) | small (low-spec) | tiny (self-test)
     "transcribe_backend": "auto",  # auto | mlx | faster | none (none = import transcripts only)
     "language": "auto",          # transcription language: auto-detect, or an ISO code (zh, en, fr …)
     "initial_prompt_extra": "",  # extra names / terms appended to the whisper prompt
