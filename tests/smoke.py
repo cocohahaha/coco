@@ -39,7 +39,7 @@ from coco.server import app  # noqa: E402
 ZH = {"X-Coco-Lang": "zh-CN"}
 EN = {"X-Coco-Lang": "en"}
 FR = {"X-Coco-Lang": "fr"}
-c = TestClient(app, headers=ZH)
+c = TestClient(app, base_url="http://127.0.0.1:8765", headers=ZH)
 FAIL = []
 
 
@@ -597,7 +597,9 @@ n_before = len(c.get("/api/meetings").json())
 r = c.post("/api/record/start", json={"title": "x"})
 check("录音不支持时 400", r.status_code == 400 and "macOS" in r.json()["detail"], r.text[:120])
 check("录音拒绝不建会议", len(c.get("/api/meetings").json()) == n_before)
-check("config 上报 record=false", c.get("/api/config").json()["record"] is False)
+cfg_now = c.get("/api/config").json()
+check("无服务端录音时改用浏览器录音", cfg_now["record_mode"] == "browser"
+      and cfg_now["record"] == bool(cfg_now["transcribe"]), str({k: cfg_now[k] for k in ("record", "record_mode")}))
 srv_mod.record_supported = _orig
 
 # 27. claude CLI resolution
@@ -626,6 +628,225 @@ cfg = c.get("/api/config").json()
 check("config.ai 含 ready 字段", isinstance(cfg.get("ai", {}).get("ready"), bool), str(cfg.get("ai", {}))[:160])
 from coco.config import MODEL_REPOS, FASTER_MODEL_REPOS
 check("small 两套引擎都有仓库映射", "small" in MODEL_REPOS and "small" in FASTER_MODEL_REPOS)
+
+
+# 29. local-only guard: Host (DNS rebinding) and cross-site state-changing requests
+r = c.get("/api/health", headers={"Host": "evil.example:8765"})
+check("陌生 Host 403", r.status_code == 403, r.text[:80])
+r = c.post("/api/import-text", json={"content": "x"}, headers={**ZH, "Origin": "https://evil.example"})
+check("跨站 POST 403", r.status_code == 403, r.text[:80])
+r = c.post("/api/import-text", json={"content": " "}, headers={**ZH, "Origin": "http://127.0.0.1:8765"})
+check("同源 POST 放行", r.status_code == 400 and "内容为空" in r.json()["detail"])
+check("跨站 GET 仍可读（浏览器 CORS 负责拦截读取）", c.get("/api/health", headers={"Origin": "https://evil.example"}).status_code == 200)
+write_cfg(allowed_hosts=["coco.lan"])
+check("allowed_hosts 可放行额外主机名", c.get("/api/health", headers={"Host": "coco.lan:8765"}).status_code == 200)
+write_cfg()
+lc = TestClient(app, base_url="http://localhost:8765", headers=ZH)
+check("localhost 与 [::1] 也放行", lc.get("/api/health").status_code == 200
+      and c.get("/api/health", headers={"Host": "[::1]:8765"}).status_code == 200)
+
+# 30. lifecycle: identity probe + quit
+import coco.server as srv_mod  # noqa: E402
+h = c.get("/api/health").json()
+check("health 报告身份与数据目录", h["app"] == "coco" and Path(h["root"]).resolve() == ROOT.resolve() and h["pid"] > 0, str(h))
+srv_mod.JOBS["busy-test"] = {"status": "running", "detail": "x", "meeting_id": None}
+r = c.post("/api/shutdown", json={}).json()
+check("有任务时退出需确认", r["ok"] is False and "jobs" in r["busy"], str(r))
+class _FakeServer:
+    should_exit = False
+srv_mod.SERVER["uvicorn"] = _FakeServer
+r = c.post("/api/shutdown", json={"force": True}).json()
+time.sleep(0.6)
+check("强制退出让服务结束", r["ok"] is True and _FakeServer.should_exit is True, str(r))
+srv_mod.SERVER.clear()
+srv_mod.JOBS.pop("busy-test", None)
+a = c.get("/api/about").json()
+check("about 返回版本与路径", a["version"] and Path(a["root"]).resolve() == ROOT.resolve() and a["log"].endswith("coco.log"), str(a))
+check("reveal 只接受固定目标", c.post("/api/reveal", json={"which": "../etc"}).status_code == 400)
+
+# 31. browser recording: chunks appended in order, retries deduplicated, recovery after a restart
+_orig_start_job, _orig_backend = srv_mod._start_transcribe_job, srv_mod.detect_backend
+queued = []
+srv_mod._start_transcribe_job = lambda m, model=None: (queued.append(m.id), "job-stub")[1]
+srv_mod.detect_backend = lambda cfg=None: "mlx"
+r = c.post("/api/record/browser/start", json={"title": "网页录音", "mime": "audio/webm;codecs=opus"})
+check("浏览器录音开始", r.status_code == 200, r.text[:120])
+rid = r.json()["meeting_id"]
+check("第二路录音被拒", c.post("/api/record/browser/start", json={}).status_code == 400)
+chunk = b"\x1a\x45\xdf\xa3" + b"x" * 3000
+hdr_bin = {**ZH, "Content-Type": "application/octet-stream"}
+r0 = c.post(f"/api/record/browser/chunk?id={rid}&seq=0", content=chunk, headers=hdr_bin)
+r0b = c.post(f"/api/record/browser/chunk?id={rid}&seq=0", content=chunk, headers=hdr_bin)
+r1 = c.post(f"/api/record/browser/chunk?id={rid}&seq=1", content=b"y" * 500, headers=hdr_bin)
+rg = c.post(f"/api/record/browser/chunk?id={rid}&seq=5", content=b"z", headers=hdr_bin)
+check("分片按序追加、重传去重、跳号拒绝", r0.status_code == 200 and r0b.json().get("dup") and r1.json()["bytes"] == 3504
+      and rg.status_code == 409, f"{r0.text} {r0b.text} {r1.text} {rg.status_code}")
+st = c.get("/api/record/status").json()
+check("录音状态为 browser", st["active"] and st["mode"] == "browser" and st["meeting_id"] == rid and st["bytes"] == 3504, str(st))
+check("录音中的会议不能删除", c.delete(f"/api/meetings/{rid}").status_code == 400)
+check("录音中会议显示 recording", any(m["id"] == rid and m["status"] == "recording" for m in c.get("/api/meetings").json()))
+check("录音文件扩展名随 mime", (ROOT / "library" / rid / "audio.webm").stat().st_size == 3504)
+check("有录音时退出需确认", "recording" in c.post("/api/shutdown", json={}).json().get("busy", []))
+r = c.post("/api/record/browser/stop", json={"id": rid})
+check("停止后进入转写队列", r.status_code == 200 and r.json()["job"] == "job-stub" and queued[-1] == rid, r.text[:120])
+check("停止后状态清空", c.get("/api/record/status").json()["active"] is False)
+r = c.post("/api/record/browser/start", json={"mime": "audio/mp4"})
+rid2 = r.json()["meeting_id"]
+check("Safari mp4 录音存为 .m4a", (ROOT / "library" / rid2 / "audio.m4a").exists())
+r = c.post("/api/record/browser/stop", json={"id": rid2, "discard": True})
+check("丢弃录音进回收站", r.json().get("discarded") and not (ROOT / "library" / rid2).exists())
+r = c.post("/api/record/browser/start", json={})
+rid3 = r.json()["meeting_id"]
+c.post(f"/api/record/browser/chunk?id={rid3}&seq=0", content=b"a" * 100, headers=hdr_bin)
+r = c.post("/api/record/browser/stop", json={"id": rid3})
+check("过短的录音报空并清理", r.status_code == 400 and not (ROOT / "library" / rid3).exists(), r.text[:120])
+# a restart while recording: the meeting keeps status "recording" → resumed as a normal transcription
+from coco.library import create_meeting as _cm  # noqa: E402
+cut = _cm("被中断的录音", source="record")
+(cut.path / "audio.webm").write_bytes(b"w" * 4096)
+cut.save_meta(status="recording")
+srv_mod.resume_interrupted()
+check("重启后恢复中断的录音并转写", cut.meta["status"] == "new" and cut.id in queued)
+srv_mod._start_transcribe_job, srv_mod.detect_backend = _orig_start_job, _orig_backend
+check("config 报告录音方式", c.get("/api/config").json()["record_mode"] in ("browser", "ffmpeg"))
+check("录音方式可保存", c.post("/api/config", json={"record_mode": "browser"}).status_code == 200
+      and c.post("/api/config", json={"record_mode": "tape"}).status_code == 400)
+
+# 32. ChatGPT through the Codex CLI (stub)
+CODEX = REPO / "tests" / "codex-stub"
+if os.name == "nt":
+    CODEX = ROOT / "codex-stub.cmd"
+    CODEX.write_text(f'@"{sys.executable}" -X utf8 "{REPO / "tests" / "codex-stub"}" %*\n', encoding="utf-8")
+write_cfg(codex_bin=str(CODEX))
+providers._LOGIN_CACHE.clear()
+check("检测到已登录的 codex", providers.detect_clis() == {"claude": True, "codex": True, "codex_login": "chatgpt"},
+      str(providers.detect_clis()))
+cx = dict(providers.PROFILE_DEFAULTS, type="codex-cli", name="primary")
+t_ = providers.test_profile(profile=cx)
+check("codex 通道连通测试", t_["ok"] and t_["reply"] == "pong", str(t_))
+out = providers.run_model("写一份纪要", profile=dict(cx, model="stub-pro", reasoning="low"))
+check("codex 传递模型并加无工具前言", "model: stub-pro" in out and "no-tools preamble: True" in out, out)
+ms_ = providers.list_models(cx)
+check("codex 模型目录（隐藏项过滤、按优先级）", [m["id"] for m in ms_] == ["stub-pro", "stub-fast"]
+      and ms_[0]["reasoning"] == ["low", "high"], str(ms_))
+os.environ["COCO_CODEX_STUB"] = "legacy"
+providers._CODEX_LEGACY.clear()
+t_ = providers.test_profile(profile=cx)
+check("旧版 codex 自动去掉新参数重试", t_["ok"] and str(CODEX) in providers._CODEX_LEGACY, str(t_))
+os.environ["COCO_CODEX_STUB"] = "nologin"
+providers._LOGIN_CACHE.clear()
+t_ = providers.test_profile(profile=cx)
+check("未登录时给出 codex login 指引", not t_["ok"] and "codex login" in t_["error"], str(t_))
+check("未登录的 codex 不算就绪", providers.detect_clis()["codex_login"] == "")
+os.environ.pop("COCO_CODEX_STUB", None)
+providers._LOGIN_CACHE.clear()
+# nothing configured + no claude → primary channel falls back to the logged-in ChatGPT
+write_cfg(codex_bin=str(CODEX), claude_bin=str(ROOT / "no-such-claude"))
+prim = providers.get_profile("primary")
+cfgj = c.get("/api/config").json()["ai"]
+check("没有 claude 时自动改用 ChatGPT（Codex）", prim["type"] == "codex-cli" and prim.get("auto") and cfgj["ready"]
+      and cfgj["configured"] is False and cfgj["primary"]["label"] == "ChatGPT", str(cfgj["primary"]))
+r = c.post("/api/settings/ai/models", json={"profile": "primary", "inline": {"type": "codex-cli"}})
+check("模型列表接口（codex）", r.status_code == 200 and r.json()["models"][0]["id"] == "stub-pro", r.text[:160])
+r = c.post("/api/settings/ai", json={"primary": {"type": "codex-cli", "model": "stub-fast", "reasoning": "high",
+                                                  "preset": "codex-cli"}})
+saved = json.loads(CONFIG.read_text(encoding="utf-8"))["ai_profiles"]["primary"]
+check("codex 通道保存模型与推理强度", saved["reasoning"] == "high" and saved["preset"] == "codex-cli"
+      and r.json()["primary"]["label"] == "ChatGPT · stub-fast", str(saved))
+r = c.post("/api/settings/ai", json={"primary": {"type": "codex-cli", "reasoning": "ultra-max"}})
+check("非法推理强度被丢弃", json.loads(CONFIG.read_text(encoding="utf-8"))["ai_profiles"]["primary"]["reasoning"] == "")
+write_cfg()
+r = c.post("/api/settings/ai/models", json={"profile": "primary", "inline": {"type": "claude-cli"}})
+check("模型列表接口（claude 别名）", [m["id"] for m in r.json()["models"]] == ["", "opus", "sonnet", "haiku"], r.text[:160])
+
+# 33. OpenAI-compatible quirks: model list, output-cap retry, <think> removal, friendly HTTP errors
+class QuirkAPI(BaseHTTPRequestHandler):
+    seen = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        if self.headers.get("Authorization") != "Bearer good":
+            return self._json(401, {"error": {"message": "Incorrect API key provided"}})
+        self._json(200, {"object": "list", "data": [{"id": "m-b"}, {"id": "m-a"}]})
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        QuirkAPI.seen.append(body)
+        if body.get("model") == "missing":
+            return self._json(404, {"error": {"message": "The model `missing` does not exist"}})
+        if "max_tokens" in body and body.get("model") == "small-cap":
+            return self._json(400, {"error": {"message": "max_tokens must be <= 8192"}})
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        pieces = ["<thi", "nk>let me think", "</think>\n\n", "Real ", "answer"] if body.get("model") == "thinker" else ["ok"]
+        for piece in pieces:
+            self.wfile.write(("data: " + json.dumps({"choices": [{"delta": {"content": piece}}]}) + "\n\n").encode())
+        self.wfile.write(b"data: [DONE]\n\n")
+
+    def _json(self, code, obj):
+        data = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+qs = HTTPServer(("127.0.0.1", 0), QuirkAPI)
+threading.Thread(target=qs.serve_forever, daemon=True).start()
+qbase = f"http://127.0.0.1:{qs.server_address[1]}/v1"
+op = dict(providers.PROFILE_DEFAULTS, type="openai", base_url=qbase, api_key="good", name="primary")
+check("获取模型列表（排序）", [m["id"] for m in providers.list_models(op)] == ["m-a", "m-b"])
+try:
+    providers.list_models(dict(op, api_key="bad"))
+    ok401 = False
+except providers.ModelError as e:
+    ok401 = e.status == 401 and "API key" in str(e) and "Incorrect API key" in str(e)
+check("401 给出可操作的提示并保留原文", ok401)
+out = providers.run_model("hi", profile=dict(op, model="thinker"))
+check("去掉 <think> 思考块", out == "Real answer", repr(out))
+check("非 OpenAI 官方用 max_tokens", QuirkAPI.seen[-1].get("max_tokens") == 16000 and "max_completion_tokens" not in QuirkAPI.seen[-1])
+out = providers.run_model("hi", profile=dict(op, model="small-cap"))
+check("输出上限过大时自动去掉重试", out == "ok" and "max_tokens" not in QuirkAPI.seen[-1], str(QuirkAPI.seen[-1]))
+try:
+    providers.run_model("hi", profile=dict(op, model="missing"))
+    ok404 = False
+except providers.ModelError as e:
+    ok404 = e.status == 404 and "missing" in str(e)
+check("404 提示模型名/地址", ok404)
+check("OpenAI 官方改用 max_completion_tokens", providers._openai_limit_param("https://api.openai.com/v1") == "max_completion_tokens"
+      and providers._openai_limit_param(qbase) == "max_tokens")
+qs.shutdown(); qs.server_close()
+
+# 34. presets
+bad = [k for k, v in providers.PRESETS.items() if v["group"] != "hidden"
+       and (not v.get("label") or v["type"] not in providers.PROFILE_TYPES
+            or (v["group"] == "api" and not (v.get("base_url", "").startswith("https://") and v.get("key_url") and v.get("model"))))]
+check("预设完整（API 类有地址、key 页面、默认模型）", not bad, str(bad))
+check("后台通道预设用便宜模型", providers.preset_profile("deepseek", fast=True)["model"] == providers.PRESETS["deepseek"]["fast_model"]
+      and providers.preset_profile("deepseek")["preset"] == "deepseek")
+check("旧预设名仍可用", all(k in providers.PRESETS for k in ("deepseek-openai", "deepseek-anthropic", "claude-cli-fast", "ollama", "openai")))
+check("通道显示名", providers.profile_label({"type": "openai", "preset": "kimi", "model": "kimi-k3"}) == "Kimi · kimi-k3"
+      and providers.profile_label({"type": "claude-cli"}) == "Claude")
+
+# 35. launcher (no server started here)
+from coco import launcher  # noqa: E402
+import socket as _sock  # noqa: E402
+busy = _sock.socket(); busy.bind(("127.0.0.1", 0)); busy.listen(1)
+bport = busy.getsockname()[1]
+os.environ["COCO_PORT"] = str(bport)
+port_, owner_ = launcher.pick_port()
+check("首选端口被占时顺延", port_ != bport and bport < port_ <= bport + 20, f"{bport} → {port_}")
+check("非 coco 端口不被当成 coco", launcher.health(bport, timeout=0.5) is None)
+busy.close(); os.environ.pop("COCO_PORT", None)
+check("同一数据目录才算自己", launcher._same_root({"root": str(ROOT)}) and not launcher._same_root({"root": "/elsewhere"})
+      and launcher._same_root({"root": None}))
+out = subprocess.run([sys.executable, "-m", "coco", "status"], capture_output=True, text=True, env=env, cwd=str(REPO))
+check("coco status 可在无服务时运行", out.returncode == 0 and ("not running" in out.stdout or "没有在运行" in out.stdout), out.stdout + out.stderr)
+out = subprocess.run([sys.executable, "-m", "coco", "--help"], capture_output=True, text=True, env=env, cwd=str(REPO))
+check("--help 列出启动命令", out.returncode == 0 and all(w in out.stdout for w in ("start", "stop", "update")), out.stdout[-300:])
 
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

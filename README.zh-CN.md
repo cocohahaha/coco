@@ -8,13 +8,37 @@ coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://y
 把会议录音、访谈、聊天记录、他人纪要都喂给它，它帮你在**会前看懂局**、
 **会后抓住没说破的东西**、并把每一次沟通**沉淀成可复用的认知资产**。
 
-音频不出本机（Whisper 本地转写）；分析默认通过你已登录的 `claude` CLI 完成，不需要额外
-API key，没有云端账号，没有订阅；也可以接任何 Anthropic 兼容或 OpenAI 兼容接口
-（DeepSeek、OpenAI、本机 Ollama 等）。
+音频不出本机（Whisper 本地转写）。分析用你**已经有的** AI：ChatGPT 账号（通过官方 Codex CLI）、
+Claude 账号（通过 Claude Code），或者粘贴一个 API key（DeepSeek、通义千问、Kimi、智谱、豆包、
+OpenAI、Gemini、OpenRouter……），也可以接本机 Ollama / LM Studio 完全离线。没有 coco 自己的
+云端账号，也不另收订阅费。
 
 界面提供**简体中文、English、français** 三种语言；AI 输出语言可以单独设置。支持 macOS、
 Windows、Linux。不能本地转写的电脑一样能用全部分析功能：把任何工具导出的文字稿
 （txt / docx / pdf / srt / vtt / json 等）拖进来，或直接粘贴文字。
+
+## 快速开始
+
+**macOS**：打开「终端」，粘贴下面一行回车。装好后 coco 会出现在「应用程序」里，以后从启动台或
+聚焦搜索（⌘ 空格，输入 coco）打开。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.sh | bash
+```
+
+**Windows**：打开「PowerShell」，粘贴下面一行回车。装好后开始菜单和桌面会有 coco 图标。
+
+```powershell
+irm https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.ps1 | iex
+```
+
+不想用命令行：GitHub 页面「Code → Download ZIP」解压，Mac 双击 **`coco.command`**，Windows 双击
+**`coco.bat`**。首次会自动准备 Python 环境（电脑上没有 Python 也行）、安装依赖，然后打开浏览器，
+并把 coco 加进「应用程序」/ 开始菜单。
+
+打开后第一屏会问「AI 从哪来」：有 ChatGPT 或 Claude 订阅的点一下就能用；有 API key 的选服务商、
+粘贴 key、点「获取列表」选模型、点「测试连接」。详见 [安装与启动](#安装与启动) 和
+[AI 模型通道](#ai-模型通道chatgptclaudedeepseek通义千问ollama)。
 
 ## 它适合谁
 
@@ -45,7 +69,7 @@ Windows、Linux。不能本地转写的电脑一样能用全部分析功能：�
 
 | 方式 | 说明 |
 |---|---|
-| ● 录音 | 本机麦克风直接录（macOS），停止后自动转写 |
+| ● 录音 | 浏览器直接录（macOS / Windows / Linux 都可以），音频每 4 秒存到本机，页面意外关闭也能恢复已录部分；停止后自动转写 |
 | 拖拽 / ↑ 上传 | 音频、视频，或已有的文字材料，多选、排队 |
 | ⌖ 导入 · 本地路径 | 文件或文件夹（文件夹 = 批量）；音频 + 同名转写（Whisper 导出目录）自动配对成一场会议 |
 | ⌖ 导入 · 粘贴文本 | 聊天记录、邮件、他人纪要、原始文字稿；SRT / VTT / JSON 内容自动识别并保留时间轴；可标注材料原始日期 |
@@ -64,7 +88,7 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 - **本地 Whisper**：Apple Silicon 用 mlx-whisper（原生加速，turbo 转 45 分钟会议约 2 分钟）；
   Windows / Linux / Intel Mac 用 faster-whisper（有 NVIDIA 显卡走 CUDA，否则 CPU，慢但可用）。
-  turbo 快、large 最准；顶栏随时切换模型与转写语言（自动识别或指定 ISO 码）
+  turbo 快、large 最准；在「⚙ 设置 → 转写与录音」切换模型与转写语言（自动识别或指定 ISO 码）
 - **幻觉抑制**：Whisper 会在静音和噪音处脑补文字（YouTube 式开场白、字幕致谢、单字复读），还会把
   注入的提示词原样吐出来。coco 转写前先裁掉首尾静音，开启 Whisper 自带的静音幻觉阈值，保留每段的置信度，
   转写后再按已知模式清洗。已有转写可在「转写」页签点「✦ 清理」（先预览再应用，原稿备份为
@@ -128,43 +152,48 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ## 语言
 
-- **界面语言**：简体中文、English、français。顶栏语言下拉、「⚙ 设置」、URL 加 `?lang=en`、
+- **界面语言**：简体中文、English、français。「⚙ 设置 → 语言」、URL 加 `?lang=en`、
   命令行 `coco lang zh-CN` 都能切换，选择会记住
 - **AI 输出语言**（⚙ 设置）：跟随界面（默认）/ 跟随材料（转写是什么语言就用什么语言）/
   指定某种语言（日语、德语……）。影响报告、简报、洞察、会前调查、对话回答，以及长期记忆和
   词表的写法
-- **转写语言**：顶栏单独设置，自动识别或指定 ISO 码
+- **转写语言**：「⚙ 设置 → 转写与录音」单独设置，自动识别或指定 ISO 码
 - 切换语言不影响已有会议库：coco 认得所有语言包的记忆/词表章节标题，旧的中文报告文件名也照常
   显示标签
 
 新增语言：复制 `coco/locales/en.json` 为 `<code>.json` 翻译即可（提示词沿用英文并附「用 X 语言
 输出」指令；中文输出用中文提示词集）。`python tests/check_i18n.py` 检查键是否齐全。
 
-## AI 模型通道（Claude、DeepSeek、OpenAI、Ollama……）
+## AI 模型通道（ChatGPT、Claude、DeepSeek、通义千问、Ollama……）
 
-默认所有分析走已登录的 **Claude Code CLI**。「⚙ 设置」（或 `coco ai`）里可以定义两条通道：
+顶栏右侧的圆点标签显示当前用的 AI（绿色 = 就绪），点它进入「⚙ 设置 → AI 通道」。什么都没配置时，
+coco 会自动使用已登录的 Claude Code，其次是已登录的 Codex（ChatGPT）；都没有就在首屏引导你选一个。
 
-- **主通道**：报告、洞察、会前调查、对话
-- **后台通道**：长期记忆合并、词表提炼、人名校正
+| 你有什么 | 选哪个 | 说明 |
+|---|---|---|
+| ChatGPT Plus / Pro / Business 等订阅 | **ChatGPT 账号（Codex）** | 通过 OpenAI 官方 Codex CLI，用 ChatGPT 订阅额度分析，不需要 API key。装好后运行一次 `codex login` |
+| Claude 订阅 | **Claude 账号（Claude Code）** | 通过 Claude Code，用 Claude 订阅额度分析，不需要 API key。唯一支持「会前调查 · 联网搜索」的通道 |
+| 某家的 API key | **DeepSeek / 通义千问 / Kimi / 智谱 GLM / 豆包 / MiniMax / 硅基流动 / OpenAI / Anthropic / Gemini / OpenRouter** | 按用量付费。每个预设都带「获取 key」链接；国内与国际站点分开（阿里云、Kimi、智谱的 key 只在创建它的站点有效） |
+| 想完全离线 | **Ollama / LM Studio** | 模型跑在本机，会议文字不出电脑；需要配置较好的电脑，长会议建议 14B 以上的模型 |
+| 其他兼容接口 | **自定义（OpenAI 兼容 / Anthropic 兼容）** | 填 Base URL、key、模型名 |
 
-每条通道三选一：
+**模型名不用背。** 选好服务、粘贴 key 后点「↻ 获取列表」，coco 会向服务商实时拉取你这个 key 可用的
+模型（ChatGPT 账号列出的是你的订阅当前提供的模型）。预设里的默认模型取自各家 2026 年 9 月的官方文档，
+服务商改名时以列表为准。「测试连接」发一条最小请求并报告延迟；出错时会翻译成能照着做的提示
+（key 无效、模型名不存在、余额不足、限流……），同时保留服务商的原话。
 
-| 类型 | 适用 |
-|---|---|
-| `claude-cli` | 已登录的 Claude Code CLI。填上 base URL + API key 后，同一个 CLI 也能连任何 Anthropic 兼容端点（DeepSeek 的 `https://api.deepseek.com/anthropic`），此时 coco 以 `--bare` 启动它（启动不到一秒，而不是几秒） |
-| `anthropic` | 直连 Anthropic 兼容的 `/v1/messages`（Anthropic、DeepSeek /anthropic……） |
-| `openai` | 直连 OpenAI 兼容的 `/chat/completions`（DeepSeek、OpenAI、本机 Ollama / LM Studio） |
+**两条通道。** 主通道负责你要读的东西（报告、洞察、会前调查、对话）；后台通道负责长期记忆合并、
+词表提炼、人名校正这类频繁、机械、输入很长的任务。取消勾选「后台任务与主通道使用同一个模型」后，
+后台通道默认选同一家的便宜模型。每条通道可在「高级设置」里改上下文上限、单次输出上限、Base URL、
+用环境变量提供 key。API key 只保存在本机 `coco.config.json`（已在 .gitignore），界面和接口都不回传。
 
-预设会填好 URL 与模型名（DeepSeek 按其 2026 年 8 月文档为 `deepseek-v4-pro` / `deepseek-v4-flash`，
-被拒绝时请查最新文档）。「测试连接」发一条最小请求并报告延迟。API key 只存本机
-`coco.config.json`（已在 .gitignore），或从环境变量读取。
+**兼容细节**（已替你处理）：OpenAI 官方接口用 `max_completion_tokens`，其他服务用 `max_tokens`，
+模型的输出上限更低时自动去掉该参数重试；豆包等默认输出很短的服务会显式放宽上限；MiniMax 和本机推理
+模型混在正文里的 `<think>` 思考过程会被去掉；发往本机 / 局域网模型的请求不走 `http_proxy`。
 
-**怎样用好 DeepSeek 这条通道。** 稳妥的分法：主通道留在 Claude 上（会前、洞察、报告这些你要读的
-东西），后台通道交给 DeepSeek。记忆合并、词表提炼、人名校正是频繁、机械、输入很长的任务，换便宜
-通道能省额度又不影响你读到的内容。如果主通道也想换 DeepSeek，请在自己的会议上判断：同一份转写
-两条通道各跑一次同一模板对比（`coco ai test` 只给延迟，质量要自己读）。两个硬限制：会前调查的
-联网搜索只有 Claude CLI 通道有；HTTP 通道直接从 API 流式返回，不经过 CLI 的工具沙箱。每条通道
-可设「上下文上限」保护窗口较小的模型。
+**ChatGPT（Codex）通道的特点。** Codex 是一个编程 agent，coco 只用它的模型：在空目录、只读沙箱里运行，
+不加载你的 MCP 和插件，并明确要求它不执行命令。Codex 不流式输出，报告会在生成完成后一次显示
+（期间显示「模型正在阅读与思考… N 秒」）。可以在设置里选模型和推理强度。
 
 ## 性能
 
@@ -178,49 +207,52 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ## 安装与启动
 
-**AI 从哪来**：[Claude Code](https://claude.com/claude-code) 已安装并登录（终端里 `claude` 可用），
-或在「⚙ 设置」里配好 API 通道（DeepSeek / OpenAI 等，填一个 key 即可）。没配好也能先启动——
-界面顶部会一步步引导。Web 界面只监听 127.0.0.1，数据都在本机。
-
 ### macOS
 
-1. 下载：GitHub 页面「Code → Download ZIP」，解压到任意位置（会用 git 的话 `git clone` 也行）
-2. **双击 `coco.command`**。首次运行会自动创建环境并安装依赖（几分钟）；
-   需要 Python 3.10+，没有的话先到 [python.org](https://www.python.org/downloads/macos/) 下载安装
-3. 若提示「无法打开…来自身份不明的开发者」：右键点 `coco.command` → 打开 → 打开（只需一次）
+- **一行安装（推荐）**：终端运行
+  `curl -fsSL https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.sh | bash`。
+  装到 `~/coco`（可用 `COCO_HOME=路径` 改），已安装则原地更新。命令行下载不会触发「身份不明的开发者」拦截
+- **下载 ZIP**：解压后双击 `coco.command`。若提示「无法打开…来自身份不明的开发者」，右键 → 打开；
+  macOS 15 起需到「系统设置 → 隐私与安全性」点「仍要打开」（只需一次）
 
-以后每次启动都是双击 `coco.command`（重复运行不会重复起服务）。Apple Silicon 自动装 mlx-whisper；
-首次转写会自动下载 Whisper 模型（small 约 0.5GB / turbo 约 1.6GB / large 约 3GB；国内网络
-自动切 hf-mirror）。首次录音时 macOS 会请求麦克风权限。熟悉终端的话 `./run.sh` 等价。
+首次运行会：找一个原生的 Python 3.10+（Apple 芯片上必须是 arm64 版，否则装不了快速的 mlx-whisper），
+没有就用 [uv](https://docs.astral.sh/uv/) 自动装一个；安装依赖（先实测 PyPI 与清华 / 阿里云镜像的下载速度，
+谁快用谁）；启动服务并打开浏览器；把 **coco 加进「应用程序」**。以后从启动台、聚焦搜索或程序坞打开，
+不再弹终端窗口。Apple 芯片自带静态 ffmpeg（不需要 Homebrew）；首次转写会下载 Whisper 模型（small 约
+0.5GB / turbo 约 1.6GB / large 约 3GB；国内网络自动切 hf-mirror）。
 
 ### Windows
 
-1. 安装 Python 3.10+：最简单是打开 **Microsoft Store** 搜「Python 3.12」安装；
-   或到 [python.org](https://www.python.org/downloads/) 下载（安装时勾选 **Add python.exe to PATH**）
-2. 下载本仓库：GitHub 页面「Code → Download ZIP」解压（会用 git 的话 `git clone` 也行）
-3. **双击 `run.bat`**。SmartScreen 提示「已保护你的电脑」时点「更多信息 → 仍要运行」；
-   首次会自动创建虚拟环境并安装依赖（含 faster-whisper，几百 MB，请耐心等待）
-4. AI 分析用 Claude 的话：先装 [Git for Windows](https://git-scm.com/download/win)，再在 PowerShell
-   运行 `irm https://claude.ai/install.ps1 | iex`，然后运行 `claude` 登录。也可以以后再装——
-   界面顶部会引导，或在「⚙ 设置」里改用 DeepSeek / OpenAI 等 API 通道
+- **一行安装（推荐）**：PowerShell 运行
+  `irm https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.ps1 | iex`，装到
+  `%USERPROFILE%\coco`
+- **下载 ZIP**：解压后双击 `coco.bat`（SmartScreen 提示时点「更多信息 → 仍要运行」）
 
-关闭那个黑色窗口就是停止服务。命令行用 `bin\coco.cmd`。
+不需要先装 Python：没有的话 coco 会用 uv 自动准备。首次安装含 faster-whisper（几百 MB）。启动后会在
+**开始菜单和桌面**添加 coco 图标，服务在后台运行，黑色窗口可以直接关掉。
 
-**Windows 上的典型用法：已有录音 → 文字稿 → 上传 → 分析。** 大多数人不需要在自己电脑上跑
-Whisper：用腾讯会议、飞书妙记、讯飞听见等工具转成文字稿，导出 `txt / docx / pdf / srt`，拖进
-coco。若 faster-whisper 安装失败，`run.bat` 会只装核心依赖，界面收起录音与模型选项，文字稿路线
-不受影响。没有 NVIDIA 显卡时本机转写 45 分钟录音需要 10–30 分钟。
+**Windows 上的典型用法：已有录音 → 文字稿 → 上传 → 分析。** 没有 NVIDIA 显卡时本机转写 45 分钟录音
+需要 10–30 分钟，可以用腾讯会议、飞书妙记、讯飞听见等工具导出文字稿再拖进来；faster-whisper 装不上时
+coco 只装核心依赖，文字稿路线不受影响。
 
 ### Linux
 
-`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`，然后
-`.venv/bin/python -m coco web --open`；使用 faster-whisper；网页录音仅 macOS。
+`./coco.command`（同样会建环境、装依赖、启动，并添加到应用菜单）。
+
+### 退出、重启、更新
+
+- **退出**：顶栏右上角 ⏻，或「⚙ 设置 → 关于 → 退出 coco」，或命令行 `coco stop`。有录音或转写在进行时会先确认；
+  已录的音频会保留，未完成的转写下次启动自动继续
+- **重复双击**不会起第二个服务，只会打开浏览器；端口被别的程序占用时自动换一个
+- **更新**：`coco update`（git 仓库执行 `git pull`，ZIP 安装则下载最新代码覆盖，会议库、记忆和配置不动），
+  或重新运行一行安装命令。代码更新后再双击图标，旧版本服务会自动重启为新版本（正在录音或转写时除外）
+- 数据和日志在哪：「⚙ 设置 → 关于」可以直接打开数据文件夹和日志
 
 ### 电脑配置一般 / 转写太慢？
 
-- 顶栏把模型切成 **small**（下载约 0.5GB，更快、更省内存；精度略降，人名可靠「校正」修）
+- 「⚙ 设置 → 转写与录音」把模型切成 **small**（下载约 0.5GB，更快、更省内存；精度略降，人名可靠「校正」修）
 - 或者不在本机转写：会议软件 / 转写服务出文字稿（txt / docx / pdf / srt），直接上传，分析功能完整
-- AI 分析本身不吃本机配置（跑在 Claude / API 通道上），老电脑一样能用
+- AI 分析本身不吃本机配置（跑在订阅账号 / API 通道上），老电脑一样能用
 
 ## 命令行
 
@@ -246,7 +278,9 @@ coco。若 faster-whisper 安装失败，`run.bat` 会只装核心依赖，界�
 | `coco memorize [会议\|--all\|--compact]` | 提取长期记忆 / 压缩整理 |
 | `coco lang [代码] [--output …]` | 界面与 AI 输出语言 |
 | `coco ai show\|test\|preset\|set\|task` | AI 通道（`--profile fast` 操作后台通道） |
-| `coco delete <会议>` · `coco config [键 值]` · `coco web` | 回收站 · 配置 · Web 界面 |
+| `coco start` · `coco stop` · `coco restart` · `coco status` | 后台启动并打开浏览器 · 退出 · 重启 · 运行状态与数据位置 |
+| `coco update` · `coco setup` · `coco shortcut [--remove]` | 更新到最新版 · 安装 / 修复依赖 · 应用程序 / 开始菜单图标 |
+| `coco delete <会议>` · `coco config [键 值]` · `coco web` | 回收站 · 配置 · 前台运行 Web 服务 |
 
 模板与模式 id：`minutes actions mood tension bias topics client hiring followup` ·
 `track signals synthesis`；原来的中文名（纪要、追踪……）照样接受。
@@ -268,9 +302,10 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 
 常用配置（`coco config 键 值`）：`ui_language`（auto / zh-CN / en / fr）、`output_language`
 （ui / source / 语言代码）、`whisper_model`、`language`（转写语言）、`beam_size`、
-`hallucination_filter`、`transcribe_backend`（auto / mlx / faster / none）、`auto_memory`、`memory_merge`（delta / full）、
-`ai_profiles`、`ai_tasks`、`claude_extra_args`、`hf_endpoint`。环境变量 `COCO_ROOT` 可把数据根
-目录指到别处；`COCO_LANG` 覆盖 CLI 语言。
+`hallucination_filter`、`transcribe_backend`（auto / mlx / faster / none）、`record_mode`（auto / browser / ffmpeg）、
+`auto_memory`、`memory_merge`（delta / full）、`ai_profiles`、`ai_tasks`、`claude_bin`、`codex_bin`、`claude_extra_args`、
+`hf_endpoint`、`port`、`desktop_shortcut`（auto / created / off）、`allowed_hosts`（除本机外额外允许的主机名，高级）。环境变量 `COCO_ROOT` 可把数据根
+目录指到别处；`COCO_LANG` 覆盖 CLI 语言；`COCO_PORT` 指定端口；`COCO_PIP_INDEX` 指定依赖安装源。
 
 ## 已知边界
 
@@ -278,19 +313,40 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 - Whisper 的防复读机制使词表提示主要作用于音频开头，全文纠错靠「✦ 校正」完成
 - 会前调查的「联网搜索」会把检索词发给搜索引擎——只在需要公开情报时勾选；其余功能均不联网
   （模型下载与你选择的 API 通道除外）
-- 网页录音仅 macOS；Windows 请用系统录音机或会议软件录好后上传
+- 浏览器录音只录麦克风。要同时录下线上会议对方的声音：macOS 安装 BlackHole 等虚拟声卡，在「⚙ 设置 →
+  转写与录音」选服务端录音并用 `coco devices` / `audio_device` 指定输入
+- ChatGPT（Codex）通道不流式输出；联网搜索只有 Claude 账号通道支持
+- coco 只接受本机访问（Host 必须是 127.0.0.1 / localhost），并拒绝其他网页发来的修改类请求
 - 不支持旧版 `.doc`，请另存为 `.docx` 或 `.txt`；扫描版 PDF 需先 OCR
 
 ## 开发自检
 
 ```bash
-.venv/bin/python tests/smoke.py      # 约 185 项断言：临时 COCO_ROOT + stub claude
+.venv/bin/python tests/smoke.py      # 约 240 项断言：临时 COCO_ROOT + stub claude / codex + 本地假 API
 .venv/bin/python tests/check_i18n.py # Python / 前端用到的每个键在三个语言包里都存在
 ```
 
 都不碰真实数据、不消耗模型额度（Windows：`.venv\Scripts\python tests\smoke.py`）。
 
 ## 更新日记
+
+### 2026-09-25 · 一个入口启动，ChatGPT 账号也能用
+- **启动**：根目录只留每个系统一个双击入口（Mac `coco.command`、Windows `coco.bat`），`run.sh` / `run.bat` 移除；
+  启动逻辑收敛到跨平台的 `coco start`：找原生 Python（没有就用 uv 自动装）、测速选 PyPI 镜像、端口冲突自动换、
+  后台运行不占终端、重复双击只开浏览器、旧版本在跑时自动重启为新版本
+- **一行安装**：`scripts/install.sh` / `install.ps1`；首次启动后 coco 出现在「应用程序」/ 开始菜单和桌面
+- **退出与更新**：界面 ⏻ 退出；`coco stop / restart / status / update / shortcut`
+- **ChatGPT 通道**：新增 `codex-cli`，用 ChatGPT 订阅额度分析；什么都没配时自动选已登录的 Claude 或 Codex
+- **API 通道**：预设扩充到 DeepSeek、通义千问（国内 / 国际）、Kimi（国内 / 国际）、智谱 GLM / Z.ai、豆包、
+  MiniMax、硅基流动、OpenAI、Anthropic、Gemini、OpenRouter、Ollama、LM Studio；「获取列表」实时拉取可用模型；
+  HTTP 错误翻译成可操作的提示；处理 `max_completion_tokens`、`<think>` 思考块、本机请求绕过代理
+- **首屏向导**：没有可用 AI 时，第一屏按「你有什么账号」引导；设置面板改为「AI 通道 / 转写与录音 / 语言 / 关于」四页
+- **录音**：改为浏览器录音，Windows / Linux 也能录；每 4 秒存盘，页面关闭或服务重启后可恢复已录部分；
+  录音时显示音量与计时，20 秒无声会提醒
+- **修复**：没装 Homebrew ffmpeg 的 Apple 芯片 Mac 无法转写任何音频（mlx-whisper 依赖 ffmpeg 命令），现随包附带静态 ffmpeg；
+  从图标启动时找不到 claude / codex（补全登录 shell 的 PATH）
+- **安全**：只接受本机 Host，拒绝其他网页发来的修改类请求（防 DNS rebinding / 跨站请求）
+- 冒烟测试增至约 240 项（新增 codex 模拟程序、假 API 服务的各种异常）
 
 ### 2026-09-01 · 面向非技术用户的开箱体验
 - **macOS 一键安装**：双击 `coco.command` 首次运行自动建环境、装依赖、给出缺 Python/网络失败的指引

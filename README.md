@@ -9,15 +9,39 @@ interviews, chat logs or other people's minutes and it helps you **understand th
 a meeting**, **catch what was left unsaid after it**, and **turn every conversation into reusable
 knowledge**.
 
-Audio never leaves your machine (Whisper runs locally). Analysis goes through the `claude` CLI you
-are already logged in to by default, so there is no extra API key, cloud account or subscription;
-any Anthropic- or OpenAI-compatible endpoint (DeepSeek, OpenAI, a local Ollama …) can be plugged in
-instead.
+Audio never leaves your machine (Whisper runs locally). Analysis uses an AI **you already have**:
+a ChatGPT account (through the official Codex CLI), a Claude account (through Claude Code), or one
+pasted API key (OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, GLM, OpenRouter …); a local Ollama
+or LM Studio keeps everything offline. coco has no cloud account and no subscription of its own.
 
 Interface in **English, 简体中文 and français**; AI output in any language the model speaks.
 Works on macOS, Windows and Linux. Machines that cannot run a transcription engine still get every
 analysis feature: drop in a transcript exported by any other tool (txt / docx / pdf / srt / vtt /
 json …) or paste the text.
+
+## Quick start
+
+**macOS**: open Terminal, paste this line and press Return. coco then appears in Applications:
+open it from Launchpad or Spotlight (⌘ Space, type coco) from now on.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.sh | bash
+```
+
+**Windows**: open PowerShell, paste this line and press Enter. coco then has an icon in the Start
+menu and on the desktop.
+
+```powershell
+irm https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.ps1 | iex
+```
+
+Prefer no command line: *Code → Download ZIP* on GitHub, unzip, then double-click **`coco.command`**
+(Mac) or **`coco.bat`** (Windows). The first run prepares Python by itself (none installed is fine),
+installs the dependencies, opens the browser and adds coco to Applications / the Start menu.
+
+The first screen asks where the AI should come from: with a ChatGPT or Claude plan it is one click;
+with an API key, choose the provider, paste the key, click *Load list* to pick a model and *Test*.
+Details: [Install and run](#install-and-run) and [AI channels](#ai-channels-chatgpt-claude-openai-gemini-deepseek-ollama-).
 
 ## Who it is for
 
@@ -55,7 +79,7 @@ person to review them across every meeting.
 
 | Route | Notes |
 |---|---|
-| ● Record | Microphone recording from the web UI (macOS), transcribed when stopped |
+| ● Record | In the browser on macOS, Windows and Linux. Audio is saved on this computer every 4 seconds, so a closed tab or a restart keeps what was recorded; transcription starts when you stop |
 | Drag & drop / ↑ Upload | Audio, video, or existing text material — several files at once, queued |
 | ⌖ Import · local path | File or folder (folder = bulk). Audio + same-name transcript (Whisper export folders) are paired into one meeting |
 | ⌖ Import · paste | Chat logs, e-mails, someone else's minutes, raw transcripts — SRT / VTT / JSON content is detected and keeps its timestamps; the material's own date can be set |
@@ -77,7 +101,7 @@ part in every cross-meeting analysis, exactly like a transcription.
 - **Local Whisper**: Apple Silicon uses mlx-whisper (native acceleration; *turbo* transcribes a
   45-minute meeting in about 2 minutes); Windows / Linux / Intel Mac use faster-whisper (CUDA with an
   NVIDIA GPU, otherwise CPU — slow but working). *turbo* is fast, *large* the most accurate; model
-  and transcription language (auto-detect or any ISO code) switch in the top bar.
+  and transcription language (auto-detect or any ISO code) are set in ⚙ Settings → Transcription & recording.
 - **Hallucination guard**: Whisper invents text on silence and noise (YouTube-style greetings,
   subtitle credits, repeated one-word segments) and echoes its own prompt. coco trims leading and
   trailing silence before decoding, enables Whisper's silence-hallucination threshold, keeps each
@@ -158,12 +182,11 @@ delete) · per-file download · bulk zip export · interrupted transcriptions re
 
 ## Languages
 
-- **Interface**: English, 简体中文, français. Switch with the language select in the top bar, in
-  ⚙ Settings, with `?lang=fr` in the URL, or `coco lang zh-CN` for the CLI. The choice is saved.
+- **Interface**: English, 简体中文, français. Switch in ⚙ Settings → Language, `?lang=fr` in the URL, or `coco lang zh-CN` for the CLI. The choice is saved.
 - **AI output language** (⚙ Settings): *same as the interface* (default), *same as the material*
   (write in whatever language the transcript is in), or any fixed language (Japanese, German …).
   It applies to reports, briefs, insights, prep, chat and the wording of memory and glossary.
-- **Transcription language**: auto-detect or a fixed ISO code, in the top bar.
+- **Transcription language**: auto-detect or a fixed ISO code, in ⚙ Settings → Transcription & recording.
 - Libraries survive language switches: coco recognises the memory/glossary headings of every
   shipped language, and old report files named in Chinese keep their labels.
 
@@ -171,35 +194,43 @@ Adding a language: copy `coco/locales/en.json` to `<code>.json`, translate, done
 English with a "write in <language>" directive; Chinese output uses the Chinese prompt set).
 `python tests/check_i18n.py` verifies completeness.
 
-## AI channels (Claude, DeepSeek, OpenAI, Ollama …)
+## AI channels (ChatGPT, Claude, OpenAI, Gemini, DeepSeek, Ollama …)
 
-By default every analysis runs through the **Claude Code CLI** you are logged in to. ⚙ Settings (or
-`coco ai`) lets you define two channels:
+The round chip at the top right shows the AI in use (green = ready); click it for ⚙ Settings → AI
+channel. With nothing configured, coco uses a logged-in Claude Code, then a logged-in Codex
+(ChatGPT); when neither exists, the first screen helps you pick one.
 
-- **Primary** — reports, insights, prep, chat
-- **Background** — long-term memory merges, glossary extraction, name correction
+| You have | Choose | Notes |
+|---|---|---|
+| ChatGPT Plus / Pro / Business … | **ChatGPT account (Codex)** | Through OpenAI's official Codex CLI, on your ChatGPT plan, no API key. Run `codex login` once |
+| A Claude plan | **Claude account (Claude Code)** | Through Claude Code, on your Claude plan, no API key. The only channel with web search in Prep |
+| An API key | **OpenAI / Anthropic / Gemini / OpenRouter / DeepSeek / Qwen / Kimi / GLM / Doubao / MiniMax / SiliconFlow** | Pay per use. Every preset links to the provider's key page; mainland-China and international sites are separate presets (Alibaba, Kimi and Zhipu keys only work on the site that issued them) |
+| Nothing may leave the computer | **Ollama / LM Studio** | The model runs locally; needs a capable machine, 14B+ models for long meetings |
+| Another compatible server | **Custom (OpenAI- / Anthropic-compatible)** | Base URL, key, model name |
 
-Each channel is one of:
+**No model names to memorise.** Choose the service, paste the key, click *↻ Load list*: coco asks the
+provider for the models this key can use (for a ChatGPT account: the models your plan offers). Preset
+defaults follow each vendor's documentation as of September 2026; when a vendor renames models, the
+live list wins. *Test* sends one tiny request and reports the latency. Errors are translated into
+steps you can act on (invalid key, unknown model, no balance, rate limit …) with the vendor's own
+message kept underneath.
 
-| Type | Use it for |
-|---|---|
-| `claude-cli` | The logged-in Claude Code CLI. With a base URL + API key the same CLI can talk to any Anthropic-compatible endpoint (DeepSeek's `https://api.deepseek.com/anthropic`); coco then starts it with `--bare` (under a second instead of several) |
-| `anthropic` | Direct HTTPS to an Anthropic-compatible `/v1/messages` endpoint — Anthropic, DeepSeek /anthropic … |
-| `openai` | Direct HTTPS to an OpenAI-compatible `/chat/completions` endpoint — DeepSeek, OpenAI, Ollama / LM Studio on localhost |
+**Two channels.** The main channel writes what you read (reports, insights, prep, chat). The
+background channel handles frequent, mechanical, long-input work: long-term memory merges, glossary
+extraction, name correction. Untick *background tasks use the main channel* and it starts on the same
+provider's cheaper model. *Advanced* holds the context cap, output limit, base URL and an environment
+variable for the key. Keys stay in `coco.config.json` on this machine (git-ignored) and are never sent
+back to the browser.
 
-Presets fill in the URLs and model names (DeepSeek `deepseek-v4-pro` / `deepseek-v4-flash` as
-documented by DeepSeek in August 2026; check their docs if a name is rejected). **Test connection**
-runs one tiny request and reports latency. API keys stay in `coco.config.json` on your machine
-(git-ignored) or come from an environment variable.
+**Compatibility details handled for you:** `max_completion_tokens` for OpenAI's own API and
+`max_tokens` elsewhere, retried without a cap when a model's ceiling is lower; an explicit output limit
+for services with very short defaults (Doubao); `<think>` blocks from MiniMax and local reasoning
+models removed from the answer; requests to local / LAN models bypass `http_proxy`.
 
-**Using DeepSeek well.** A sensible split: keep the primary channel on Claude for the analyses you
-read (prep, insights, reports) and send the background channel to DeepSeek. Memory merges, glossary
-extraction and name correction are frequent, mechanical and long-input tasks; a cheaper channel
-there saves quota without touching what you read. If you route the primary channel to DeepSeek as
-well, judge on your own meetings: run the same template through both (`coco ai test` gives raw
-latency; quality has to be read). Two hard limits: web search in Prep only exists on the Claude CLI
-channel, and HTTP providers stream straight from the API, so the CLI's tool sandbox is not involved.
-The per-channel *context cap* protects models with smaller windows.
+**The ChatGPT (Codex) channel.** Codex is a coding agent and coco only uses its model: it runs in an
+empty folder with a read-only sandbox, without your MCP servers or plugins, and is told not to run
+commands. Codex does not stream, so a report appears when it is complete (with a "reading and
+thinking… N s" status meanwhile). Model and reasoning effort can be chosen in Settings.
 
 ## Performance
 
@@ -216,60 +247,63 @@ differ), then output speed. coco therefore:
 
 ## Install and run
 
-**Where the AI comes from:** [Claude Code](https://claude.com/claude-code) installed and logged in
-(`claude` works in a terminal) — or an API channel configured in “⚙ Settings” (DeepSeek, OpenAI, …,
-one key is enough). You can also start without either: a banner in the UI walks you through it.
-The web UI listens on 127.0.0.1 only; your data stays on this machine.
-
 ### macOS
 
-1. Download: *Code → Download ZIP* on the GitHub page, unzip anywhere (`git clone` works too)
-2. **Double-click `coco.command`.** The first run creates the environment and installs the
-   dependencies (a few minutes); Python 3.10+ is required — get it from
-   [python.org](https://www.python.org/downloads/macos/) if missing
-3. If macOS says the file is from an “unidentified developer”: right-click `coco.command` →
-   Open → Open (once)
+- **One line (recommended)**: in Terminal run
+  `curl -fsSL https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.sh | bash`.
+  Installs into `~/coco` (`COCO_HOME=path` to change) or updates an existing install in place.
+  A command-line download does not trigger the "unidentified developer" block
+- **ZIP**: unzip and double-click `coco.command`. If macOS says the developer cannot be verified:
+  right-click → Open; from macOS 15 on, click "Open Anyway" in System Settings → Privacy & Security (once)
 
-From then on it is always just a double-click (running it again never starts a second server).
-Apple Silicon installs mlx-whisper automatically; the first transcription downloads the Whisper
-model (small ≈ 0.5 GB / turbo ≈ 1.6 GB / large ≈ 3 GB; a mirror is used automatically when
-huggingface.co is unreachable). macOS asks for microphone permission on the first recording.
-`./run.sh` from a terminal is equivalent.
+The first run finds a native Python 3.10+ (on Apple silicon it must be arm64, otherwise the fast
+mlx-whisper cannot be installed) or installs one with [uv](https://docs.astral.sh/uv/); installs the
+dependencies (measuring PyPI against the Tsinghua / Alibaba mirrors and using the faster); starts the
+server, opens the browser and **adds coco to Applications**. From then on open it from Launchpad,
+Spotlight or the Dock, without a Terminal window. A static ffmpeg ships with the Apple-silicon build
+(no Homebrew needed). The first transcription downloads the Whisper model (small ≈ 0.5 GB / turbo
+≈ 1.6 GB / large ≈ 3 GB; a mirror is used when huggingface.co is unreachable).
 
 ### Windows
 
-1. Install Python 3.10+: easiest via the **Microsoft Store** (search “Python 3.12”), or from
-   [python.org](https://www.python.org/downloads/) (tick **Add python.exe to PATH**)
-2. Download this repository: *Code → Download ZIP*, unzip (`git clone` works too)
-3. **Double-click `run.bat`.** When SmartScreen warns, click “More info → Run anyway”;
-   the first run creates the virtual environment and installs dependencies
-   (faster-whisper is a few hundred MB — be patient)
-4. For Claude as the AI channel: install [Git for Windows](https://git-scm.com/download/win),
-   run `irm https://claude.ai/install.ps1 | iex` in PowerShell, then run `claude` to log in.
-   This can wait — the banner in the UI guides you, or switch to an API channel in “⚙ Settings”
+- **One line (recommended)**: in PowerShell run
+  `irm https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.ps1 | iex`
+  (installs into `%USERPROFILE%\coco`)
+- **ZIP**: unzip and double-click `coco.bat` (SmartScreen: "More info → Run anyway")
 
-Close the black window to stop. Command line: `bin\coco.cmd`.
+No Python needed beforehand: uv provides one when missing. The first install includes faster-whisper
+(a few hundred MB). coco then adds icons to the **Start menu and the desktop**; the server runs in the
+background, so the black window can simply be closed.
 
-**Typical Windows workflow: recording → transcript elsewhere → upload → analyse.** Most people do
-not need Whisper on their PC: let your meeting software or a transcription service produce the
-transcript, export `txt / docx / pdf / srt`, drop it into coco. If faster-whisper fails to install,
-`run.bat` installs the core only and the UI hides the recording/model options; the transcript route
-is unaffected. Local transcription without an NVIDIA GPU takes 10–30 minutes for a 45-minute file.
+**Typical Windows workflow: recording → transcript elsewhere → upload → analyse.** Without an NVIDIA
+GPU, local transcription takes 10 to 30 minutes for a 45-minute file, so many people export a
+transcript from their meeting software and drop it in. If faster-whisper cannot be installed, coco
+installs the core only and the transcript route is unaffected.
 
 ### Linux
 
-`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then
-`.venv/bin/python -m coco web --open`; faster-whisper is used, recording from the web UI is
-macOS-only.
+`./coco.command` (same steps: environment, dependencies, start, application-menu entry).
+
+### Quit, restart, update
+
+- **Quit**: ⏻ at the top right, ⚙ Settings → About → Quit coco, or `coco stop`. A running recording or
+  transcription asks first; recorded audio is kept and unfinished transcriptions resume at the next start
+- **Double-clicking again** never starts a second server, it only opens the browser; a port taken by
+  another program is skipped automatically
+- **Update**: `coco update` (`git pull` for a clone; for a ZIP install it downloads the latest code over
+  the old one, never touching the library, memory or settings), or run the one-line installer again.
+  After an update, opening coco restarts an older running server as the new version (unless it is
+  recording or transcribing)
+- Where data and logs live: ⚙ Settings → About opens both
 
 ### Modest hardware / transcription too slow?
 
-- Switch the model to **small** in the top bar (≈ 0.5 GB download, faster and lighter; slightly
-  less accurate — the name-fixing pass cleans up most of it)
+- Switch the model to **small** in ⚙ Settings → Transcription & recording (≈ 0.5 GB download, faster
+  and lighter; slightly less accurate, and name correction cleans up most of it)
 - Or skip local transcription: let your meeting software or a transcription service produce the
-  transcript (txt / docx / pdf / srt) and upload it — every analysis feature works the same
-- The AI analysis itself does not run on your hardware (it runs on Claude / the API channel),
-  so old machines are fine
+  transcript (txt / docx / pdf / srt) and upload it; every analysis feature works the same
+- The AI analysis does not run on your hardware (it runs on your subscription or API channel), so
+  old machines are fine
 
 ## Command line
 
@@ -295,7 +329,9 @@ Output follows the interface language.
 | `coco memorize [meeting\|--all\|--compact]` | Extract long-term memory / compact it |
 | `coco lang [code] [--output …]` | Interface and AI output language |
 | `coco ai show\|test\|preset\|set\|task` | AI channels (`--profile fast` for the background channel) |
-| `coco delete <meeting>` · `coco config [key value]` · `coco web` | Trash · config · web UI |
+| `coco start` · `coco stop` · `coco restart` · `coco status` | Start in the background and open the browser · quit · restart · state and data location |
+| `coco update` · `coco setup` · `coco shortcut [--remove]` | Update to the latest version · install / repair dependencies · Applications / Start-menu icon |
+| `coco delete <meeting>` · `coco config [key value]` · `coco web` | Trash · config · run the web server in the foreground |
 
 Template and mode ids: `minutes actions mood tension bias topics client hiring followup` ·
 `track signals synthesis`. The original Chinese names are accepted as well.
@@ -317,9 +353,12 @@ coco.config.json        configuration (incl. API keys — git-ignored)
 
 Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr),
 `output_language` (ui / source / ISO code), `whisper_model`, `language` (transcription),
-`beam_size`, `hallucination_filter`, `transcribe_backend` (auto / mlx / faster / none), `auto_memory`, `memory_merge`
-(delta / full), `ai_profiles`, `ai_tasks`, `claude_extra_args`, `hf_endpoint`.
-`COCO_ROOT` points the data directory elsewhere; `COCO_LANG` overrides the CLI language.
+`beam_size`, `hallucination_filter`, `transcribe_backend` (auto / mlx / faster / none), `record_mode`
+(auto / browser / ffmpeg), `auto_memory`, `memory_merge` (delta / full), `ai_profiles`, `ai_tasks`, `claude_bin`,
+`codex_bin`, `claude_extra_args`, `hf_endpoint`, `port`, `desktop_shortcut` (auto / created / off), `allowed_hosts`
+(extra host names accepted besides this computer, advanced).
+`COCO_ROOT` points the data directory elsewhere; `COCO_LANG` overrides the CLI language; `COCO_PORT` sets the
+port; `COCO_PIP_INDEX` sets the package index used for installing dependencies.
 
 ## Known limits
 
@@ -328,19 +367,49 @@ Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr
   recording; whole-file corrections are done by *✦ Correct names & terms*
 - Prep's web search sends search terms to a search engine — tick it only when you want public
   intelligence; nothing else goes online (except model downloads and the API channel you chose)
-- Web-UI recording is macOS-only; on Windows record with the system recorder or meeting software
+- Browser recording captures the microphone only. To also record the other side of an online call on
+  macOS, install a virtual audio device such as BlackHole, choose server recording in ⚙ Settings →
+  Transcription & recording and select the input with `coco devices` / `audio_device`
+- The ChatGPT (Codex) channel does not stream; web search exists on the Claude account channel only
+- coco only accepts requests addressed to this computer (127.0.0.1 / localhost) and refuses
+  state-changing requests from other web pages
 - Legacy `.doc` is not read; save as `.docx` or `.txt`. Scanned PDFs need OCR first
 
 ## Development
 
 ```bash
-.venv/bin/python tests/smoke.py      # ~185 assertions against a temporary COCO_ROOT with a stub claude
+.venv/bin/python tests/smoke.py      # ~240 assertions: temporary COCO_ROOT, stub claude / codex, fake local APIs
 .venv/bin/python tests/check_i18n.py # every key used in Python / the UI exists in every locale
 ```
 
 Neither touches real data or spends model quota (Windows: `.venv\Scripts\python tests\smoke.py`).
 
 ## Changelog
+
+### 2026-09-25 · One way to start, and ChatGPT accounts work too
+- **Start**: one double-click file per system at the root (`coco.command` on Mac, `coco.bat` on Windows);
+  `run.sh` / `run.bat` are gone. Start-up lives in the cross-platform `coco start`: finds a native Python
+  (or installs one with uv), measures PyPI against mirrors, skips a taken port, runs in the background
+  without a terminal, only opens the browser on a second double-click, and restarts an older running
+  version after an update
+- **One-line install**: `scripts/install.sh` / `install.ps1`; after the first start coco is in
+  Applications / the Start menu and on the desktop
+- **Quit and update**: ⏻ in the interface; `coco stop / restart / status / update / shortcut`
+- **ChatGPT channel**: new `codex-cli` type analyses on a ChatGPT plan; with nothing configured coco picks
+  a logged-in Claude or Codex by itself
+- **API channels**: presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Qwen (CN / intl), Kimi
+  (CN / intl), GLM / Z.ai, Doubao, MiniMax, SiliconFlow, Ollama, LM Studio; *Load list* fetches the live
+  models; HTTP errors become actionable hints; `max_completion_tokens`, `<think>` blocks and proxies handled
+- **First-run guide**: without a usable AI, the first screen asks which account you have; Settings is now
+  four tabs: AI channel / Transcription & recording / Language / About
+- **Recording**: in the browser, so Windows and Linux can record too; saved every 4 seconds and recoverable
+  after a closed tab or a restart; live level and timer, a warning after 20 s of silence
+- **Fixes**: Apple-silicon Macs without Homebrew's ffmpeg could not transcribe any audio (mlx-whisper calls
+  the ffmpeg command); a static ffmpeg now ships with the dependencies. claude / codex not found when
+  started from the icon (the login shell's PATH is now merged in)
+- **Security**: only this computer's host names are accepted and state-changing requests from other web
+  pages are refused (DNS rebinding / cross-site requests)
+- Smoke test grows to ~240 checks (codex stub, fake API servers with the usual failures)
 
 ### 2026-09-01 · Out-of-the-box experience for non-technical users
 - **macOS one-click setup**: the first double-click of `coco.command` builds the environment,

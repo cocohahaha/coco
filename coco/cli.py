@@ -354,7 +354,8 @@ def _port_listening(port: int) -> bool:
 def _is_coco(url: str) -> bool:
     import urllib.request
     try:
-        with urllib.request.urlopen(f"{url}/api/config", timeout=3) as r:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never proxy localhost
+        with opener.open(f"{url}/api/config", timeout=3) as r:
             return "whisper_model" in json.loads(r.read().decode("utf-8"))
     except Exception:
         return False
@@ -372,8 +373,10 @@ def cmd_web(args):
         if args.open:
             webbrowser.open(url)
         return
+    import os
     import uvicorn
-    from .server import app
+    from . import server
+    from .config import ROOT
     backend = detect_backend()
     _p(f"🌐 coco → {url}")
     _p("   " + t("cli.engine_line", engine=backend or t("cli.engine_none")))
@@ -385,7 +388,29 @@ def cmd_web(args):
                     return
                 time.sleep(0.5)
         threading.Thread(target=_open_when_ready, daemon=True).start()
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    # a report still streaming must not hold "Quit" hostage: give open connections 3 s, then stop
+    srv = uvicorn.Server(uvicorn.Config(server.app, host="127.0.0.1", port=port, log_level="warning",
+                                        timeout_graceful_shutdown=3))
+    server.SERVER["uvicorn"] = srv
+    runtime = ROOT / "logs" / "coco.runtime.json"
+    try:  # lets `coco start` / `coco stop` find this server even on a non-default port
+        runtime.parent.mkdir(parents=True, exist_ok=True)
+        runtime.write_text(json.dumps({"pid": os.getpid(), "port": port, "root": str(ROOT)}), encoding="utf-8")
+    except OSError:
+        pass
+    try:
+        srv.run()
+    finally:
+        try:
+            if json.loads(runtime.read_text(encoding="utf-8")).get("pid") == os.getpid():
+                runtime.unlink()
+        except (OSError, ValueError):
+            pass
+
+
+def _launch(argv):
+    from .launcher import main as launch
+    return launch(argv)
 
 
 def cmd_config(args):
@@ -448,7 +473,7 @@ def cmd_ai(args):
             raise RuntimeError(t("cli.ai_unknown_preset", names=", ".join(providers.PRESETS)))
         profiles = dict(cfg.get("ai_profiles") or {})
         old = profiles.get(args.profile) or {}
-        new = dict(providers.PRESETS[args.name])
+        new = providers.preset_profile(args.name, fast=args.profile == "fast")
         if old.get("api_key"):
             new["api_key"] = old["api_key"]
         if args.value:  # optional API key literal
@@ -591,6 +616,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("devices", help=t("cli.h_devices"))
     p.set_defaults(func=cmd_devices)
 
+    for name in ("start", "stop", "restart", "status", "setup", "shortcut", "update"):
+        p = sub.add_parser(name, help=t("cli.h_" + name))
+        p.add_argument("flags", nargs="*", help=argparse.SUPPRESS)
+        p.set_defaults(func=lambda a, _n=name: sys.exit(_launch([_n, *a.flags])))
+
     p = sub.add_parser("web", help=t("cli.h_web_ui"))
     p.add_argument("--port", type=int)
     p.add_argument("--open", action="store_true", help=t("cli.h_open"))
@@ -622,6 +652,8 @@ def main(argv=None):
         except (AttributeError, ValueError):
             pass
     i18n.set_lang(i18n.configured_lang() or i18n.system_lang())
+    from .sysenv import prepare
+    prepare()  # PATH from the login shell (claude / codex / ffmpeg) + bundled ffmpeg
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

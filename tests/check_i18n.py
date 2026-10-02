@@ -19,8 +19,18 @@ DYNAMIC = {
     "ui.memory.hint_": ["content", "longterm", "glossary"],
     "ui.memory.label_": ["content", "longterm", "glossary"],
     "ui.settings.task_": ["report", "ask", "track", "prep", "brief", "weekly", "memory", "glossary", "namefix", "participants"],
-    "ui.settings.preset_": ["claude_cli", "claude_cli_fast", "deepseek_anthropic", "deepseek_openai",
-                            "deepseek_via_claude_cli", "openai", "ollama", "custom"],
+    "ui.settings.preset_": ["claude_cli", "codex_cli"],
+    "ui.settings.group_": ["subscription", "api", "local", "custom"],
+    "ui.settings.type_": ["claude_cli", "codex_cli", "anthropic", "openai"],
+    "ui.settings.": ["key_link", "download_link", "codex_login", "codex_missing", "profile_primary", "profile_fast",
+                     "engine_mlx", "engine_cuda", "engine_cpu"],
+    "ui.record.": ["mic_denied", "mic_failed"],
+    "ui.about.": ["shortcut_again"],
+    "ui.quit.busy_": ["recording", "jobs"],
+    "ui.cliguide.": [f"{w}_{k}" for w in ("claude", "codex") for k in
+                     ("title", "intro", "steps_mac", "steps_win", "steps_linux", "recheck_fail")],
+    "msg.launcher.shortcut_": ["mac", "win", "linux"],
+    "msg.cli.h_": ["start", "stop", "restart", "status", "setup", "shortcut", "update"],
     "ui.audiohelp.body_": ["windows", "mac", "linux"],
 }
 TEMPLATE_IDS = ["minutes", "actions", "mood", "tension", "bias", "topics", "client", "hiring", "followup"]

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>coco</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%2214%22 fill=%22%231f6f5c%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2326806a'/%3E%3Cstop offset='1' stop-color='%23185849'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1024' height='1024' rx='229' fill='url(%23g)'/%3E%3Cpath d='M 681.96 323.25 A 254 254 0 1 0 681.96 700.75' fill='none' stroke='%23fff' stroke-width='92' stroke-linecap='round'/%3E%3Cg fill='%23fff'%3E%3Crect x='381' y='437' width='50' height='150' rx='25'/%3E%3Crect x='461' y='382' width='50' height='260' rx='25'/%3E%3Crect x='541' y='437' width='50' height='150' rx='25'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f7f6f3; --panel: #ffffff; --ink: #26241f; --muted: #8a857c;
@@ -264,6 +264,71 @@
     font-size: 13px; text-align: center; flex-shrink: 0; }
   #ai-banner.show { display: block; }
   #ai-banner .lk2 { text-decoration: underline; cursor: pointer; margin-left: 14px; white-space: nowrap; }
+
+  /* header groups, AI chip */
+  header .brand { display: flex; align-items: center; gap: 8px; margin-right: 6px; }
+  header .brand img { width: 22px; height: 22px; }
+  .hsep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #c9a227; flex-shrink: 0; }
+  .chip.ok .dot { background: #2e9d6f; }
+  .icon-btn { padding: 7px 10px; }
+  button.recording { box-shadow: 0 0 0 calc(var(--lvl, 0) * 7px) rgba(192,57,43,.28); animation: none; }
+
+  /* empty state: three ways in */
+  .starts { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 26px auto 18px; max-width: 760px; }
+  .start { flex: 1 1 200px; max-width: 240px; text-align: left; padding: 16px 18px; border-radius: 12px; line-height: 1.5; }
+  .start b { display: block; font-size: 15px; margin-bottom: 4px; }
+  .start small { color: var(--muted); font-size: 12px; }
+  .start:hover { border-color: var(--accent); }
+  .empty-title { font-size: 18px; color: var(--ink); font-weight: 600; }
+  .empty-sub { font-size: 13px; }
+  .empty-foot { font-size: 12px; max-width: 620px; margin: 0 auto; line-height: 1.8; }
+
+  /* settings */
+  .set-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .set-head h3 { margin: 0; }
+  .set-pane { display: none; }
+  .set-pane.on { display: block; }
+  details.adv { margin-top: 10px; font-size: 13px; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 0; }
+  details.adv[open] summary { color: var(--ink); }
+  .combo { display: flex; gap: 6px; }
+  .combo input { flex: 1; min-width: 0; }
+  .combo button { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+  .fld a { color: var(--accent); text-decoration: none; margin-left: 6px; }
+  .fld a:hover { text-decoration: underline; }
+  .p-status { margin: 8px 0 0; }
+  .p-status.ok { background: #eaf6f0; color: #1f6f4a; }
+  .p-status button { margin-left: 8px; padding: 3px 10px; font-size: 12px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr auto; gap: 8px 14px; font-size: 13px; align-items: center; margin-top: 8px; }
+  .kv .k { color: var(--muted); }
+  .kv code { background: var(--soft); padding: 2px 6px; border-radius: 4px; font-size: 12px; word-break: break-all; }
+
+  /* onboarding cards */
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; }
+  .choice { text-align: left; padding: 14px 16px; border-radius: 12px; line-height: 1.55; }
+  .choice b { display: block; font-size: 14px; margin-bottom: 3px; }
+  .choice small { color: var(--muted); font-size: 12px; display: block; }
+  .choice .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 1px 8px; margin-top: 6px;
+    background: var(--soft); color: var(--muted); }
+  .choice .badge.ok { background: #eaf6f0; color: #1f6f4a; }
+  .choice:hover { border-color: var(--accent); }
+
+  .rec-panel { display: flex; align-items: center; gap: 18px; padding: 22px 24px; border: 1px solid var(--line);
+    border-radius: 14px; background: var(--panel); max-width: 620px; margin-top: 10px; }
+  .rec-panel .rec-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--rec); flex-shrink: 0;
+    box-shadow: 0 0 0 calc(var(--lvl, 0) * 12px) rgba(192,57,43,.22); transition: box-shadow .08s; }
+  .rec-panel b { font-size: 18px; display: block; font-variant-numeric: tabular-nums; }
+  .rec-panel small { color: var(--muted); font-size: 12px; line-height: 1.6; display: block; margin-top: 2px; }
+  .rec-panel button { margin-left: auto; white-space: nowrap; }
+  /* laptop widths: keep the header on one line (subtitle first, then tighter buttons) */
+  @media (max-width: 1440px) { header h1 span { display: none; } }
+  @media (max-width: 1360px) { header button { padding: 7px 10px; } header { gap: 6px; padding: 10px 14px; } .chip { padding: 6px 10px; } }
+  #quit-screen { position: fixed; inset: 0; background: var(--bg); z-index: 40; display: none;
+    align-items: center; justify-content: center; text-align: center; color: var(--muted); line-height: 2; }
+  #quit-screen.show { display: flex; }
+  #quit-screen b { color: var(--ink); font-size: 18px; }
 </style>
 </head>
 <body>
@@ -272,45 +337,21 @@
 <div id="ai-banner"></div>
 
 <header>
-  <h1>coco<span data-i18n="app.subtitle"></span></h1>
-  <div class="spacer"></div>
-  <select id="ui-lang" data-i18n-title="header.ui_lang_title"></select>
-  <select id="model-select" data-i18n-title="header.model_title">
-    <option value="turbo" data-i18n="header.model_turbo"></option>
-    <option value="large" data-i18n="header.model_large"></option>
-    <option value="small" data-i18n="header.model_small"></option>
-  </select>
-  <select id="lang-select" data-i18n-title="header.lang_title">
-    <option value="auto" data-i18n="header.lang_auto"></option>
-    <option value="zh">中文</option>
-    <option value="en">English</option>
-    <option value="fr">Français</option>
-    <option value="de">Deutsch</option>
-    <option value="es">Español</option>
-    <option value="it">Italiano</option>
-    <option value="pt">Português</option>
-    <option value="ja">日本語</option>
-    <option value="ko">한국어</option>
-    <option value="ru">Русский</option>
-    <option value="ar">العربية</option>
-    <option value="hi">हिन्दी</option>
-    <option value="th">ไทย</option>
-    <option value="vi">Tiếng Việt</option>
-    <option value="id">Bahasa Indonesia</option>
-    <option value="nl">Nederlands</option>
-    <option value="tr">Türkçe</option>
-    <option value="pl">Polski</option>
-  </select>
+  <h1 class="brand"><img id="brand-icon" alt="">coco<span data-i18n="app.subtitle"></span></h1>
   <button id="btn-record" data-i18n="header.record" data-i18n-title="header.record_title"></button>
   <button id="btn-upload" class="primary" data-i18n="header.upload" data-i18n-title="header.upload_title"></button>
   <button id="btn-import" data-i18n="header.import" data-i18n-title="header.import_title"></button>
+  <span class="hsep"></span>
   <button id="btn-prep" data-i18n="header.prep" data-i18n-title="header.prep_title"></button>
   <button id="btn-track" data-i18n="header.insight" data-i18n-title="header.insight_title"></button>
   <button id="btn-brief" data-i18n="header.brief" data-i18n-title="header.brief_title"></button>
   <button id="btn-knowledge" data-i18n="header.knowledge" data-i18n-title="header.knowledge_title"></button>
-  <button id="btn-export" data-i18n="header.export"></button>
+  <div class="spacer"></div>
+  <button id="ai-chip" class="chip" data-i18n-title="header.ai_chip_title"><span class="dot"></span><span id="ai-chip-label"></span></button>
   <button id="btn-memory" data-i18n="header.memory"></button>
-  <button id="btn-settings" data-i18n="header.settings" data-i18n-title="header.settings_title"></button>
+  <button id="btn-export" data-i18n="header.export"></button>
+  <button id="btn-settings" class="icon-btn" data-i18n="header.settings" data-i18n-title="header.settings_title"></button>
+  <button id="btn-quit" class="icon-btn" data-i18n-title="header.quit_title">⏻</button>
   <input type="file" id="file-input" multiple>
 </header>
 
@@ -335,10 +376,14 @@
 
   <section id="content">
     <div id="empty">
-      <div data-i18n="empty.title"></div>
-      <span id="empty-rec" data-i18n="empty.rec"></span><span data-i18n-html="empty.line1"></span><br>
-      <span data-i18n="empty.line2"></span><br>
-      <span data-i18n="empty.line3"></span>
+      <div class="empty-title" data-i18n="empty.title"></div>
+      <div class="empty-sub" data-i18n="empty.sub"></div>
+      <div class="starts">
+        <button class="start" id="start-rec"><b data-i18n="empty.rec_title"></b><small data-i18n="empty.rec_desc"></small></button>
+        <button class="start" id="start-upload"><b data-i18n="empty.upload_title"></b><small data-i18n="empty.upload_desc"></small></button>
+        <button class="start" id="start-paste"><b data-i18n="empty.paste_title"></b><small data-i18n="empty.paste_desc"></small></button>
+      </div>
+      <div class="empty-foot" data-i18n="empty.foot"></div>
     </div>
     <div id="mtg-head" style="display:none"><h2 id="mtg-title"></h2>
       <div class="meta" id="mtg-meta"></div></div>
@@ -469,91 +514,109 @@
   </div>
 </div></div>
 
-<div id="claude-overlay" class="ovl"><div class="dlg">
-  <h3 data-i18n="claudeguide.title"></h3>
-  <div class="hint" data-i18n="claudeguide.intro"></div>
-  <pre id="claude-steps" style="white-space:pre-wrap;font-family:inherit;background:rgba(0,0,0,.05);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.8;margin:10px 0"></pre>
-  <div class="hint" data-i18n="claudeguide.alt"></div>
+<div id="cli-overlay" class="ovl"><div class="dlg">
+  <h3 id="cli-title"></h3>
+  <div class="hint" id="cli-intro"></div>
+  <pre id="cli-steps" style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,'PingFang SC',monospace;background:rgba(0,0,0,.05);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.8;margin:10px 0;user-select:text"></pre>
+  <div class="hint" data-i18n="cliguide.alt"></div>
   <div class="row">
-    <button onclick="closeClaudeGuide()" data-i18n="common.cancel"></button>
-    <button class="primary" id="btn-claude-recheck" data-i18n="claudeguide.recheck"></button>
+    <button onclick="closeCliGuide()" data-i18n="common.cancel"></button>
+    <button class="primary" id="btn-cli-recheck" data-i18n="cliguide.recheck"></button>
   </div>
 </div></div>
 
+<div id="welcome-overlay" class="ovl"><div class="dlg wide">
+  <h3 data-i18n="welcome.title"></h3>
+  <div class="hint" data-i18n="welcome.intro"></div>
+  <div class="choices" id="welcome-choices"></div>
+  <div class="hint" style="margin-top:8px" data-i18n="welcome.privacy"></div>
+  <div class="row"><button id="btn-welcome-later" data-i18n="welcome.later"></button></div>
+</div></div>
+
+<div id="choose-overlay" class="ovl"><div class="dlg">
+  <h3 id="choose-title"></h3>
+  <div class="hint" id="choose-body" style="font-size:13px;color:var(--ink)"></div>
+  <div class="row" id="choose-buttons"></div>
+</div></div>
+
+<div id="quit-screen"><div><b data-i18n="quit.title"></b><br><span data-i18n="quit.body"></span></div></div>
+
 <div id="settings-overlay" class="ovl"><div class="dlg wide">
-  <h3 data-i18n="settings.title"></h3>
-  <div class="grid2">
-    <div>
-      <label class="fld" data-i18n="settings.ui_lang"></label>
-      <select id="set-ui-lang" class="full"></select>
-    </div>
-    <div>
-      <label class="fld" data-i18n="settings.output_lang"></label>
-      <select id="set-output-lang" class="full"></select>
+  <div class="set-head">
+    <h3 data-i18n="settings.title"></h3>
+    <div class="mini-tabs" id="set-tabs" style="margin:0">
+      <button data-tab="ai" class="on" data-i18n="settings.tab_ai"></button>
+      <button data-tab="transcribe" data-i18n="settings.tab_transcribe"></button>
+      <button data-tab="general" data-i18n="settings.tab_general"></button>
+      <button data-tab="about" data-i18n="settings.tab_about"></button>
     </div>
   </div>
-  <div class="hint" style="margin-top:6px" data-i18n="settings.output_hint"></div>
 
-  <h4 data-i18n="settings.ai_title"></h4>
-  <div class="hint" data-i18n="settings.ai_hint"></div>
-  <div id="ai-claude-missing" class="note" style="display:none" data-i18n="settings.claude_missing"></div>
+  <div class="set-pane on" data-pane="ai">
+    <div class="hint" data-i18n="settings.ai_hint"></div>
+    <div class="prof" data-prof="primary"></div>
+    <label style="font-size:13px;margin-top:12px;display:block;cursor:pointer">
+      <input type="checkbox" id="fast-same" style="accent-color:var(--accent)"> <span data-i18n="settings.fast_same"></span></label>
+    <div class="prof" data-prof="fast" id="prof-fast"></div>
+    <details class="adv"><summary data-i18n="settings.tasks_title"></summary>
+      <div class="hint" data-i18n="settings.tasks_hint"></div>
+      <div class="tasks" id="task-map"></div>
+    </details>
+    <details class="adv"><summary data-i18n="settings.memory_title"></summary>
+      <select id="set-memory-merge" class="full" style="margin-top:6px">
+        <option value="delta" data-i18n="settings.memory_delta"></option>
+        <option value="full" data-i18n="settings.memory_full"></option>
+      </select>
+      <div class="hint" style="margin-top:6px" data-i18n="settings.memory_hint"></div>
+    </details>
+  </div>
 
-  <div class="prof" data-prof="primary">
-    <b style="font-size:13px" data-i18n="settings.profile_primary"></b>
+  <div class="set-pane" data-pane="transcribe">
+    <div class="note" id="set-engine-line" style="background:var(--soft);color:var(--ink)"></div>
     <div class="grid2">
-      <div><label class="fld" data-i18n="settings.preset"></label><select class="full p-preset"></select></div>
-      <div><label class="fld" data-i18n="settings.type"></label>
-        <select class="full p-type">
-          <option value="claude-cli" data-i18n="settings.type_claude"></option>
-          <option value="anthropic" data-i18n="settings.type_anthropic"></option>
-          <option value="openai" data-i18n="settings.type_openai"></option>
+      <div><label class="fld" data-i18n="settings.whisper_model"></label>
+        <select id="model-select" class="full">
+          <option value="turbo" data-i18n="header.model_turbo"></option>
+          <option value="large" data-i18n="header.model_large"></option>
+          <option value="small" data-i18n="header.model_small"></option>
         </select></div>
-      <div><label class="fld" data-i18n="settings.model"></label><input type="text" class="p-model" data-i18n-placeholder="settings.model_placeholder"></div>
-      <div><label class="fld" data-i18n="settings.base_url"></label><input type="text" class="p-base" data-i18n-placeholder="settings.base_url_placeholder"></div>
-      <div><label class="fld" data-i18n="settings.api_key"></label><input type="password" class="p-key" autocomplete="off"></div>
-      <div><label class="fld" data-i18n="settings.api_key_env"></label><input type="text" class="p-keyenv" placeholder="DEEPSEEK_API_KEY"></div>
-      <div><label class="fld" data-i18n="settings.max_context"></label><input type="number" class="p-ctx" min="0" step="10000" placeholder="400000"></div>
+      <div><label class="fld" data-i18n="settings.transcribe_lang"></label>
+        <select id="lang-select" class="full">
+          <option value="auto" data-i18n="header.lang_auto"></option>
+          <option value="zh">中文</option><option value="en">English</option><option value="fr">Français</option>
+          <option value="de">Deutsch</option><option value="es">Español</option><option value="it">Italiano</option>
+          <option value="pt">Português</option><option value="ja">日本語</option><option value="ko">한국어</option>
+          <option value="ru">Русский</option><option value="ar">العربية</option><option value="hi">हिन्दी</option>
+          <option value="th">ไทย</option><option value="vi">Tiếng Việt</option><option value="id">Bahasa Indonesia</option>
+          <option value="nl">Nederlands</option><option value="tr">Türkçe</option><option value="pl">Polski</option>
+        </select></div>
     </div>
-    <div class="row" style="justify-content:flex-start;margin-top:10px">
-      <button class="p-test" data-i18n="settings.test"></button>
-      <span class="test-out"></span>
-    </div>
+    <div class="hint" style="margin-top:6px" data-i18n="settings.transcribe_hint"></div>
+    <label class="fld" data-i18n="settings.record_mode"></label>
+    <select id="set-record-mode" class="full">
+      <option value="auto" data-i18n="settings.record_auto"></option>
+      <option value="browser" data-i18n="settings.record_browser"></option>
+      <option value="ffmpeg" data-i18n="settings.record_ffmpeg"></option>
+    </select>
+    <div class="hint" style="margin-top:6px" data-i18n="settings.record_hint"></div>
   </div>
 
-  <label style="font-size:13px;margin-top:12px;display:block;cursor:pointer">
-    <input type="checkbox" id="fast-same" style="accent-color:var(--accent)"> <span data-i18n="settings.fast_same"></span></label>
-  <div class="prof" data-prof="fast" id="prof-fast">
-    <b style="font-size:13px" data-i18n="settings.profile_fast"></b>
+  <div class="set-pane" data-pane="general">
     <div class="grid2">
-      <div><label class="fld" data-i18n="settings.preset"></label><select class="full p-preset"></select></div>
-      <div><label class="fld" data-i18n="settings.type"></label>
-        <select class="full p-type">
-          <option value="claude-cli" data-i18n="settings.type_claude"></option>
-          <option value="anthropic" data-i18n="settings.type_anthropic"></option>
-          <option value="openai" data-i18n="settings.type_openai"></option>
-        </select></div>
-      <div><label class="fld" data-i18n="settings.model"></label><input type="text" class="p-model" data-i18n-placeholder="settings.model_placeholder"></div>
-      <div><label class="fld" data-i18n="settings.base_url"></label><input type="text" class="p-base" data-i18n-placeholder="settings.base_url_placeholder"></div>
-      <div><label class="fld" data-i18n="settings.api_key"></label><input type="password" class="p-key" autocomplete="off"></div>
-      <div><label class="fld" data-i18n="settings.api_key_env"></label><input type="text" class="p-keyenv" placeholder="DEEPSEEK_API_KEY"></div>
-      <div><label class="fld" data-i18n="settings.max_context"></label><input type="number" class="p-ctx" min="0" step="10000" placeholder="400000"></div>
+      <div><label class="fld" data-i18n="settings.ui_lang"></label><select id="set-ui-lang" class="full"></select></div>
+      <div><label class="fld" data-i18n="settings.output_lang"></label><select id="set-output-lang" class="full"></select></div>
     </div>
-    <div class="row" style="justify-content:flex-start;margin-top:10px">
-      <button class="p-test" data-i18n="settings.test"></button>
-      <span class="test-out"></span>
-    </div>
+    <div class="hint" style="margin-top:6px" data-i18n="settings.output_hint"></div>
   </div>
 
-  <h4 data-i18n="settings.tasks_title"></h4>
-  <div class="hint" data-i18n="settings.tasks_hint"></div>
-  <div class="tasks" id="task-map"></div>
-
-  <h4 data-i18n="settings.memory_title"></h4>
-  <select id="set-memory-merge" class="full">
-    <option value="delta" data-i18n="settings.memory_delta"></option>
-    <option value="full" data-i18n="settings.memory_full"></option>
-  </select>
-  <div class="hint" style="margin-top:6px" data-i18n="settings.memory_hint"></div>
+  <div class="set-pane" data-pane="about">
+    <div class="kv" id="about-kv"></div>
+    <div class="row" style="justify-content:flex-start;margin-top:16px">
+      <button id="btn-shortcut" data-i18n="about.shortcut"></button>
+      <button id="btn-quit2" data-i18n="about.quit"></button>
+    </div>
+    <div class="hint" style="margin-top:8px" data-i18n="about.hint"></div>
+  </div>
 
   <div class="row">
     <button onclick="closeSettings()" data-i18n="common.cancel"></button>
@@ -606,17 +669,7 @@ async function loadI18n(lang) {
   const d = await r.json();
   I18N = { lang: d.lang, strings: d.strings, available: d.available };
   applyI18n();
-  const sel = $('ui-lang'); sel.innerHTML = '';
-  d.available.forEach(l => { const o = document.createElement('option'); o.value = l.code; o.textContent = l.name; sel.appendChild(o); });
-  sel.value = d.lang;
 }
-$('ui-lang').onchange = async e => {
-  const code = e.target.value;
-  localStorage.setItem('coco-lang', code);
-  try { await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ui_language: code }) }); } catch {}
-  location.reload();
-};
 
 /* ---------- utils ---------- */
 function toast(msg, ms = 3200) {
@@ -743,7 +796,7 @@ function renderMeetingList() {
   for (const m of ms) {
     const div = document.createElement('div');
     div.className = 'mtg' + (state.current === m.id ? ' active' : '');
-    const mark = { done: '', transcribing: '⏳ ', error: '⚠️ ', new: '· ' }[m.status] || '';
+    const mark = { done: '', transcribing: '⏳ ', error: '⚠️ ', new: '· ', recording: '⏺ ' }[m.status] || '';
     const time = m.created && m.created.includes('T') ? m.created.slice(11, 16) : '';
     div.innerHTML =
       `<input type="checkbox" class="sel"${state.selected.has(m.id) ? ' checked' : ''} title="${esc(t('sidebar.sel_title'))}">
@@ -961,6 +1014,17 @@ async function renderMeeting() {
   const actions = document.createElement('div');
   actions.id = 'report-actions';
   tabs.appendChild(actions);
+
+  if (m.status === 'recording') {  // nothing to edit, download or analyse yet: just the live recording
+    const mine = rec.active && rec.id === m.id;
+    $('doc-md').innerHTML = mine
+      ? `<div class="rec-panel" id="rec-panel"><div class="rec-dot"></div><div><b id="rec-panel-time">${esc(t('record.panel_time', { time: fmtRec(state.recSeconds) }))}</b>
+           <small>${esc(t('record.panel_hint'))}</small></div><button class="primary" id="btn-rec-stop">${esc(t('record.panel_stop'))}</button></div>`
+      : `<div class="rec-panel"><div class="rec-dot"></div><div><b>${esc(t('record.elsewhere'))}</b><small>${esc(t('record.panel_elsewhere'))}</small></div></div>`;
+    const sb = $('btn-rec-stop'); if (sb) sb.onclick = () => stopRecording();
+    updateChatRef();
+    return;
+  }
 
   if (state.editing) {
     const isT = state.tab === 'transcript';
@@ -1347,26 +1411,162 @@ $('btn-import-go').onclick = async () => {
 };
 
 /* ---------- recording ---------- */
+/* Default: the browser records (MediaRecorder) and sends 4-second chunks that the server appends
+   to the meeting's audio file, so a closed tab or a crash keeps everything recorded so far.
+   record_mode "ffmpeg" keeps the older server-side recorder (macOS, e.g. BlackHole inputs). */
 let recTimer = null;
+const rec = { active: false, id: '', mr: null, stream: null, queue: [], seq: 0, pumping: false, failed: false,
+              startedAt: 0, ctx: null, raf: 0, quietSince: 0, warnedQuiet: false, elsewhere: false };
 function fmtRec(s) { const m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, '0')}`; }
 function setRecUI() {
   const b = $('btn-record'); if (!b) return;
+  b.disabled = rec.elsewhere && !state.recording;
+  const pt = $('rec-panel-time');
+  if (pt) pt.textContent = t('record.panel_time', { time: fmtRec(state.recSeconds) });
   if (state.recording) { b.classList.add('recording'); b.textContent = t('record.stop', { time: fmtRec(state.recSeconds) }); }
-  else { b.classList.remove('recording'); b.textContent = t('header.record'); }
+  else if (rec.elsewhere) { b.classList.remove('recording'); b.textContent = t('record.elsewhere'); }
+  else { b.classList.remove('recording'); b.textContent = t('header.record'); b.style.removeProperty('--lvl'); }
 }
 function startRecTimer() {
   clearInterval(recTimer);
   recTimer = setInterval(async () => {
+    if (rec.active) { state.recSeconds = Math.floor((Date.now() - rec.startedAt) / 1000); setRecUI(); return; }
     try {
       const s = await api('/api/record/status');
       state.recSeconds = Math.floor(s.elapsed || 0);
-      state.recording = !!s.active;
+      state.recording = !!s.active && s.mode === 'ffmpeg';
       setRecUI();
-      if (!s.active) clearInterval(recTimer);
+      if (!state.recording) clearInterval(recTimer);
     } catch {}
   }, 1000);
 }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function onBeforeUnload(e) { if (rec.active) { e.preventDefault(); e.returnValue = ''; } }
+
 async function startRecording() {
+  if (state.caps.recordMode === 'ffmpeg') return startServerRecording();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+    toast(t('record.no_browser_support'), 9000); return;
+  }
+  let stream;
+  const btn = $('btn-record');
+  btn.disabled = true; btn.textContent = t('record.opening_mic');  // the browser may be showing its permission prompt
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true,
+      noiseSuppression: true, autoGainControl: true } });
+  } catch (e) {
+    btn.disabled = false; setRecUI();
+    toast(t(e && e.name === 'NotAllowedError' ? 'record.mic_denied' : 'record.mic_failed', { msg: e.message || e.name }), 12000);
+    return;
+  }
+  btn.disabled = false;
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+    .find(m => MediaRecorder.isTypeSupported(m)) || '';
+  let r;
+  try {
+    r = await api('/api/record/browser/start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: '', mime: mime || 'audio/webm' }) });
+  } catch (e) { stream.getTracks().forEach(tr => tr.stop()); setRecUI(); toast(t('record.start_failed', { msg: e.message }), 9000); return; }
+  Object.assign(rec, { active: true, id: r.meeting_id, stream, queue: [], seq: 0, failed: false, startedAt: Date.now(),
+    quietSince: Date.now(), warnedQuiet: false });
+  const mr = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 64000 } : undefined);
+  rec.mr = mr;
+  mr.ondataavailable = e => { if (e.data && e.data.size) { rec.queue.push(e.data); pumpChunks(); } };
+  mr.start(4000);
+  startLevelMeter(stream);
+  window.addEventListener('beforeunload', onBeforeUnload);
+  state.recording = true; state.recSeconds = 0; setRecUI(); startRecTimer();
+  toast(t('record.started_browser'));
+  await loadMeetings();
+  if (!state.editing && !state.pending) openMeeting(rec.id);  // the main area shows the live recording
+}
+
+async function pumpChunks() {
+  if (rec.pumping) return;
+  rec.pumping = true;
+  while (rec.queue.length && !rec.failed) {
+    const blob = rec.queue[0];
+    let ok = false;
+    for (let attempt = 0; attempt < 6 && !ok; attempt++) {
+      try {
+        const res = await fetch(`/api/record/browser/chunk?id=${encodeURIComponent(rec.id)}&seq=${rec.seq}`, {
+          method: 'POST', body: blob, headers: { 'Content-Type': 'application/octet-stream', 'X-Coco-Lang': I18N.lang } });
+        if (res.ok) ok = true;
+        else if (res.status === 409) break;  // the server no longer knows this recording
+        else await sleep(1000 * (attempt + 1));
+      } catch { await sleep(1000 * (attempt + 1)); }  // server restarting / network blip: retry
+    }
+    if (!ok) { rec.failed = true; toast(t('record.upload_failed'), 12000); break; }
+    rec.queue.shift(); rec.seq++;
+  }
+  rec.pumping = false;
+}
+
+function startLevelMeter(stream) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    rec.ctx = new Ctx();
+    const an = rec.ctx.createAnalyser(); an.fftSize = 512;
+    rec.ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Uint8Array(an.fftSize);
+    const tick = () => {
+      if (!rec.active) return;
+      an.getByteTimeDomainData(buf);
+      let sum = 0; for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
+      const lvl = Math.min(1, Math.sqrt(sum / buf.length) * 6);
+      $('btn-record').style.setProperty('--lvl', lvl.toFixed(2));
+      const panel = $('rec-panel'); if (panel) panel.style.setProperty('--lvl', lvl.toFixed(2));
+      if (lvl > 0.04) rec.quietSince = Date.now();
+      else if (!rec.warnedQuiet && Date.now() - rec.quietSince > 20000) { rec.warnedQuiet = true; toast(t('record.quiet'), 10000); }
+      rec.raf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch {}
+}
+
+async function stopBrowserRecording(quiet) {
+  if (!rec.active) return;
+  const mr = rec.mr;
+  await new Promise(res => { mr.onstop = res; try { mr.stop(); } catch { res(); } });
+  rec.stream.getTracks().forEach(tr => tr.stop());
+  cancelAnimationFrame(rec.raf);
+  try { rec.ctx && rec.ctx.close(); } catch {}
+  for (let i = 0; i < 120 && (rec.queue.length || rec.pumping) && !rec.failed; i++) await sleep(250);  // last chunks
+  rec.active = false;
+  window.removeEventListener('beforeunload', onBeforeUnload);
+  clearInterval(recTimer); state.recording = false; setRecUI();
+  try {
+    const r = await api('/api/record/browser/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: rec.id }) });
+    if (!quiet) { toast(t('record.stopped')); watchJob(r.job, r.meeting_id); }
+  } catch (e) { if (!quiet) toast(t('record.stop_failed', { msg: e.message }), 8000); }
+}
+
+/* a page load while the server still holds a browser recording: another tab is recording, or the
+   tab that recorded was closed / crashed → offer to keep what arrived */
+async function checkRecordingOnLoad() {
+  let s;
+  try { s = await api('/api/record/status'); } catch { return; }
+  if (!s.active) return;
+  if (s.mode === 'ffmpeg') { state.recording = true; state.recSeconds = Math.floor(s.elapsed || 0); startRecTimer(); return; }
+  if (s.idle < 15) { rec.elsewhere = true; setRecUI(); watchElsewhere(); return; }
+  const mins = Math.max(1, Math.round((s.elapsed - s.idle) / 60));
+  const ans = await choose(t('record.recover_title'), t('record.recover_body', { min: mins, mb: (s.bytes / 1048576).toFixed(1) }),
+    [['later', t('record.recover_later')], ['discard', t('record.recover_discard')], ['keep', t('record.recover_keep'), true]]);
+  if (ans !== 'keep' && ans !== 'discard') return;
+  try {
+    const r = await api('/api/record/browser/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: s.meeting_id, discard: ans === 'discard' }) });
+    if (ans === 'keep') { toast(t('record.stopped')); watchJob(r.job, r.meeting_id); } else loadMeetings();
+  } catch (e) { toast(t('common.failed', { msg: e.message }), 8000); }
+}
+function watchElsewhere() {
+  const timer = setInterval(async () => {
+    try { const s = await api('/api/record/status'); if (!s.active || s.mode !== 'browser') { clearInterval(timer); rec.elsewhere = false; setRecUI(); loadMeetings(); } } catch {}
+  }, 4000);
+}
+
+async function startServerRecording() {
   try {
     await api('/api/record/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '' }) });
     state.recording = true; state.recSeconds = 0; setRecUI(); startRecTimer();
@@ -1374,6 +1574,7 @@ async function startRecording() {
   } catch (e) { toast(t('record.start_failed', { msg: e.message }), 9000); }
 }
 async function stopRecording() {
+  if (rec.active) return stopBrowserRecording(false);
   try {
     const r = await api('/api/record/stop', { method: 'POST' });
     clearInterval(recTimer); state.recording = false; setRecUI();
@@ -1760,7 +1961,7 @@ let memData = { content: '', longterm: '', glossary: '' }, memTab = 'content';
 function closeModal() { $('overlay').className = ''; }
 $('overlay').onclick = e => { if (e.target === $('overlay')) closeModal(); };
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeModal(); closeExport(); closeImport(); closePrep(); closeInsight(); closeSettings(); closeAudioHelp(); closeClaudeGuide(); }
+  if (e.key === 'Escape') { closeModal(); closeExport(); closeImport(); closePrep(); closeInsight(); closeSettings(); closeAudioHelp(); closeCliGuide(); closeWelcome(); if (choose._close) choose._close(); }
 });
 function setMemTab(tab) {
   memData[memTab] = $('memory-text').value;
@@ -1916,53 +2117,216 @@ $('btn-export-go').onclick = async () => {
   closeExport();
 };
 
-/* ---------- settings (languages + AI channels) ---------- */
+/* ---------- settings (AI channels · transcription · languages · about) ---------- */
 function closeSettings() { $('settings-overlay').classList.remove('show'); }
 $('settings-overlay').onclick = e => { if (e.target === $('settings-overlay')) closeSettings(); };
 const TASK_KEYS = ['report', 'ask', 'track', 'prep', 'brief', 'weekly', 'memory', 'glossary', 'namefix', 'participants'];
+const CLI_TYPES = ['claude-cli', 'codex-cli'];
+function setSettingsTab(tab) {
+  document.querySelectorAll('#set-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('.set-pane').forEach(p => p.classList.toggle('on', p.dataset.pane === tab));
+  if (tab === 'about') loadAbout();
+}
+document.querySelectorAll('#set-tabs button').forEach(b => b.onclick = () => setSettingsTab(b.dataset.tab));
 
 function profPanel(name) { return document.querySelector(`.prof[data-prof="${name}"]`); }
-function fillProfile(name, p, presets) {
-  const el = profPanel(name);
-  const ps = el.querySelector('.p-preset'); ps.innerHTML = `<option value="">${esc(t('settings.preset_custom'))}</option>`;
-  Object.keys(presets).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = t('settings.preset_' + k.replace(/-/g, '_')); if (o.textContent.startsWith('settings.')) o.textContent = k; ps.appendChild(o); });
-  ps.onchange = () => {
-    const pr = presets[ps.value]; if (!pr) return;
-    el.querySelector('.p-type').value = pr.type; el.querySelector('.p-model').value = pr.model || '';
-    el.querySelector('.p-base').value = pr.base_url || ''; el.querySelector('.p-keyenv').value = pr.api_key_env || '';
-    el.querySelector('.p-ctx').value = pr.max_context_chars || '';
-  };
-  el.querySelector('.p-type').value = p.type || 'claude-cli';
-  el.querySelector('.p-model').value = p.model || '';
-  el.querySelector('.p-base').value = p.base_url || '';
-  el.querySelector('.p-key').value = '';
-  el.querySelector('.p-key').placeholder = p.api_key_set ? t('settings.api_key_stored') : t('settings.api_key_placeholder');
-  el.querySelector('.p-key').dataset.dirty = '';
-  el.querySelector('.p-key').oninput = ev => { ev.target.dataset.dirty = '1'; };
-  el.querySelector('.p-keyenv').value = p.api_key_env || '';
-  el.querySelector('.p-ctx').value = p.max_context_chars || '';
-  el.querySelector('.test-out').textContent = ''; el.querySelector('.test-out').className = 'test-out';
-  el.querySelector('.p-test').onclick = async () => {
-    const out = el.querySelector('.test-out'); const b = el.querySelector('.p-test');
-    b.disabled = true; out.className = 'test-out'; out.textContent = t('settings.testing');
-    try {
-      const r = await api('/api/settings/ai/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: name, inline: readProfile(name) }) });
-      out.className = 'test-out ' + (r.ok ? 'ok' : 'bad');
-      out.textContent = r.ok ? t('settings.test_ok', { model: r.model, ms: r.latency_ms, reply: r.reply }) : t('settings.test_failed', { msg: r.error });
-    } catch (e) { out.className = 'test-out bad'; out.textContent = t('settings.test_failed', { msg: e.message }); }
-    b.disabled = false;
-  };
+function presetGroups(presets) {
+  // mainland-China vendors first for a Chinese interface, international ones first otherwise
+  const zh = I18N.lang.startsWith('zh');
+  const rank = p => (p.region === 'cn' ? (zh ? 0 : 1) : p.region === 'intl' ? (zh ? 1 : 0) : 2);
+  const groups = { subscription: [], api: [], local: [], custom: [] };
+  Object.entries(presets).forEach(([k, p]) => { if (groups[p.group]) groups[p.group].push([k, p]); });
+  groups.api.sort((a, b) => rank(a[1]) - rank(b[1]));
+  return groups;
 }
+function guessPreset(p, presets) {
+  if (p.preset && presets[p.preset]) return p.preset;
+  const base = (p.base_url || '').replace(/\/+$/, '');
+  if (p.type === 'claude-cli' && !base) return 'claude-cli';
+  if (p.type === 'codex-cli') return 'codex-cli';
+  const hit = Object.entries(presets).find(([k, pr]) => pr.group !== 'hidden' && pr.group !== 'custom' && pr.type === p.type
+    && (pr.base_url || '').replace(/\/+$/, '') === base);
+  if (hit) return hit[0];
+  return p.type === 'anthropic' ? 'custom-anthropic' : p.type === 'claude-cli' ? 'claude-cli' : 'custom-openai';
+}
+
+const PROF_HTML = `
+  <b style="font-size:13px" class="p-title"></b>
+  <label class="fld">${'{service}'}</label>
+  <select class="full p-preset"></select>
+  <div class="note p-status" style="display:none"></div>
+  <div class="grid2">
+    <div class="p-keywrap"><label class="fld"><span class="p-keylabel"></span><a class="p-keylink" target="_blank" rel="noopener"></a></label>
+      <input type="password" class="p-key" autocomplete="off"></div>
+    <div><label class="fld p-modellabel"></label>
+      <div class="combo"><input type="text" class="p-model"><button class="p-fetch" type="button"></button></div>
+      <select class="full p-modelpick" style="display:none;margin-top:6px"></select></div>
+    <div class="p-reasonwrap"><label class="fld p-reasonlabel"></label>
+      <select class="full p-reason"><option value=""></option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></div>
+  </div>
+  <details class="adv p-adv"><summary class="p-advlabel"></summary>
+    <div class="grid2">
+      <div><label class="fld p-typelabel"></label>
+        <select class="full p-type">
+          <option value="claude-cli"></option><option value="codex-cli"></option>
+          <option value="anthropic"></option><option value="openai"></option>
+        </select></div>
+      <div><label class="fld p-baselabel"></label><input type="text" class="p-base"></div>
+      <div><label class="fld p-envlabel"></label><input type="text" class="p-keyenv"></div>
+      <div><label class="fld p-ctxlabel"></label><input type="number" class="p-ctx" min="0" step="10000" placeholder="400000"></div>
+      <div><label class="fld p-maxlabel"></label><input type="number" class="p-max" min="256" step="1000" placeholder="16000"></div>
+    </div>
+  </details>
+  <div class="row" style="justify-content:flex-start;margin-top:10px">
+    <button class="p-test"></button><span class="test-out"></span>
+  </div>`;
+
+function buildProfile(name, p, ai) {
+  const el = profPanel(name);
+  const presets = ai.presets || {};
+  el.innerHTML = PROF_HTML.replace('{service}', esc(t('settings.service')));
+  const q = c => el.querySelector(c);
+  q('.p-title').textContent = t(name === 'primary' ? 'settings.profile_primary' : 'settings.profile_fast');
+  q('.p-keylabel').textContent = t('settings.api_key');
+  q('.p-modellabel').textContent = t('settings.model');
+  q('.p-fetch').textContent = t('settings.fetch_models');
+  q('.p-reasonlabel').textContent = t('settings.reasoning');
+  q('.p-reason').options[0].textContent = t('settings.reasoning_default');
+  q('.p-advlabel').textContent = t('settings.advanced');
+  q('.p-typelabel').textContent = t('settings.type');
+  ['claude-cli', 'codex-cli', 'anthropic', 'openai'].forEach((v, i) => { q('.p-type').options[i].textContent = t('settings.type_' + v.replace('-', '_')); });
+  q('.p-baselabel').textContent = t('settings.base_url');
+  q('.p-base').placeholder = t('settings.base_url_placeholder');
+  q('.p-envlabel').textContent = t('settings.api_key_env');
+  q('.p-ctxlabel').textContent = t('settings.max_context');
+  q('.p-maxlabel').textContent = t('settings.max_tokens');
+  q('.p-test').textContent = t('settings.test');
+
+  const sel = q('.p-preset');
+  const groups = presetGroups(presets);
+  Object.entries(groups).forEach(([g, items]) => {
+    if (!items.length) return;
+    const og = document.createElement('optgroup'); og.label = t('settings.group_' + g);
+    items.forEach(([k, pr]) => { const o = document.createElement('option'); o.value = k;
+      o.textContent = g === 'subscription' ? t('settings.preset_' + k.replace(/-/g, '_')) : pr.label; og.appendChild(o); });
+    sel.appendChild(og);
+  });
+
+  // stored values
+  q('.p-type').value = p.type || 'claude-cli';
+  q('.p-model').value = p.model || '';
+  q('.p-base').value = p.base_url || '';
+  q('.p-keyenv').value = p.api_key_env || '';
+  q('.p-ctx').value = p.max_context_chars || '';
+  q('.p-max').value = p.max_tokens && p.max_tokens !== 16000 ? p.max_tokens : '';
+  q('.p-reason').value = p.reasoning || '';
+  const key = q('.p-key');
+  key.value = ''; key.dataset.dirty = '';
+  key.placeholder = p.api_key_set ? t('settings.api_key_stored') : t('settings.api_key_placeholder');
+  key.oninput = () => { key.dataset.dirty = '1'; };
+  key.onchange = () => { if (key.value.trim()) fetchModels(name, true); };
+  sel.value = guessPreset(p, presets);
+  el.dataset.preset = sel.value;
+
+  sel.onchange = () => {
+    const pr = presets[sel.value]; if (!pr) return;
+    el.dataset.preset = sel.value;
+    q('.p-type').value = pr.type; q('.p-base').value = pr.base_url || '';
+    q('.p-model').value = (name === 'fast' && pr.fast_model) ? pr.fast_model : (pr.model || '');
+    q('.p-keyenv').value = pr.api_key_env || ''; q('.p-ctx').value = pr.max_context_chars || '';
+    q('.p-reason').value = '';
+    q('.p-modelpick').style.display = 'none';
+    q('.test-out').textContent = '';
+    refreshProfileUI(name, ai);
+    if (pr.group === 'custom') q('.p-adv').open = true;
+    if (pr.group === 'subscription' || pr.group === 'local') fetchModels(name, true);
+  };
+  q('.p-type').onchange = () => refreshProfileUI(name, ai);
+  q('.p-fetch').onclick = () => fetchModels(name, false);
+  q('.p-modelpick').onchange = e => { if (e.target.value !== '__') q('.p-model').value = e.target.value; };
+  q('.p-test').onclick = () => testProfile(name);
+  refreshProfileUI(name, ai);
+}
+
+function refreshProfileUI(name, ai) {
+  const el = profPanel(name), q = c => el.querySelector(c);
+  const presets = ai.presets || {};
+  const pr = presets[el.dataset.preset] || {};
+  const type = q('.p-type').value;
+  const cli = CLI_TYPES.includes(type) && !q('.p-base').value.trim();
+  const local = pr.group === 'local';
+  q('.p-keywrap').style.display = (cli || local) ? 'none' : '';
+  q('.p-reasonwrap').style.display = type === 'codex-cli' ? '' : 'none';
+  q('.p-model').placeholder = cli ? t('settings.model_placeholder') : (local ? t('settings.model_local_placeholder') : t('settings.model_api_placeholder'));
+  const link = q('.p-keylink');
+  if (pr.key_url && !cli) { link.href = pr.key_url; link.textContent = t(local ? 'settings.download_link' : 'settings.key_link'); link.style.display = ''; }
+  else link.style.display = 'none';
+  // status line: is the CLI installed / logged in?
+  const st = q('.p-status'), clis = ai.clis || {};
+  st.style.display = 'none'; st.className = 'note p-status';
+  if (type === 'claude-cli' && cli) {
+    st.style.display = '';
+    if (clis.claude) { st.classList.add('ok'); st.textContent = t('settings.claude_ok'); }
+    else { st.innerHTML = esc(t('settings.claude_missing')) + ` <button type="button">${esc(t('settings.show_steps'))}</button>`;
+      st.querySelector('button').onclick = () => openCliGuide('claude'); }
+  } else if (type === 'codex-cli') {
+    st.style.display = '';
+    if (clis.codex && clis.codex_login === 'chatgpt') { st.classList.add('ok'); st.textContent = t('settings.codex_ok'); }
+    else if (clis.codex && clis.codex_login === 'apikey') { st.classList.add('ok'); st.textContent = t('settings.codex_apikey'); }
+    else { st.innerHTML = esc(t(clis.codex ? 'settings.codex_login' : 'settings.codex_missing')) + ` <button type="button">${esc(t('settings.show_steps'))}</button>`;
+      st.querySelector('button').onclick = () => openCliGuide('codex'); }
+  } else if (local) {
+    st.style.display = ''; st.textContent = t('settings.local_hint');
+  }
+}
+
+async function fetchModels(name, quiet) {
+  const el = profPanel(name), q = c => el.querySelector(c);
+  const b = q('.p-fetch'), pick = q('.p-modelpick');
+  b.disabled = true; const label = b.textContent; b.textContent = '…';
+  try {
+    const r = await api('/api/settings/ai/models', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: name, inline: readProfile(name) }) });
+    const models = r.models || [];
+    if (!models.length) { if (!quiet) toast(t('settings.models_none')); pick.style.display = 'none'; return; }
+    pick.innerHTML = `<option value="__">${esc(t('settings.models_pick', { n: models.length }))}</option>`
+      + models.map(m => `<option value="${esc(m.id)}" title="${esc(m.desc || '')}">${esc(m.name === m.id || !m.id ? (m.id || m.name) : m.name + ' · ' + m.id)}</option>`).join('');
+    pick.style.display = '';
+    const cur = q('.p-model').value;
+    pick.value = models.some(m => m.id === cur) ? cur : '__';
+    if (!cur && !CLI_TYPES.includes(q('.p-type').value) && models[0]) {
+      // local servers: pre-select the first installed model so "Test" works right away
+      const pr = ((state.cfg.ai || {}).presets || {})[el.dataset.preset] || {};
+      if (pr.group === 'local') { q('.p-model').value = models[0].id; pick.value = models[0].id; }
+    }
+  } catch (e) { if (!quiet) toast(t('settings.models_failed', { msg: e.message }), 8000); pick.style.display = 'none'; }
+  finally { b.disabled = false; b.textContent = label; }
+}
+
+async function testProfile(name) {
+  const el = profPanel(name), out = el.querySelector('.test-out'), b = el.querySelector('.p-test');
+  b.disabled = true; out.className = 'test-out'; out.textContent = t('settings.testing');
+  try {
+    const r = await api('/api/settings/ai/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: name, inline: readProfile(name) }) });
+    out.className = 'test-out ' + (r.ok ? 'ok' : 'bad');
+    out.textContent = r.ok ? t('settings.test_ok', { model: r.model, ms: r.latency_ms, reply: r.reply }) : t('settings.test_failed', { msg: r.error });
+    return r.ok;
+  } catch (e) { out.className = 'test-out bad'; out.textContent = t('settings.test_failed', { msg: e.message }); return false; }
+  finally { b.disabled = false; }
+}
+
 function readProfile(name) {
-  const el = profPanel(name);
-  const key = el.querySelector('.p-key');
-  return { type: el.querySelector('.p-type').value, model: el.querySelector('.p-model').value.trim(),
-    base_url: el.querySelector('.p-base').value.trim(), api_key: key.dataset.dirty ? key.value : null,
-    api_key_env: el.querySelector('.p-keyenv').value.trim(),
-    max_context_chars: parseInt(el.querySelector('.p-ctx').value || '0', 10) || 0, max_tokens: 16000, extra_args: [] };
+  const el = profPanel(name), q = c => el.querySelector(c);
+  const key = q('.p-key');
+  return { type: q('.p-type').value, model: q('.p-model').value.trim(), base_url: q('.p-base').value.trim(),
+    api_key: key.dataset.dirty ? key.value.trim() : null, api_key_env: q('.p-keyenv').value.trim(),
+    max_context_chars: parseInt(q('.p-ctx').value || '0', 10) || 0,
+    max_tokens: parseInt(q('.p-max').value || '0', 10) || 16000, extra_args: [],
+    reasoning: q('.p-reason').value, preset: el.dataset.preset || '' };
 }
-$('btn-settings').onclick = async () => {
+
+async function openSettings(tab) {
   let cfg;
   try { cfg = await api('/api/config'); } catch (e) { toast(t('common.load_failed', { msg: e.message }), 6000); return; }
   state.cfg = cfg;
@@ -1975,13 +2339,28 @@ $('btn-settings').onclick = async () => {
   ol.value = cfg.output_language || 'ui';
   if (ol.value !== (cfg.output_language || 'ui')) { const o = document.createElement('option'); o.value = cfg.output_language; o.textContent = cfg.output_language; ol.appendChild(o); ol.value = cfg.output_language; }
   $('set-memory-merge').value = cfg.memory_merge || 'delta';
+  // transcription
+  $('model-select').value = cfg.whisper_model;
+  const ls = $('lang-select');
+  ls.value = cfg.language || 'auto';
+  if (ls.value !== (cfg.language || 'auto')) { const o = document.createElement('option'); o.value = cfg.language; o.textContent = cfg.language; ls.appendChild(o); ls.value = cfg.language; }
+  $('set-record-mode').value = cfg.record_mode_setting || 'auto';
+  const engineKey = cfg.transcribe === 'mlx' ? 'settings.engine_mlx'
+    : cfg.transcribe === 'faster' ? (cfg.transcribe_device === 'cuda' ? 'settings.engine_cuda' : 'settings.engine_cpu') : '';
+  $('set-engine-line').textContent = engineKey ? t('settings.engine_line', { engine: t(engineKey) }) : t('settings.engine_none');
+  // AI
   const ai = cfg.ai || {};
-  $('ai-claude-missing').style.display = ai.claude_bin_found ? 'none' : '';
-  fillProfile('primary', ai.primary || {}, ai.presets || {});
-  fillProfile('fast', ai.fast || {}, ai.presets || {});
+  buildProfile('primary', ai.primary || {}, ai);
+  buildProfile('fast', ai.fast || {}, ai);
   $('fast-same').checked = !ai.fast_configured;
   $('prof-fast').style.display = ai.fast_configured ? '' : 'none';
-  $('fast-same').onchange = e => { $('prof-fast').style.display = e.target.checked ? 'none' : ''; };
+  $('fast-same').onchange = e => {
+    $('prof-fast').style.display = e.target.checked ? 'none' : '';
+    if (!e.target.checked && !ai.fast_configured) {  // start the background channel from the main one, cheaper model
+      const sel = profPanel('fast').querySelector('.p-preset');
+      sel.value = profPanel('primary').dataset.preset || sel.value; sel.onchange();
+    }
+  };
   const tm = $('task-map'); tm.innerHTML = '';
   TASK_KEYS.forEach(k => {
     const lab = document.createElement('span'); lab.textContent = t('settings.task_' + k); tm.appendChild(lab);
@@ -1989,8 +2368,11 @@ $('btn-settings').onclick = async () => {
     [['primary', t('settings.profile_primary_short')], ['fast', t('settings.profile_fast_short')]].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; s.appendChild(o); });
     s.value = (ai.tasks || {})[k] || 'primary'; tm.appendChild(s);
   });
+  setSettingsTab(tab || 'ai');
   $('settings-overlay').classList.add('show');
-};
+}
+$('btn-settings').onclick = () => openSettings('ai');
+
 $('btn-settings-save').onclick = async () => {
   const btn = $('btn-settings-save'); btn.disabled = true;
   try {
@@ -2000,19 +2382,81 @@ $('btn-settings-save').onclick = async () => {
         fast_same_as_primary: $('fast-same').checked, tasks, memory_merge: $('set-memory-merge').value }) });
     const uiLang = $('set-ui-lang').value;
     await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ output_language: $('set-output-lang').value, ui_language: uiLang }) });
+      body: JSON.stringify({ output_language: $('set-output-lang').value, ui_language: uiLang,
+        whisper_model: $('model-select').value, language: $('lang-select').value, record_mode: $('set-record-mode').value }) });
     toast(t('settings.saved'));
     closeSettings();
-    try { applyAIBanner(await api('/api/config')); } catch {}  // 配好通道后引导横幅应立即消失
+    try { const cfg = await api('/api/config'); applyCaps(cfg); applyAIState(cfg); } catch {}
     if (uiLang !== I18N.lang) { localStorage.setItem('coco-lang', uiLang); location.reload(); }
   } catch (e) { toast(t('common.save_failed', { msg: e.message }), 8000); }
   btn.disabled = false;
 };
 
+/* about: version, where the data lives, shortcut, quit */
+async function loadAbout() {
+  const kv = $('about-kv');
+  let a;
+  try { a = await api('/api/about'); } catch (e) { kv.textContent = e.message; return; }
+  const row = (k, v, btn) => `<span class="k">${esc(k)}</span><code>${esc(v)}</code>${btn || '<span></span>'}`;
+  kv.innerHTML = row(t('about.version'), a.version)
+    + row(t('about.data'), a.root, `<button data-reveal="data">${esc(t('about.open'))}</button>`)
+    + row(t('about.log'), a.log, `<button data-reveal="log">${esc(t('about.open'))}</button>`)
+    + row(t('about.engine'), a.engine || t('about.engine_none'))
+    + row(t('about.shortcut_state'), a.shortcut ? t('about.shortcut_yes') : t('about.shortcut_no'));
+  kv.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () =>
+    api('/api/reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ which: b.dataset.reveal }) })
+      .catch(e => toast(e.message, 6000)));
+  $('btn-shortcut').textContent = t(a.shortcut ? 'about.shortcut_again' : 'about.shortcut');
+}
+$('btn-shortcut').onclick = async () => {
+  try {
+    const r = await api('/api/shortcut', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    toast(t('about.shortcut_done', { path: (r.paths || [])[0] || '' }), 7000); loadAbout();
+  } catch (e) { toast(t('common.failed', { msg: e.message }), 8000); }
+};
+
+/* ---------- quit (there is no terminal window to close) ---------- */
+async function quitCoco() {
+  const go = async force => api('/api/shutdown', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }) });
+  try {
+    let r = await go(false);
+    if (!r.ok && r.busy) {
+      const what = r.busy.map(b => t('quit.busy_' + b)).join(t('quit.and'));
+      const ans = await choose(t('quit.confirm_title'), t('quit.confirm_body', { what }),
+        [['cancel', t('common.cancel')], ['quit', t('quit.anyway'), true]]);
+      if (ans !== 'quit') return;
+      if (rec.active) await stopBrowserRecording(true);
+      r = await go(true);
+    } else if (!r.ok) return;
+    state.quitting = true;
+    closeSettings();
+    $('quit-screen').classList.add('show');
+  } catch (e) { toast(t('common.failed', { msg: e.message }), 8000); }
+}
+$('btn-quit').onclick = quitCoco;
+$('btn-quit2').onclick = quitCoco;
+
+/* generic choice dialog → resolves with the key of the button pressed (null on Esc / backdrop) */
+function choose(title, body, buttons) {
+  return new Promise(resolve => {
+    $('choose-title').textContent = title;
+    $('choose-body').textContent = body;
+    const row = $('choose-buttons'); row.innerHTML = '';
+    const done = v => { $('choose-overlay').classList.remove('show'); choose._close = null; resolve(v); };
+    buttons.forEach(([key, label, primary]) => {
+      const b = document.createElement('button'); b.textContent = label; if (primary) b.className = 'primary';
+      b.onclick = () => done(key); row.appendChild(b);
+    });
+    choose._close = () => done(null);
+    $('choose-overlay').onclick = e => { if (e.target === $('choose-overlay')) done(null); };
+    $('choose-overlay').classList.add('show');
+  });
+}
+
 /* ---------- connection banner ---------- */
 function setConn(down) {
   const b = $('conn-banner');
-  if (down) {
+  if (down && !state.quitting) {
     b.textContent = t('conn.down', { hint: state.caps.platform === 'windows' ? t('conn.hint_win') : t('conn.hint_mac') });
     b.classList.add('show');
   } else b.classList.remove('show');
@@ -2020,16 +2464,13 @@ function setConn(down) {
 
 /* ---------- local capabilities ---------- */
 function applyCaps(cfg) {
-  state.caps = { transcribe: cfg.transcribe || '', record: !!cfg.record, platform: cfg.platform || 'mac',
-    device: cfg.transcribe_device || '', textExts: cfg.text_exts || [], audioExts: cfg.audio_exts || [] };
+  state.caps = { transcribe: cfg.transcribe || '', record: !!cfg.record, recordMode: cfg.record_mode || 'browser',
+    platform: cfg.platform || 'mac', device: cfg.transcribe_device || '', textExts: cfg.text_exts || [], audioExts: cfg.audio_exts || [] };
   $('file-input').accept = ['audio/*', 'video/*'].concat(state.caps.audioExts, state.caps.textExts).join(',');
-  if (!state.caps.record) {
-    $('btn-record').style.display = 'none';
-    const er = $('empty-rec'); if (er) er.textContent = '';
-  }
+  const canRecord = state.caps.record && (state.caps.recordMode === 'ffmpeg' || !!(navigator.mediaDevices && window.MediaRecorder));
+  $('btn-record').style.display = canRecord ? '' : 'none';
+  $('start-rec').style.display = canRecord ? '' : 'none';
   if (!state.caps.transcribe) {
-    $('model-select').style.display = 'none';
-    $('lang-select').style.display = 'none';
     $('btn-upload').title = t('caps.upload_title_noengine');
     if (!sessionStorage.getItem('coco-noengine-tip')) {
       toast(t('caps.no_engine_toast'), 9000);
@@ -2051,35 +2492,109 @@ function applyCaps(cfg) {
   }
 }
 
-/* ---------- AI channel not ready: first-run guidance banner ---------- */
+/* ---------- AI channel: header chip, first-run welcome, install guides ---------- */
 function aiReady(cfg) { return !cfg.ai || cfg.ai.ready !== false; }
-function applyAIBanner(cfg) {
+function applyAIState(cfg) {
+  state.cfg = cfg;
+  const ai = cfg.ai || {}, ready = aiReady(cfg);
+  const chip = $('ai-chip');
+  chip.classList.toggle('ok', ready);
+  const label = (ai.primary && ai.primary.label) || '';
+  $('ai-chip-label').textContent = ready ? label + (ai.primary && ai.primary.auto ? t('header.ai_auto') : '') : t('header.ai_none');
+  chip.onclick = () => ready ? openSettings('ai') : openWelcome();
   const b = $('ai-banner');
-  if (aiReady(cfg) || sessionStorage.getItem('coco-aibanner-dismissed')) { b.classList.remove('show'); return; }
+  if (ready || sessionStorage.getItem('coco-aibanner-dismissed')) { b.classList.remove('show'); return; }
   b.innerHTML = esc(t('aibanner.text'))
     + ` <span class="lk2" id="aib-setup">${esc(t('aibanner.setup'))}</span>`
-    + ` <span class="lk2" id="aib-guide">${esc(t('aibanner.guide'))}</span>`
     + ` <span class="lk2" id="aib-dismiss">${esc(t('aibanner.dismiss'))}</span>`;
   b.classList.add('show');
-  $('aib-setup').onclick = () => $('btn-settings').click();
-  $('aib-guide').onclick = openClaudeGuide;
+  $('aib-setup').onclick = openWelcome;
   $('aib-dismiss').onclick = () => { sessionStorage.setItem('coco-aibanner-dismissed', '1'); b.classList.remove('show'); };
 }
-function openClaudeGuide() {
-  const key = { windows: 'claudeguide.steps_win', linux: 'claudeguide.steps_linux' }[state.caps.platform] || 'claudeguide.steps_mac';
-  $('claude-steps').textContent = t(key);
-  $('claude-overlay').classList.add('show');
+
+function closeWelcome() { $('welcome-overlay').classList.remove('show'); }
+$('welcome-overlay').onclick = e => { if (e.target === $('welcome-overlay')) closeWelcome(); };
+$('btn-welcome-later').onclick = () => { sessionStorage.setItem('coco-welcome-later', '1'); closeWelcome(); };
+function openWelcome() {
+  const clis = ((state.cfg || {}).ai || {}).clis || {};
+  const badge = (ok, text) => `<span class="badge${ok ? ' ok' : ''}">${esc(text)}</span>`;
+  const codexState = clis.codex && clis.codex_login ? [true, t('welcome.ready')]
+    : clis.codex ? [false, t('welcome.needs_login')] : [false, t('welcome.not_installed')];
+  const cards = [
+    ['codex', t('welcome.chatgpt_title'), t('welcome.chatgpt_desc'), badge(...codexState)],
+    ['claude', t('welcome.claude_title'), t('welcome.claude_desc'), badge(!!clis.claude, clis.claude ? t('welcome.ready') : t('welcome.not_installed'))],
+    ['api', t('welcome.api_title'), t('welcome.api_desc'), ''],
+    ['local', t('welcome.local_title'), t('welcome.local_desc'), ''],
+  ];
+  $('welcome-choices').innerHTML = cards.map(([k, title, desc, b]) =>
+    `<button class="choice" data-k="${k}"><b>${esc(title)}</b><small>${esc(desc)}</small>${b}</button>`).join('');
+  $('welcome-choices').querySelectorAll('.choice').forEach(c => c.onclick = () => pickWelcome(c.dataset.k));
+  $('welcome-overlay').classList.add('show');
 }
-function closeClaudeGuide() { $('claude-overlay').classList.remove('show'); }
-$('claude-overlay').onclick = e => { if (e.target === $('claude-overlay')) closeClaudeGuide(); };
-$('btn-claude-recheck').onclick = async () => {
+async function useSubscription(which) {
+  // the CLI is ready: save it as the main channel and prove it with one tiny request
+  const preset = which === 'codex' ? 'codex-cli' : 'claude-cli';
+  const pr = ((state.cfg.ai || {}).presets || {})[preset] || {};
+  toast(t('welcome.testing'), 20000);
+  try {
+    await api('/api/settings/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ primary: { type: pr.type, model: '', base_url: '', api_key: null, api_key_env: '',
+        max_context_chars: 0, max_tokens: 16000, extra_args: [], reasoning: '', preset } }) });
+    const r = await api('/api/settings/ai/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: 'primary' }) });
+    applyAIState(await api('/api/config'));
+    if (r.ok) toast(t('welcome.done', { name: which === 'codex' ? 'ChatGPT' : 'Claude', ms: r.latency_ms }), 6000);
+    else toast(t('settings.test_failed', { msg: r.error }), 10000);
+  } catch (e) { toast(t('common.failed', { msg: e.message }), 8000); }
+}
+async function pickWelcome(k) {
+  const clis = ((state.cfg || {}).ai || {}).clis || {};
+  if (k === 'codex' || k === 'claude') {
+    const ready = k === 'codex' ? (clis.codex && clis.codex_login) : clis.claude;
+    closeWelcome();
+    if (ready) await useSubscription(k); else openCliGuide(k, true);
+    return;
+  }
+  closeWelcome();
+  await openSettings('ai');
+  const sel = profPanel('primary').querySelector('.p-preset');
+  if (k === 'local') sel.value = 'ollama';
+  else { const first = presetGroups((state.cfg.ai || {}).presets || {}).api[0]; if (first) sel.value = first[0]; }
+  sel.onchange();
+  const key = profPanel('primary').querySelector('.p-key');
+  if (k === 'api' && key) key.focus();
+}
+
+let cliGuideFor = 'claude', cliGuideSave = false;
+function openCliGuide(which, saveWhenReady) {
+  cliGuideFor = which; cliGuideSave = !!saveWhenReady;
+  const plat = { windows: 'win', linux: 'linux' }[state.caps.platform] || 'mac';
+  const clis = ((state.cfg || {}).ai || {}).clis || {};
+  const loginOnly = which === 'codex' && clis.codex && !clis.codex_login;
+  $('cli-title').textContent = t(`cliguide.${which}_title`);
+  $('cli-intro').textContent = t(`cliguide.${which}_intro`);
+  $('cli-steps').textContent = loginOnly ? t('cliguide.codex_login_steps') : t(`cliguide.${which}_steps_${plat}`);
+  $('cli-overlay').classList.add('show');
+}
+function closeCliGuide() { $('cli-overlay').classList.remove('show'); }
+$('cli-overlay').onclick = e => { if (e.target === $('cli-overlay')) closeCliGuide(); };
+$('btn-cli-recheck').onclick = async () => {
   try {
     const cfg = await api('/api/config');
-    applyAIBanner(cfg);
-    if (aiReady(cfg)) { toast(t('claudeguide.recheck_ok')); closeClaudeGuide(); }
-    else toast(t('claudeguide.recheck_fail'), 9000);
-  } catch { toast(t('claudeguide.recheck_fail'), 9000); }
+    state.cfg = cfg;
+    const clis = (cfg.ai || {}).clis || {};
+    const ok = cliGuideFor === 'codex' ? (clis.codex && clis.codex_login) : clis.claude;
+    if (!ok) { toast(t(`cliguide.${cliGuideFor}_recheck_fail`), 9000); return; }
+    closeCliGuide();
+    if (cliGuideSave || !aiReady(cfg)) await useSubscription(cliGuideFor);
+    else { toast(t('cliguide.recheck_ok')); applyAIState(cfg); if ($('settings-overlay').classList.contains('show')) openSettings('ai'); }
+  } catch { toast(t(`cliguide.${cliGuideFor}_recheck_fail`), 9000); }
 };
+
+/* ---------- empty state ---------- */
+$('start-rec').onclick = () => $('btn-record').click();
+$('start-upload').onclick = () => $('file-input').click();
+$('start-paste').onclick = () => { setImpTab('paste'); $('import-overlay').classList.add('show'); $('imp-text').focus(); };
 
 /* ---------- boot ---------- */
 async function bootstrap() {
@@ -2087,38 +2602,22 @@ async function bootstrap() {
   await loadI18n(pickLang(cfg));
   state.templates = await api('/api/templates');
   applyCaps(cfg);
-  applyAIBanner(cfg);
-  $('model-select').value = cfg.whisper_model;
-  $('model-select').onchange = async e => {
-    try {
-      await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ whisper_model: e.target.value }) });
-      toast(t('config.model_switched', { model: e.target.value }));
-    } catch (err) { toast(t('config.switch_failed', { msg: err.message }), 6000); }
-  };
-  $('lang-select').value = cfg.language || 'auto';
-  if ($('lang-select').value !== (cfg.language || 'auto')) { const o = document.createElement('option'); o.value = cfg.language; o.textContent = cfg.language; $('lang-select').appendChild(o); $('lang-select').value = cfg.language; }
-  $('lang-select').onchange = async e => {
-    try {
-      await api('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: e.target.value }) });
-      const opt = e.target.options[e.target.selectedIndex];
-      toast(t('config.lang_switched', { lang: opt ? opt.textContent : e.target.value }));
-    } catch (err) { toast(t('config.switch_failed', { msg: err.message }), 6000); }
-  };
+  applyAIState(cfg);
   await loadMeetings();
   updateChatRef();
-  try {
-    const rec = await api('/api/record/status');
-    if (rec.active) { state.recording = true; state.recSeconds = Math.floor(rec.elapsed || 0); startRecTimer(); }
-  } catch {}
+  await checkRecordingOnLoad();
   setRecUI();
+  if (!aiReady(cfg) && !(cfg.ai || {}).configured && !sessionStorage.getItem('coco-welcome-later')) openWelcome();
 }
 
 (async function init() {
+  $('brand-icon').src = document.querySelector('link[rel="icon"]').href;
   while (true) {
     try { await bootstrap(); setConn(false); break; }
     catch (e) { console.error(e); setConn(true); await new Promise(r => setTimeout(r, 2000)); }
   }
   setInterval(async () => {
+    if (state.quitting) return;
     try { await loadMeetings(); setConn(false); }
     catch { setConn(true); }
   }, 8000);

@@ -1,0 +1,77 @@
+# Smoke tests on the three platforms, plus a real first run of the double-click launchers
+# (fresh checkout → Python environment → dependencies → background server → health → quit).
+name: test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Core dependencies (the smoke test stubs every model and engine)
+        run: python -m pip install "fastapi>=0.110" "uvicorn>=0.29" "python-multipart>=0.0.9" "pypdf>=4.0" httpx
+      - name: i18n completeness
+        run: python tests/check_i18n.py
+      - name: Smoke test
+        run: python tests/smoke.py
+
+  first-run-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      COCO_NO_BROWSER: "1"
+      COCO_NO_SHORTCUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Double-click equivalent of coco.bat
+        shell: cmd
+        run: call coco.bat
+      - name: Server answers, then quits
+        shell: pwsh
+        run: |
+          $h = Invoke-RestMethod http://127.0.0.1:8765/api/health
+          if ($h.app -ne 'coco') { throw "unexpected health: $h" }
+          .\.venv\Scripts\python.exe -m coco status
+          .\.venv\Scripts\python.exe -m coco stop
+          Start-Sleep -Seconds 2
+          try { Invoke-RestMethod http://127.0.0.1:8765/api/health -TimeoutSec 3; throw "still running" } catch { "stopped" }
+      - name: Shortcut creation
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m coco shortcut
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\coco.lnk")) { throw "no Start-menu shortcut" }
+
+  first-run-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      COCO_NO_BROWSER: "1"
+      COCO_NO_SHORTCUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Double-click equivalent of coco.command
+        run: ./coco.command
+      - name: Server answers, then quits
+        run: |
+          curl -fsS http://127.0.0.1:8765/api/health | grep '"app":"coco"'
+          .venv/bin/python -m coco status
+          .venv/bin/python -m coco stop
+          sleep 2
+          ! curl -fsS -m 3 http://127.0.0.1:8765/api/health

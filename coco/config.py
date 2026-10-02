@@ -51,9 +51,11 @@ DEFAULTS = {
     "beam_size": 0,              # 0 = greedy (fast). 5 = beam search: more accurate, slower
     "hallucination_filter": True,  # suppress + strip Whisper hallucinations (silence chatter, prompt echo)
     "audio_device": ":0",        # ffmpeg avfoundation input device (coco devices)
+    "record_mode": "auto",       # auto | browser (MediaRecorder, every OS) | ffmpeg (server-side, macOS)
     "hf_endpoint": "",           # empty = auto-detect; mainland China: https://hf-mirror.com
     # --- AI ---
     "claude_bin": "claude",
+    "codex_bin": "codex",        # OpenAI Codex CLI (ChatGPT subscription channel)
     "claude_extra_args": [],     # appended to every claude CLI call
     "ai_profiles": {},           # {"primary": {...}, "fast": {...}} – see providers.PROFILE_DEFAULTS
     "ai_tasks": {},              # task -> profile name, see providers.TASK_PROFILE_DEFAULTS
@@ -61,6 +63,8 @@ DEFAULTS = {
     "memory_merge": "delta",     # delta (only changed entries, fast) | full (rewrite whole file)
     # --- server ---
     "port": 8765,
+    "allowed_hosts": [],         # extra Host names allowed besides 127.0.0.1 / localhost (advanced)
+    "desktop_shortcut": "auto",  # auto (add once on first start) | created | off
 }
 
 

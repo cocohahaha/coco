@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import io
 import json
+import os
 import queue
 import re
 import shutil
@@ -20,8 +21,8 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import ai, i18n, providers
-from .config import (SELECTABLE_MODELS, BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
+from . import __version__, ai, i18n, providers
+from .config import (ROOT, SELECTABLE_MODELS, BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
                      TRACKING_DIR, TRASH_DIR, WEEKLY_DIR, ensure_dirs, load_config,
                      save_config)
 from .i18n import get_lang, memory_placeholder, set_lang, t
@@ -40,6 +41,33 @@ recorder = Recorder()
 JOBS: dict[str, dict] = {}  # jid -> {status, detail, meeting_id, error}
 STATIC = Path(__file__).parent / "static"
 TRANSCRIBE_LOCK = threading.Lock()  # one transcription at a time (one model in memory)
+SERVER: dict = {}  # {"uvicorn": uvicorn.Server} – set by `coco web`, used by /api/shutdown
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostname(value: str) -> str:
+    """'127.0.0.1:8765' / '[::1]:8765' / 'http://localhost:8765' → bare host name."""
+    v = value.strip().lower()
+    if "://" in v:
+        v = v.split("://", 1)[1]
+    v = v.split("/", 1)[0]
+    if v.startswith("["):
+        return v[1:].split("]", 1)[0]
+    return v.rsplit(":", 1)[0] if v.count(":") == 1 else v
+
+
+@app.middleware("http")
+async def local_only(request: Request, call_next):
+    """coco holds confidential meeting material and listens on 127.0.0.1 only. Also refuse
+    requests that merely *reach* it through the browser: a Host other than this machine
+    (DNS rebinding) and state-changing requests sent by another web page (cross-site POST)."""
+    allowed = LOCAL_HOSTS | {str(h).lower() for h in (load_config().get("allowed_hosts") or [])}
+    if _hostname(request.headers.get("host", "")) not in allowed:
+        return JSONResponse(status_code=403, content={"detail": t("server.forbidden_host")})
+    origin = request.headers.get("origin")
+    if origin and request.method not in ("GET", "HEAD", "OPTIONS") and _hostname(origin) not in allowed:
+        return JSONResponse(status_code=403, content={"detail": t("server.forbidden_origin")})
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -119,16 +147,114 @@ def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
 def resume_interrupted():
     """Re-queue transcriptions that were running or queued when the server was killed."""
     for m in list_meetings():
-        if (m.meta.get("status") in ("new", "transcribing")
+        status = m.meta.get("status")
+        if status == "recording":  # browser recording cut off by a restart: keep what arrived
+            audio = m.audio_file
+            if audio is None or audio.stat().st_size < 1024:
+                continue
+            m.save_meta(status="new")
+            status = "new"
+        if (status in ("new", "transcribing")
                 and not m.transcript_md.exists() and m.audio_file):
             _start_transcribe_job(m)
 
 
-# ---------- page / i18n ----------
+# ---------- about / desktop integration ----------
+
+@app.get("/api/about")
+def api_about():
+    from .launcher import LOG_FILE, shortcut_paths
+    return {"version": __version__, "root": str(ROOT), "log": str(LOG_FILE),
+            "engine": detect_backend(), "python": sys.version.split()[0],
+            "shortcut": any(p.exists() for p in shortcut_paths())}
+
+
+class RevealBody(BaseModel):
+    which: str  # data | log
+
+
+@app.post("/api/reveal")
+def api_reveal(body: RevealBody):
+    """Show the data folder / log file in Finder or Explorer (only these two fixed paths)."""
+    from .launcher import LOG_FILE
+    target = {"data": ROOT, "log": LOG_FILE}.get(body.which)
+    if target is None:
+        _err(ValueError(t("server.bad_name")))
+    if not target.exists():
+        target = target.parent
+    import subprocess
+    if sys.platform == "darwin":
+        cmd = ["open", "-R", str(target)] if target.is_file() else ["open", str(target)]
+    elif sys.platform.startswith("win"):
+        cmd = ["explorer", "/select,", str(target)] if target.is_file() else ["explorer", str(target)]
+    else:
+        cmd = ["xdg-open", str(target if target.is_dir() else target.parent)]
+    try:
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError as e:
+        _err(RuntimeError(str(e)))
+    return {"ok": True}
+
+
+@app.post("/api/shortcut")
+def api_shortcut():
+    """Add coco to Applications / Start menu / the desktop menu, pointing at this copy."""
+    from .launcher import install_shortcut
+    try:
+        paths = install_shortcut()
+    except Exception as e:
+        _err(RuntimeError(t("launcher.shortcut_failed", detail=str(e)[:200])))
+    cfg = load_config()
+    cfg["desktop_shortcut"] = "created"
+    save_config(cfg)
+    return {"ok": True, "paths": [str(p) for p in paths]}
+
+
+# ---------- page / i18n / lifecycle ----------
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/health")
+def api_health():
+    """Identity probe for the launcher: which coco (version, data folder) owns this port."""
+    return {"app": "coco", "version": __version__, "root": str(ROOT), "pid": os.getpid()}
+
+
+class ShutdownBody(BaseModel):
+    force: bool = False  # stop even while recording / transcribing (both resume on next start)
+
+
+def _busy() -> "list[str]":
+    busy = []
+    if recorder.active or BROWSER_REC.get("id"):
+        busy.append("recording")
+    if any(j.get("status") == "running" for j in JOBS.values()):
+        busy.append("jobs")
+    return busy
+
+
+@app.post("/api/shutdown")
+def api_shutdown(body: ShutdownBody):
+    """Quit coco from the UI (there is no terminal window to close any more)."""
+    busy = _busy()
+    if busy and not body.force:
+        return {"ok": False, "busy": busy, "detail": t("server.shutdown_busy")}
+    if recorder.active:  # keep what was recorded: the transcription resumes on the next start
+        try:
+            recorder.stop()
+        except RuntimeError:
+            pass
+
+    def exit_soon():  # after this response has been sent; no server object in tests / embedding
+        srv = SERVER.get("uvicorn")
+        if srv is not None:
+            srv.should_exit = True
+
+    threading.Timer(0.4, exit_soon).start()
+    return {"ok": True}
 
 
 @app.get("/api/i18n")
@@ -177,6 +303,8 @@ def api_delete_meeting(mid: str):
         m = find_meeting(mid)
     except LookupError as e:
         _err(e, 404)
+    if BROWSER_REC.get("id") == m.id:
+        _err(RuntimeError(t("record.stop_first")))
     try:
         dest = delete_meeting(m)
     except RuntimeError as e:
@@ -395,8 +523,94 @@ def api_record_stop():
 
 @app.get("/api/record/status")
 def api_record_status():
-    return {"active": recorder.active, "elapsed": recorder.elapsed(),
+    with BROWSER_REC_LOCK:  # /stop may clear it concurrently
+        snap = dict(BROWSER_REC)
+    if snap.get("id"):
+        now = dt.datetime.now().timestamp()
+        return {"active": True, "mode": "browser", "meeting_id": snap["id"],
+                "elapsed": int(now - snap["started"]), "title": snap.get("title", ""),
+                "bytes": snap.get("bytes", 0), "idle": int(now - snap["last"])}
+    return {"active": recorder.active, "mode": "ffmpeg", "elapsed": recorder.elapsed(),
             "title": recorder.title if recorder.active else ""}
+
+
+# ---------- recording in the browser (MediaRecorder → chunks appended on disk) ----------
+# Works on every platform without ffmpeg and with the browser's own microphone prompt. Chunks
+# are appended as they arrive, so closing the tab mid-meeting keeps everything recorded so far.
+
+BROWSER_REC: dict = {}  # {id, path, started, last, seq, bytes, title}
+BROWSER_REC_LOCK = threading.Lock()
+_REC_EXT = {"webm": ".webm", "ogg": ".ogg", "mp4": ".m4a", "mpeg": ".mp3", "wav": ".wav"}
+
+
+class BrowserRecStart(BaseModel):
+    title: str = ""
+    mime: str = "audio/webm"
+
+
+@app.post("/api/record/browser/start")
+def api_brec_start(body: BrowserRecStart):
+    with BROWSER_REC_LOCK:
+        if recorder.active or BROWSER_REC.get("id"):
+            _err(RuntimeError(t("record.already_recording")))
+        _require_transcriber()
+        sub = body.mime.split(";")[0].split("/")[-1].lower()
+        ext = _REC_EXT.get(sub, ".webm")
+        title = body.title.strip() or t("record.default_title", time=dt.datetime.now().strftime('%H%M'))
+        mtg = create_meeting(title, source="record")
+        path = mtg.path / f"audio{ext}"
+        path.write_bytes(b"")
+        mtg.save_meta(status="recording")
+        now = dt.datetime.now().timestamp()
+        BROWSER_REC.update(id=mtg.id, path=path, started=now, last=now, seq=0, bytes=0, title=title)
+    return {"meeting_id": mtg.id}
+
+
+@app.post("/api/record/browser/chunk")
+async def api_brec_chunk(request: Request, id: str, seq: int):
+    if BROWSER_REC.get("id") != id:
+        _err(RuntimeError(t("record.not_recording")), 409)
+    data = await request.body()
+    with BROWSER_REC_LOCK:
+        if BROWSER_REC.get("id") != id:
+            _err(RuntimeError(t("record.not_recording")), 409)
+        if seq < BROWSER_REC["seq"]:  # retried chunk that already arrived
+            return {"ok": True, "bytes": BROWSER_REC["bytes"], "dup": True}
+        if seq > BROWSER_REC["seq"]:
+            _err(RuntimeError(t("record.chunk_gap")), 409)
+        with BROWSER_REC["path"].open("ab") as f:
+            f.write(data)
+        BROWSER_REC["seq"] = seq + 1
+        BROWSER_REC["bytes"] += len(data)
+        BROWSER_REC["last"] = dt.datetime.now().timestamp()
+        return {"ok": True, "bytes": BROWSER_REC["bytes"]}
+
+
+class BrowserRecStop(BaseModel):
+    id: str
+    discard: bool = False
+
+
+@app.post("/api/record/browser/stop")
+def api_brec_stop(body: BrowserRecStop):
+    """Finish (→ transcribe) or discard (→ trash) the browser recording; also used to recover
+    a recording whose tab was closed."""
+    with BROWSER_REC_LOCK:
+        if BROWSER_REC.get("id") != body.id:
+            _err(RuntimeError(t("record.not_recording")), 409)
+        path, size = BROWSER_REC["path"], BROWSER_REC["bytes"]
+        BROWSER_REC.clear()
+    mtg = find_meeting(body.id)
+    if body.discard or size < 1024:
+        try:
+            delete_meeting(mtg)
+        except RuntimeError:
+            pass
+        if body.discard:
+            return {"ok": True, "discarded": True}
+        _err(RuntimeError(t("record.empty_file")))
+    mtg.save_meta(status="new")
+    return {"meeting_id": mtg.id, "job": _start_transcribe_job(mtg)}
 
 
 # ---------- jobs ----------
@@ -699,13 +913,25 @@ def api_config():
         "apple_silicon": is_apple_silicon(),
         "transcribe": detect_backend(cfg),      # "mlx" | "faster" | "" (cannot transcribe audio)
         "transcribe_device": detect_device(cfg),  # "mlx" | "cuda" | "cpu" | ""
-        "record": record_supported() and bool(detect_backend(cfg)),
+        "record": bool(detect_backend(cfg)),   # browser recording works everywhere
+        "record_mode": _record_mode(cfg),       # "browser" | "ffmpeg" (server-side, macOS)
         "text_exts": sorted(TEXT_EXTS),
         "timed_exts": sorted(TIMED_EXTS),
         "audio_exts": sorted(AUDIO_EXTS),
         "memory_merge": cfg.get("memory_merge", "delta"),
+        "record_mode_setting": cfg.get("record_mode", "auto"),
+        "version": __version__,
         "ai": _ai_settings(cfg),
     }
+
+
+def _record_mode(cfg: dict) -> str:
+    """auto → the browser records (every platform, its own microphone prompt); server-side
+    ffmpeg only when asked for, or when a non-default input (e.g. BlackHole) is configured."""
+    mode = cfg.get("record_mode", "auto")
+    if mode == "ffmpeg" or (mode == "auto" and str(cfg.get("audio_device", ":0")) != ":0"):
+        return "ffmpeg" if record_supported() else "browser"
+    return "browser"
 
 
 class ConfigBody(BaseModel):
@@ -714,6 +940,7 @@ class ConfigBody(BaseModel):
     ui_language: str | None = None
     output_language: str | None = None
     memory_merge: str | None = None
+    record_mode: str | None = None
 
 
 def _valid_lang(v: str) -> bool:
@@ -745,6 +972,10 @@ def api_config_save(body: ConfigBody):
         if body.memory_merge not in ("delta", "full"):
             _err(ValueError(t("server.bad_memory_merge")))
         cfg["memory_merge"] = body.memory_merge
+    if body.record_mode is not None:
+        if body.record_mode not in ("auto", "browser", "ffmpeg"):
+            _err(ValueError(t("server.bad_record_mode")))
+        cfg["record_mode"] = body.record_mode
     save_config(cfg)
     return {"ok": True, "whisper_model": cfg["whisper_model"], "language": cfg.get("language", "auto"),
             "ui_language": cfg.get("ui_language", "auto"),
@@ -763,6 +994,8 @@ def _ai_settings(cfg: dict) -> dict:
         "tasks": tasks,
         "presets": providers.PRESETS,
         "claude_bin_found": providers.claude_found(cfg),
+        "clis": providers.detect_clis(cfg),
+        "configured": bool((cfg.get("ai_profiles") or {}).get("primary")),
         "ready": providers.is_ready(cfg),
     }
 
@@ -776,6 +1009,8 @@ class AIProfileBody(BaseModel):
     max_context_chars: int = 0
     max_tokens: int = 16000
     extra_args: list[str] = []
+    reasoning: str = ""
+    preset: str = ""
 
 
 class AISettingsBody(BaseModel):
@@ -791,7 +1026,9 @@ def _profile_dict(body: AIProfileBody, old: dict) -> dict:
         _err(ValueError(t("server.bad_profile_type", types=", ".join(providers.PROFILE_TYPES))))
     d = {"type": body.type, "model": body.model.strip(), "base_url": body.base_url.strip().rstrip("/"),
          "api_key_env": body.api_key_env.strip(), "max_context_chars": max(0, int(body.max_context_chars)),
-         "max_tokens": max(256, int(body.max_tokens)), "extra_args": [str(a) for a in body.extra_args]}
+         "max_tokens": max(256, int(body.max_tokens)), "extra_args": [str(a) for a in body.extra_args],
+         "reasoning": body.reasoning.strip() if body.reasoning.strip() in ("", "low", "medium", "high") else "",
+         "preset": body.preset.strip() if body.preset.strip() in providers.PRESETS else ""}
     d["api_key"] = old.get("api_key", "") if body.api_key is None else body.api_key.strip()
     return d
 
@@ -840,6 +1077,24 @@ def api_ai_test(body: AITestBody):
     if body.profile not in providers.PROFILE_NAMES:
         _err(ValueError(t("server.bad_profile_name")))
     return providers.test_profile(body.profile)
+
+
+@app.post("/api/settings/ai/models")
+def api_ai_models(body: AITestBody):
+    """Models a (possibly unsaved) channel offers – fills the model dropdown live."""
+    cfg = load_config()
+    if body.inline is not None:
+        old = (cfg.get("ai_profiles") or {}).get(body.profile) or {}
+        p = dict(providers.PROFILE_DEFAULTS)
+        p.update(_profile_dict(body.inline, old))
+    else:
+        p = providers.get_profile(body.profile if body.profile in providers.PROFILE_NAMES else "primary", cfg)
+    try:
+        return {"models": providers.list_models(p, cfg)}
+    except providers.ModelError as e:
+        _err(e)
+    except (ValueError, OSError) as e:
+        _err(RuntimeError(t("ai.models_failed", detail=str(e)[:200])))
 
 
 # ---------- transcript / reports editing, name fixing ----------
