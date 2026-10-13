@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import shutil
+import threading
+import time
 from pathlib import Path
 
 from .config import LIBRARY_DIR, TRASH_DIR, ensure_dirs
@@ -12,6 +15,20 @@ from .i18n import available, t
 
 AUDIO_EXTS = {".m4a", ".mp3", ".wav", ".aiff", ".aif", ".flac", ".ogg",
               ".opus", ".webm", ".mp4", ".mov", ".mkv", ".amr", ".wma", ".aac", ".wmv", ".avi"}
+META_LOCK = threading.Lock()  # meta.json read-modify-write: background memory / name-fix threads too
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Readers never see a half-written file: write a sibling temp file, then swap it in."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    for _ in range(20):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:  # Windows: the target is briefly open in a reader
+            time.sleep(0.05)
+    os.replace(tmp, path)
 
 
 def _slug(title: str) -> str:
@@ -37,9 +54,10 @@ class Meeting:
         return {}
 
     def save_meta(self, **kwargs) -> None:
-        m = self.meta
-        m.update(kwargs)
-        self.meta_file.write_text(json.dumps(m, ensure_ascii=False, indent=2), encoding="utf-8")
+        with META_LOCK:
+            m = self.meta
+            m.update(kwargs)
+            write_atomic(self.meta_file, json.dumps(m, ensure_ascii=False, indent=2))
 
     @property
     def title(self) -> str:
