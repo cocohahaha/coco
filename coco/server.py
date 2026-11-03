@@ -220,6 +220,20 @@ def index():
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+_STATIC_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+                 ".html": "text/html; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png"}
+
+
+@app.get("/static/{path:path}")
+def static_file(path: str):
+    """Front-end files. Explicit types (a Windows registry can map .js to text/plain, which browsers
+    refuse for modules) and no-cache, so an update is picked up on the next page load."""
+    p = (STATIC / path).resolve()
+    if STATIC.resolve() not in p.parents or not p.is_file() or p.suffix not in _STATIC_TYPES:
+        raise HTTPException(status_code=404)
+    return FileResponse(p, media_type=_STATIC_TYPES[p.suffix], headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/health")
 def api_health():
     """Identity probe for the launcher: which coco (version, data folder) owns this port."""
@@ -765,6 +779,14 @@ def api_delete_prep(name: str):
 def dl_prep(name: str):
     _safe_name(name)
     return _md_download(PREP_DIR / f"{name}.md", f"{t('files.prep')}-{name}.md")
+
+
+@app.get("/api/tracking")
+def api_tracking_list():
+    if not TRACKING_DIR.exists():
+        return []
+    return [{"name": p.stem, "content": p.read_text(encoding="utf-8")}
+            for p in sorted(TRACKING_DIR.glob("*.md"), reverse=True)]
 
 
 @app.delete("/api/tracking/{name}")

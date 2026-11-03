@@ -34,6 +34,15 @@ DYNAMIC = {
     "msg.launcher.shortcut_": ["mac", "win", "linux"],
     "msg.cli.h_": ["start", "stop", "restart", "status", "setup", "shortcut", "update"],
     "ui.audiohelp.body_": ["windows", "mac", "linux"],
+    "ui.asr.channel_": ["agy", "gemini", "openai", "bailian", "local"],
+    "ui.asr.desc_": ["agy", "gemini", "openai", "bailian", "local"],
+    "ui.asr.cloud_note_": ["gemini", "openai", "bailian"],
+    "ui.mem.type_": ["person", "project", "commitment", "term", "all"],
+    "ui.mem.status_": ["open", "done", "cancelled", "unknown", "all"],
+    "ui.settings.sec_": ["ai", "asr", "lang", "about", "ai_desc", "asr_desc", "lang_desc", "about_desc"],
+    "ui.settings.fast_": ["auto", "same", "custom", "auto_desc", "same_desc", "custom_desc"],
+    "ui.library.doc_": ["brief", "weekly", "tracking", "prep"],
+    "ui.brief.": ["day", "week"],
 }
 TEMPLATE_IDS = ["minutes", "actions", "mood", "tension", "bias", "topics", "client", "hiring", "followup"]
 TRACK_IDS = ["track", "signals", "synthesis"]
@@ -47,7 +56,8 @@ def collect_keys() -> set[str]:
         for m in re.finditer(r"""\bt\(\s*["']([a-z_]+(?:\.[a-z_]+)+)["']""", p.read_text(encoding="utf-8")):
             k = m.group(1)
             keys.add(k if k.split(".")[0] in ("ui", "msg") else "msg." + k)
-    html = (PKG / "static" / "index.html").read_text(encoding="utf-8")
+    front = [PKG / "static" / "index.html"] + sorted((PKG / "static" / "js").glob("*.js"))
+    html = "\n".join(f.read_text(encoding="utf-8") for f in front)
     for m in re.finditer(r"""\bt\(\s*['"]([a-z_]+(?:\.[a-z_]+)+)['"]""", html):
         keys.add("ui." + m.group(1))
     for m in re.finditer(r"""data-i18n(?:-html|-title|-placeholder)?="([^"]+)\"""", html):

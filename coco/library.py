@@ -316,6 +316,8 @@ def search_library(query: str, per_meeting: int = 4, limit: int = 50) -> list[di
         matches = []
         for label, path in sources:
             for line in path.read_text(encoding="utf-8").splitlines():
+                if line.startswith("#") or (label == t("files.transcript") and line.startswith("- ")):
+                    continue  # titles and the transcript header are not what people search for
                 if q in line.lower():
                     matches.append({"where": label, "line": line.strip()[:120]})
                     if len(matches) >= per_meeting:

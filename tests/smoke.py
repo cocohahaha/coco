@@ -84,7 +84,7 @@ def stream(path, body, headers=None):
 import check_i18n  # noqa: E402
 check("i18n 三语言包键完整", check_i18n.main() == 0)
 r = c.get("/api/i18n?lang=fr").json()
-check("i18n fr 返回字典", r["lang"] == "fr" and r["strings"]["header"]["upload"].startswith("↑") and len(r["available"]) == 3)
+check("i18n fr 返回字典", r["lang"] == "fr" and r["strings"]["nav"]["memory"] == "Mémoire" and len(r["available"]) == 3)
 check("错误信息跟随请求语言 fr", "Contenu vide" in c.post("/api/import-text", json={"content": " "}, headers=FR).json()["detail"])
 check("错误信息跟随请求语言 zh", "内容为空" in c.post("/api/import-text", json={"content": " "}).json()["detail"])
 check("Accept-Language 兜底", c.post("/api/import-text", json={"content": " "},
@@ -883,6 +883,14 @@ out = subprocess.run([sys.executable, "-m", "coco", "status"], capture_output=Tr
 check("coco status 可在无服务时运行", out.returncode == 0 and ("not running" in out.stdout or "没有在运行" in out.stdout), out.stdout + out.stderr)
 out = subprocess.run([sys.executable, "-m", "coco", "--help"], capture_output=True, text=True, env=env, cwd=str(REPO))
 check("--help 列出启动命令", out.returncode == 0 and all(w in out.stdout for w in ("start", "stop", "update")), out.stdout[-300:])
+
+# 35b. front-end files: explicit types, no-cache, no path traversal
+r = c.get("/static/js/app.js")
+check("前端模块以 text/javascript 返回且不缓存", r.status_code == 200 and r.headers["content-type"].startswith("text/javascript")
+      and r.headers.get("cache-control") == "no-cache")
+check("静态文件拒绝路径穿越", c.get("/static/../server.py").status_code == 404 and c.get("/static/%2e%2e/server.py").status_code == 404)
+check("首页引用模块入口", "/static/js/app.js" in c.get("/").text)
+check("洞察历史列表", isinstance(c.get("/api/tracking").json(), list))
 
 # 36. transcription channels: agy (stub), timeline assembly, gaps, quota, glossary fixes
 from coco import asr as casr  # noqa: E402
