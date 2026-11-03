@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""agy (Google Antigravity CLI) stub for the smoke test.
+
+Answers ``agy -p <prompt> --model <m> --output-format json`` like the real CLI: a JSON object with
+status / response / usage. The transcript it returns drifts late on purpose (its last stamp is past
+the piece's length) so the timeline correction is exercised. Behaviour switches (environment):
+
+  AGY_STUB_FILTER=gemini-3.8-flash-medium   this model answers "blocked by Gemini's filters"
+  AGY_STUB_QUOTA=1                          every call reports an exhausted quota
+  AGY_STUB_LOG=<file>                       append "model piece" per call
+"""
+import json
+import os
+import re
+import sys
+
+args = sys.argv[1:]
+if args[:1] == ["models"]:
+    print("gemini-3.8-flash-high\tGemini 3.8 Flash (High)\ngemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)")
+    sys.exit(0)
+prompt = args[args.index("-p") + 1] if "-p" in args else ""
+model = args[args.index("--model") + 1] if "--model" in args else ""
+m = re.search(r"(?:view_file 打开|Open) (\S+\.mp3)", prompt)
+piece = os.path.basename(m.group(1)) if m else "-"
+if os.environ.get("AGY_STUB_LOG"):
+    with open(os.environ["AGY_STUB_LOG"], "a", encoding="utf-8") as f:
+        f.write(f"{model} {piece}\n")
+if os.environ.get("AGY_STUB_QUOTA"):
+    print(json.dumps({"status": "ERROR", "error": "You have exhausted daily quota for this model"}))
+    sys.exit(1)
+if model and model == os.environ.get("AGY_STUB_FILTER"):
+    print(json.dumps({"status": "ERROR", "response": "", "error": "Response was blocked by Gemini's filters"}))
+    sys.exit(1)
+if "ready" in prompt and not m:
+    print(json.dumps({"status": "SUCCESS", "response": "ready"}))
+    sys.exit(0)
+body = ("[00:00]\n好的，我们开始。今天先过一下马克西姆提的季度目标。\n\n"
+        "[00:20]\n嗯。\n\n"
+        "[00:41]\nOK, let's review the GEO report first, then the budget.\n")
+print(json.dumps({"status": "SUCCESS", "response": body,
+                  "usage": {"input_tokens": 1200, "output_tokens": 80}}, ensure_ascii=False))

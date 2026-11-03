@@ -55,24 +55,6 @@ Details: [Install and run](#install-and-run) and [AI channels](#ai-channels-chat
 - **Anyone with too many meetings** — transcription, minutes, action items, daily and weekly
   briefs in one place
 
-## What it looks like
-
-Screenshots below show the Chinese interface; the layout is identical in English and French.
-
-**Pre-meeting brief** — understand the situation before walking in.
-
-![Prep](docs/prep.png)
-
-**Cross-meeting insight** — three analysis modes, optional focus on a person or project, optional
-restriction to selected meetings.
-
-![Insight](docs/insight.png)
-
-**Knowledge base** — people, projects, commitments and glossary accumulated automatically. Click a
-person to review them across every meeting.
-
-![Knowledge](docs/knowledge.png)
-
 ## Features
 
 ### Getting material in

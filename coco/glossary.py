@@ -113,3 +113,30 @@ def initial_prompt_terms(max_chars: int = 200) -> str:
 def glossary_stats(text: str | None = None) -> dict:
     p = parse_glossary(text)
     return {"names": len(p["names"]), "terms": len(p["terms"])}
+
+
+def safe_replacements(parsed: "dict | None" = None) -> "list[tuple[str, str]]":
+    """Known mishearings of people's names that can be fixed without reading the context: Chinese
+    variants of three characters or more (马克西姆 → Maxim). Short variants (汤), Latin-script
+    variants (Mack) and the terms section (发布计划 is also a plain translation of
+    "Release Plan") stay with the AI name correction, which sees the context."""
+    parsed = parsed or parse_glossary()
+    out: dict[str, str] = {}
+    for e in parsed["names"]:
+        for w in e["wrong"]:
+            w = w.strip()
+            if not w or w == e["term"] or e["term"] in w or w in e["term"]:
+                continue
+            if len(re.findall(r"[㐀-鿿]", w)) >= 3 and not re.search(r"[A-Za-z]", w):
+                out.setdefault(w, e["term"])
+    return sorted(out.items(), key=lambda kv: -len(kv[0]))
+
+
+def apply_replacements(text: str, reps: "list[tuple[str, str]]") -> "tuple[str, int]":
+    n = 0
+    for wrong, right in reps:
+        c = text.count(wrong)
+        if c:
+            text = text.replace(wrong, right)
+            n += c
+    return text, n

@@ -21,7 +21,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, ai, i18n, providers
+from . import __version__, ai, asr, i18n, memory, providers
 from .config import (ROOT, SELECTABLE_MODELS, BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
                      TRACKING_DIR, TRASH_DIR, WEEKLY_DIR, ensure_dirs, load_config,
                      save_config)
@@ -109,13 +109,13 @@ def _trash_file(path: Path, dest_stem: str) -> Path:
 
 
 def _require_transcriber() -> None:
-    """Refuse audio up front when there is no engine – a meeting that can never be
-    transcribed would look like a stuck job."""
-    if not detect_backend():
+    """Refuse audio up front when no transcription channel is available – a meeting that can
+    never be transcribed would look like a stuck job."""
+    if not asr.resolve_channel():
         _err(RuntimeError(no_engine_hint()))
 
 
-def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
+def _start_transcribe_job(mtg: Meeting, model: str | None = None, channel: str | None = None) -> str:
     jid = uuid.uuid4().hex[:8]
     JOBS[jid] = {"status": "running", "detail": t("job.queued"), "meeting_id": mtg.id}
     lang = get_lang()
@@ -125,9 +125,12 @@ def _start_transcribe_job(mtg: Meeting, model: str | None = None) -> str:
         try:
             if not mtg.path.exists():
                 raise FileNotFoundError(t("job.deleted_while_queued"))
-            with TRANSCRIBE_LOCK:
+            ch = channel or asr.resolve_channel()
+            # one local transcription at a time (one model in memory); cloud channels run side by side
+            lock = TRANSCRIBE_LOCK if ch == "local" else threading.Lock()
+            with lock:
                 JOBS[jid].update(detail=t("job.transcribing"))
-                transcribe_meeting(mtg, model=model,
+                transcribe_meeting(mtg, model=model, channel=ch,
                                    progress=lambda msg: JOBS[jid].update(detail=msg))
             if load_config().get("auto_memory", True):
                 try:
@@ -165,7 +168,7 @@ def resume_interrupted():
 def api_about():
     from .launcher import LOG_FILE, shortcut_paths
     return {"version": __version__, "root": str(ROOT), "log": str(LOG_FILE),
-            "engine": detect_backend(), "python": sys.version.split()[0],
+            "engine": detect_backend(), "asr": asr.resolve_channel(), "python": sys.version.split()[0],
             "shortcut": any(p.exists() for p in shortcut_paths())}
 
 
@@ -368,7 +371,7 @@ async def api_upload(file: UploadFile = File(...), title: str = Form(""), model:
         tmp.unlink(missing_ok=True)
         _err(RuntimeError(t("server.tmp_write_failed", detail=str(e))), 500)
     name = title or Path(file.filename).stem
-    if suffix not in TEXT_EXTS and not detect_backend():
+    if suffix not in TEXT_EXTS and not asr.resolve_channel():
         tmp.unlink(missing_ok=True)
         _require_transcriber()
     if suffix in TEXT_EXTS:  # existing text material: straight into the library
@@ -436,7 +439,7 @@ def api_import(body: ImportBody):
         if p.suffix.lower() not in ok_exts:
             _err(ValueError(t("server.unsupported_type", ext=p.suffix)))
         plan = [(p, None)]
-    has_engine = bool(detect_backend())
+    has_engine = bool(asr.resolve_channel())
     if not has_engine and all(f.suffix.lower() not in TEXT_EXTS for f, _ in plan):
         _require_transcriber()
     ensure_dirs()
@@ -911,9 +914,10 @@ def api_config():
         "platform": ("mac" if sys.platform == "darwin"
                      else "windows" if sys.platform.startswith("win") else "linux"),
         "apple_silicon": is_apple_silicon(),
-        "transcribe": detect_backend(cfg),      # "mlx" | "faster" | "" (cannot transcribe audio)
+        "transcribe": asr.resolve_channel(cfg),  # channel for new audio; "" = cannot transcribe audio
+        "transcribe_engine": detect_backend(cfg),  # local engine: "mlx" | "faster" | ""
         "transcribe_device": detect_device(cfg),  # "mlx" | "cuda" | "cpu" | ""
-        "record": bool(detect_backend(cfg)),   # browser recording works everywhere
+        "record": bool(asr.resolve_channel(cfg)),  # browser recording works everywhere
         "record_mode": _record_mode(cfg),       # "browser" | "ffmpeg" (server-side, macOS)
         "text_exts": sorted(TEXT_EXTS),
         "timed_exts": sorted(TIMED_EXTS),
@@ -991,6 +995,7 @@ def _ai_settings(cfg: dict) -> dict:
         "primary": providers.public_profile(providers.get_profile("primary", cfg)),
         "fast": providers.public_profile(providers.get_profile("fast", cfg)),
         "fast_configured": bool(profiles.get("fast")),
+        "fast_auto": bool(cfg.get("fast_auto", True)),
         "tasks": tasks,
         "presets": providers.PRESETS,
         "claude_bin_found": providers.claude_found(cfg),
@@ -1017,6 +1022,7 @@ class AISettingsBody(BaseModel):
     primary: AIProfileBody | None = None
     fast: AIProfileBody | None = None
     fast_same_as_primary: bool | None = None
+    fast_auto: bool | None = None
     tasks: dict[str, str] | None = None
     memory_merge: str | None = None
 
@@ -1027,7 +1033,7 @@ def _profile_dict(body: AIProfileBody, old: dict) -> dict:
     d = {"type": body.type, "model": body.model.strip(), "base_url": body.base_url.strip().rstrip("/"),
          "api_key_env": body.api_key_env.strip(), "max_context_chars": max(0, int(body.max_context_chars)),
          "max_tokens": max(256, int(body.max_tokens)), "extra_args": [str(a) for a in body.extra_args],
-         "reasoning": body.reasoning.strip() if body.reasoning.strip() in ("", "low", "medium", "high") else "",
+         "reasoning": body.reasoning.strip() if body.reasoning.strip() in ("",) + providers.EFFORTS else "",
          "preset": body.preset.strip() if body.preset.strip() in providers.PRESETS else ""}
     d["api_key"] = old.get("api_key", "") if body.api_key is None else body.api_key.strip()
     return d
@@ -1049,6 +1055,8 @@ def api_ai_settings_save(body: AISettingsBody):
     elif body.fast is not None:
         profiles["fast"] = _profile_dict(body.fast, profiles.get("fast") or {})
     cfg["ai_profiles"] = profiles
+    if body.fast_auto is not None:
+        cfg["fast_auto"] = bool(body.fast_auto)
     if body.tasks is not None:
         cfg["ai_tasks"] = {k: v for k, v in body.tasks.items()
                            if k in providers.TASK_PROFILE_DEFAULTS and v in providers.PROFILE_NAMES}
@@ -1496,7 +1504,9 @@ def api_templates():
 
 @app.get("/api/memory")
 def api_memory():
+    """The three memory texts; ``longterm`` is rendered from the structured store."""
     ensure_dirs()
+    memory.load()
     return {"content": MEMORY_FILE.read_text(encoding="utf-8"),
             "longterm": LONGTERM_FILE.read_text(encoding="utf-8"),
             "glossary": GLOSSARY_FILE.read_text(encoding="utf-8")}
@@ -1524,8 +1534,11 @@ def api_memory_save(body: MemoryBody):
     with ai.MEMORY_LOCK:
         if body.content is not None:
             _backup_then_write(MEMORY_FILE, body.content)
-        if body.longterm is not None:
-            _backup_then_write(LONGTERM_FILE, body.longterm)
+        if body.longterm is not None:  # hand-edited Markdown → parsed back into entries
+            old = LONGTERM_FILE.read_text(encoding="utf-8") if LONGTERM_FILE.exists() else ""
+            if body.longterm != old:
+                LONGTERM_FILE.with_suffix(".bak.md").write_text(old, encoding="utf-8")
+                memory.replace_from_markdown(body.longterm)
         if body.glossary is not None:
             _backup_then_write(GLOSSARY_FILE, body.glossary)
     return {"ok": True}
@@ -1541,6 +1554,15 @@ def api_memory_clear(body: MemoryClearBody):
         _err(ValueError(t("server.bad_memory_which")))
     ensure_dirs()
     path, kind = MEMORY_FILES[body.which]
+    if body.which == "longterm":
+        backed = LONGTERM_FILE.exists() and bool(memory.entities())
+        if backed:
+            LONGTERM_FILE.with_suffix(".bak.md").write_text(LONGTERM_FILE.read_text(encoding="utf-8"),
+                                                            encoding="utf-8")
+        memory.clear()
+        LONGTERM_FILE.write_text(memory_placeholder("longterm"), encoding="utf-8")
+        return {"ok": True, "content": LONGTERM_FILE.read_text(encoding="utf-8"),
+                "backup": str(LONGTERM_FILE.with_suffix(".bak.md")) if backed else None}
     placeholder = memory_placeholder(kind)
     with ai.MEMORY_LOCK:
         backed = _backup_then_write(path, placeholder)
@@ -1550,10 +1572,10 @@ def api_memory_clear(body: MemoryClearBody):
 
 @app.post("/api/memory/compact")
 def api_memory_compact():
-    """Rewrite long-term memory once to merge / compress (background job)."""
+    """Tidy long entries (summaries rewritten, duplicate facts merged) as a background job."""
     def run(progress):
-        ai.compact_longterm(progress=progress)
-        return t("server.compact_done")
+        n = ai.compact_longterm(progress=progress)
+        return t("server.compact_done_n", n=n)
     return {"job": _start_job(t("ai.compacting"), run)}
 
 
@@ -1566,46 +1588,262 @@ def api_glossary_extract():
     return {"ok": True, "glossary": content}
 
 
-# ---------- knowledge base ----------
+# ---------- long-term memory entries ----------
 
-def _section_items(text: str) -> dict[str, list[str]]:
-    """Top-level bullet entries per canonical section ('people', 'projects', …)."""
-    out: dict[str, list[str]] = {}
-    section = ""
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("## "):
-            section = i18n.canonical_section(s) or s[3:].strip()
-            out.setdefault(section, [])
-        elif section and (line.startswith("- ") or line.startswith("* ")):
-            out[section].append(line[2:].strip())
+def _meeting_titles() -> dict:
+    return {m.id: {"title": m.title, "date": m.date} for m in list_meetings()}
+
+
+@app.get("/api/memory/entities")
+def api_entities(type: str = "", q: str = "", status: str = ""):
+    if q.strip():
+        items = memory.search(q, limit=200)
+        if type:
+            items = [i for i in items if i["type"] == type]
+    else:
+        items = [memory.brief(e) for e in memory.entities(type or None)]
+        items.sort(key=lambda e: e.get("updated", ""), reverse=True)
+    if status:
+        items = [i for i in items if i.get("status") == status]
+    return {"items": items, "stats": memory.stats()}
+
+
+@app.get("/api/memory/entities/{eid}")
+def api_entity(eid: str):
+    e = memory.get(eid)
+    if e is None:
+        _err(LookupError(t("memory.not_found")), 404)
+    titles = _meeting_titles()
+    facts = [{**f, "source_title": (titles.get(f.get("source")) or {}).get("title", "")} for f in e.get("facts") or []]
+    sources = [{"id": s, **titles.get(s, {"title": s, "date": ""}), "exists": s in titles} for s in e.get("sources") or []]
+    return {**e, "facts": facts, "sources": sources}
+
+
+class EntityBody(BaseModel):
+    type: str | None = None
+    name: str | None = None
+    aliases: list[str] | None = None
+    summary: str | None = None
+    facts: list[dict] | None = None
+    status: str | None = None
+    owner: str | None = None
+    due: str | None = None
+
+
+@app.post("/api/memory/entities")
+def api_entity_create(body: EntityBody):
+    try:
+        return memory.create(body.model_dump(exclude_none=True))
+    except ValueError as e:
+        _err(e)
+
+
+@app.post("/api/memory/entities/{eid}")
+def api_entity_update(eid: str, body: EntityBody):
+    try:
+        return memory.update(eid, body.model_dump(exclude_none=True))
+    except LookupError as e:
+        _err(e, 404)
+
+
+@app.delete("/api/memory/entities/{eid}")
+def api_entity_delete(eid: str):
+    try:
+        memory.delete(eid)
+    except LookupError as e:
+        _err(e, 404)
+    return {"ok": True}
+
+
+class MergeBody(BaseModel):
+    into: str
+
+
+@app.post("/api/memory/entities/{eid}/merge")
+def api_entity_merge(eid: str, body: MergeBody):
+    try:
+        return memory.merge(eid, body.into)
+    except LookupError as e:
+        _err(e, 404)
+
+
+@app.post("/api/memory/entities/{eid}/tidy")
+def api_entity_tidy(eid: str):
+    if memory.get(eid) is None:
+        _err(LookupError(t("memory.not_found")), 404)
+    try:
+        ai.tidy_entries([eid])
+    except ai.AIError as e:
+        _err(e)
+    return memory.get(eid)
+
+
+# ---------- one search box for everything ----------
+
+def _doc_hits(q: str, limit: int = 20) -> list[dict]:
+    k = q.lower()
+    groups = (("brief", BRIEFS_DIR), ("weekly", WEEKLY_DIR), ("tracking", TRACKING_DIR), ("prep", PREP_DIR))
+    out = []
+    for kind, folder in groups:
+        if not folder.exists():
+            continue
+        for p in sorted(folder.glob("*.md"), reverse=True):
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if k in line.lower():
+                    out.append({"type": kind, "name": p.stem, "line": line.strip()[:140]})
+                    break
+            if len(out) >= limit:
+                return out
     return out
+
+
+@app.get("/api/find")
+def api_find(q: str = ""):
+    """Meetings (titles, digests, transcripts, reports), long-term memory and saved briefs at once."""
+    q = q.strip()
+    if not q:
+        return {"meetings": [], "memory": [], "docs": []}
+    hits = search_library(q)
+    k = q.lower()
+    seen = {h["id"] for h in hits}
+    for m in list_meetings():  # digests and titles are not in the files search_library reads
+        dg = str(m.meta.get("digest") or "")
+        if m.id not in seen and (k in dg.lower() or k in m.title.lower()):
+            hits.insert(0, {"id": m.id, "title": m.title, "created": m.meta.get("created", ""),
+                            "matches": [{"where": "digest", "line": dg[:120] or m.title}]})
+    return {"meetings": hits, "memory": memory.search(q, limit=30), "docs": _doc_hits(q)}
 
 
 @app.get("/api/knowledge")
 def api_knowledge():
     ensure_dirs()
-    longterm = LONGTERM_FILE.read_text(encoding="utf-8")
-    glossary = GLOSSARY_FILE.read_text(encoding="utf-8")
-    sections = _section_items(longterm)
+    st = memory.stats()
     from .glossary import glossary_stats
-    gs = glossary_stats(glossary)
-    persons = sections.get("people", [])
-    names = []
-    for p in persons:  # entries look like "**Name**: note" or "Name: note"
-        n = re.split(r"[:：（(]", p.replace("*", ""), 1)[0].strip()
-        if 0 < len(n) <= 40:
-            names.append(n)
+    gs = glossary_stats(GLOSSARY_FILE.read_text(encoding="utf-8"))
     meetings = [m for m in list_meetings() if m.transcript_md.exists()]
+    people = [e["name"] for e in memory.entities("person")]
     return {
-        "stats": {"meetings": len(meetings), "persons": len(persons),
-                  "projects": len(sections.get("projects", [])),
-                  "promises": len(sections.get("commitments", [])),
+        "stats": {"meetings": len(meetings), "persons": st["person"], "projects": st["project"],
+                  "promises": st["commitment"], "open": st["open"], "terms": st["term"],
                   "glossary": gs["names"] + gs["terms"]},
-        "person_names": names,
-        "longterm": longterm,
-        "glossary": glossary,
+        "person_names": people,
+        "longterm": LONGTERM_FILE.read_text(encoding="utf-8") if LONGTERM_FILE.exists() else "",
+        "glossary": GLOSSARY_FILE.read_text(encoding="utf-8"),
     }
+
+
+# ---------- transcription channels ----------
+
+class ASRChannelBody(BaseModel):
+    model: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None  # None = keep; "" = clear
+    api_key_env: str | None = None
+    workers: int | None = None
+    bin: str | None = None
+
+
+class ASRSettingsBody(BaseModel):
+    channel: str | None = None  # auto | agy | gemini | openai | bailian | local | none
+    context: str | None = None
+    language: str | None = None
+    glossary_autofix: bool | None = None
+    agy: ASRChannelBody | None = None
+    gemini: ASRChannelBody | None = None
+    openai: ASRChannelBody | None = None
+    bailian: ASRChannelBody | None = None
+
+
+def _asr_settings(cfg: dict) -> dict:
+    return {**asr.status(cfg), "context": cfg.get("asr_context", ""), "language": cfg.get("language", "auto"),
+            "glossary_autofix": bool(cfg.get("glossary_autofix", True)),
+            "whisper_model": cfg.get("whisper_model", "turbo")}
+
+
+@app.get("/api/settings/asr")
+def api_asr_settings():
+    return _asr_settings(load_config())
+
+
+@app.post("/api/settings/asr")
+def api_asr_settings_save(body: ASRSettingsBody):
+    cfg = load_config()
+    if body.channel is not None:
+        if body.channel not in ("auto", "none") + asr.CHANNELS:
+            _err(ValueError(t("server.bad_asr_channel")))
+        cfg["asr_channel"] = body.channel
+    if body.context is not None:
+        cfg["asr_context"] = body.context.strip()[:300]
+    if body.language is not None:
+        if not _valid_lang(body.language):
+            _err(ValueError(t("server.bad_language")))
+        cfg["language"] = body.language
+    if body.glossary_autofix is not None:
+        cfg["glossary_autofix"] = bool(body.glossary_autofix)
+    chans = dict(cfg.get("asr") or {})
+    for name in asr.CLOUD_CHANNELS:
+        b = getattr(body, name)
+        if b is None:
+            continue
+        cur = dict(chans.get(name) or {})
+        for k in ("model", "base_url", "api_key_env", "bin"):
+            v = getattr(b, k)
+            if v is not None:
+                cur[k] = v.strip().rstrip("/") if k == "base_url" else v.strip()
+        if b.api_key is not None:
+            cur["api_key"] = b.api_key.strip()
+        if b.workers is not None:
+            cur["workers"] = max(1, min(int(b.workers), 6))
+        chans[name] = cur
+    cfg["asr"] = chans
+    save_config(cfg)
+    return {"ok": True, **_asr_settings(cfg)}
+
+
+class ASRTestBody(BaseModel):
+    channel: str
+
+
+@app.post("/api/settings/asr/test")
+def api_asr_test(body: ASRTestBody):
+    if body.channel not in asr.CHANNELS:
+        _err(ValueError(t("server.bad_asr_channel")))
+    return asr.test_channel(body.channel)
+
+
+@app.get("/api/settings/asr/models")
+def api_asr_models(channel: str = "agy"):
+    if channel == "agy":
+        return {"models": asr.agy_models()}
+    return {"models": []}
+
+
+class RetranscribeBody(BaseModel):
+    channel: str = ""
+    model: str = ""
+
+
+@app.post("/api/meetings/{mid}/transcribe")
+def api_retranscribe(mid: str, body: RetranscribeBody = RetranscribeBody()):
+    """Transcribe again (other channel / model). The current transcript is kept as transcript.prev.md."""
+    try:
+        m = find_meeting(mid)
+    except LookupError as e:
+        _err(e, 404)
+    if m.audio_file is None:
+        _err(FileNotFoundError(t("transcribe.no_audio", id=m.id)))
+    if _active_job_detail(m.id):
+        _err(RuntimeError(t("server.already_transcribing")))
+    ch = body.channel or asr.resolve_channel()
+    if not ch:
+        _err(RuntimeError(no_engine_hint()))
+    if ch not in asr.CHANNELS:
+        _err(ValueError(t("server.bad_asr_channel")))
+    if m.transcript_md.exists():
+        with ai.TRANSCRIPT_LOCK:
+            (m.path / "transcript.prev.md").write_text(m.transcript_text(), encoding="utf-8")
+    m.save_meta(status="new", memorized_at=None)
+    return {"job": _start_transcribe_job(m, body.model or None, channel=ch), "channel": ch}
 
 
 @app.exception_handler(Exception)

@@ -11,155 +11,161 @@ OUTPUT_LANG_LINE = ("Output language: write everything in {lang} "
 SOURCE_LANG_LINE = ("Output language: write in the language of the meeting material itself "
                     "(if several languages are mixed, use the dominant one).")
 
+STYLE = (
+    "Writing rules:\n"
+    "- Conclusion first, then the evidence. State each fact once; never repeat it in another section.\n"
+    "- Leave out any section that has nothing to say; never write 'none' or 'not mentioned'.\n"
+    "- Do not restate background or long-term memory unless it changes this conclusion.\n"
+    "- Quote only at key judgements, one sentence each, with [mm:ss].\n"
+    "- No preamble, closing summary or pleasantries; no dashes, no exclamation marks.\n"
+    "- Stay under {budget} words."
+)
+
+ATTRIBUTION = (
+    "Speakers: the transcript usually has no reliable speaker labels. Never infer who said something "
+    "from tone or content; name a person only when the transcript names them, they introduce "
+    "themselves, or the confirmed participant list settles it; otherwise write 'someone' or 'a participant'."
+)
+
 TEMPLATES = {
     "minutes": (
-        "Based on the transcript, write structured meeting minutes containing:\n"
-        "1. Topic and participants (infer only what the material supports; never invent)\n"
-        "2. Discussion points grouped by agenda item\n"
-        "3. Conclusions and decisions reached\n"
-        "4. Action items (owner, due date; mark 'not specified' when the transcript is silent)\n"
-        "Attach timestamps when quoting key statements."
+        "Write meeting minutes:\n"
+        "1. Outcome: where the meeting landed, one or two sentences\n"
+        "2. Decisions: what was settled, one line each with [mm:ss]\n"
+        "3. Action items: a table 'Item | Owner | Due'; write 'not specified' where the transcript is silent\n"
+        "4. Points by topic: at most three per topic, only new information, reasons and disagreements\n"
+        "5. Open questions: raised without a conclusion"
     ),
     "actions": (
         "Extract action items only, as a table: Item | Owner | Due | Dependencies/Notes.\n"
-        "Where the owner or date is not stated explicitly, write 'not specified'; do not guess.\n"
-        "Finish with 'Unassigned': things that were raised but nobody picked up."
+        "Include only tasks explicitly raised or accepted in the transcript, not general discussion; "
+        "write 'not specified' where the owner or date is not stated.\n"
+        "After the table list 'Unassigned': things raised that nobody picked up."
     ),
     "mood": (
-        "Analyse the emotional and energy dynamics of this conversation over time:\n"
-        "1. Describe the mood trajectory as a segmented timeline (opening → phases → close)\n"
-        "2. Mark clear turning points (who said what changed the atmosphere, with timestamps)\n"
-        "3. Which topics made the other side visibly engaged or evasive\n"
-        "4. Overall judgement: what was the real temperature of this conversation"
+        "Analyse the mood and energy of this conversation over time:\n"
+        "1. Trajectory: opening, phases, close, one sentence each with the time range\n"
+        "2. Turning points: what changed the atmosphere, at most three, with [mm:ss]\n"
+        "3. Engagement and avoidance: topics the other side leaned into or avoided\n"
+        "4. Verdict: the real temperature of the conversation, one sentence"
     ),
     "tension": (
-        "Surface the hidden tensions in this conversation:\n"
-        "1. Places where agreement is stated but the wording is vague (quote + timestamp)\n"
-        "2. Topics that were deflected or deliberately avoided\n"
-        "3. The gap between each party's real position and its stated position\n"
-        "4. Where these tensions will erupt next if left unaddressed\n"
-        "Stay disciplined: rely only on transcript evidence and give a confidence level per item."
+        "Surface the hidden tensions in this conversation, at most five, most important first. For each: "
+        "the gap between stated and real position, the evidence (quote + [mm:ss]), confidence "
+        "(high / medium / low), and where it will surface next if left alone.\n"
+        "Fold deflected topics into the related item instead of listing them separately. Use transcript evidence only."
     ),
     "bias": (
         "Review the decision quality of this discussion:\n"
-        "1. Which cognitive biases appeared (anchoring, confirmation bias, sunk cost, "
-        "groupthink …), with quotes and timestamps as evidence\n"
-        "2. Which key assumptions were never challenged\n"
-        "3. Which counter-arguments should have been discussed but were absent\n"
+        "1. Cognitive biases that appeared (anchoring, confirmation bias, sunk cost, groupthink …), each with "
+        "a quote and [mm:ss], at most four\n"
+        "2. Key assumptions nobody challenged\n"
+        "3. Counter-arguments that should have been discussed\n"
         "4. Two or three questions worth revisiting"
     ),
     "topics": (
         "Based on this conversation, list:\n"
-        "1. Topics that were mentioned but not developed and deserve a deeper look (and why)\n"
-        "2. Questions that were raised but never answered\n"
+        "1. Topics mentioned but not developed that deserve a deeper look, and why\n"
+        "2. Questions raised but never answered\n"
         "3. Information gaps the conversation exposed\n"
-        "4. Suggested next steps: material to check, people to meet, assumptions to verify"
+        "4. Next steps: material to check, people to meet, assumptions to verify\n"
+        "At most four items per part."
     ),
     "client": (
         "Debrief this client conversation as a senior account director:\n"
-        "1. Buying / partnership signals and negative signals (quote + timestamp)\n"
-        "2. Objections raised and the client's real concerns (stated vs unstated)\n"
-        "3. Relationship temperature and the evidence for it\n"
-        "4. Follow-up plan: what to do within 48 hours and within two weeks, with key points for the email"
+        "1. Partnership signals and negative signals (quote + [mm:ss])\n"
+        "2. Objections and real concerns, stated and unstated\n"
+        "3. Relationship temperature and its evidence, two sentences at most\n"
+        "4. Follow-up: what to do within 48 hours and within two weeks, and the points for the email"
     ),
     "hiring": (
         "Debrief this interview as an interviewer coach:\n"
-        "1. Evidence of the candidate's abilities (concrete examples, not claims)\n"
-        "2. Highlights and risk signals (quote + timestamp)\n"
-        "3. Answers that were vague, contradictory or embellished\n"
-        "4. Three to five questions worth probing in the next round"
+        "1. Evidence of ability: concrete examples, not claims\n"
+        "2. Highlights and risk signals (quote + [mm:ss])\n"
+        "3. Vague, contradictory or embellished answers\n"
+        "4. Three to five questions to probe in the next round"
     ),
     "followup": (
         "Based on this meeting, produce two ready-to-use pieces:\n"
-        "1. Follow-up message draft: an email or instant message to the other party "
-        "(pick whichever fits better), covering thanks and confirmation of what was agreed, "
-        "both sides' to-dos with dates, and next steps. Match the tone to the relationship "
-        "shown in the transcript, no filler; use the real names and forms of address from the "
-        "transcript, or leave placeholders when unknown\n"
-        "2. 48-hour action list: what our side should complete within 48 hours; for each item "
-        "give the concrete action, the deliverable, the deadline and why it must happen now. "
-        "Only include items grounded in the transcript; never invent commitments"
+        "1. Follow-up message draft: an email or instant message to the other party (pick whichever fits), "
+        "confirming what was agreed, both sides' to-dos with dates, and next steps. Match the tone of the "
+        "relationship shown in the transcript, no filler; use the real forms of address from the transcript "
+        "or leave placeholders.\n"
+        "2. 48-hour action list: what our side should do, each with the concrete action, deliverable and "
+        "deadline. Only items grounded in the transcript."
     ),
 }
 
-REPORT_TAIL = "Output the Markdown report body directly, without any preamble."
+REPORT_TAIL = "Output the Markdown report body directly, starting with the first section; no title line, no preamble."
 
 BRIEF_PROMPT = (
-    "You are my daily briefing assistant. Below are the transcripts (or existing reports) "
-    "of all my meetings today.\n"
-    "Write a daily brief containing:\n"
-    "1. Overview: how many meetings, one-line essence of each\n"
-    "2. All action items, sorted by urgency\n"
-    "3. Strategic insight: what today's information means when read together\n"
-    "4. One reflection: where I could have communicated better today\n"
-    "Concise, suitable for filing as-is."
+    "You are my daily briefing assistant. Below are the transcripts of all my meetings today. Write a daily brief:\n"
+    "1. Overview: one line per meeting, saying where it landed\n"
+    "2. Action items: merged and de-duplicated, by urgency, as a table 'Item | Owner | Due | Source'\n"
+    "3. Insight: what today's meetings mean read together, at most three points\n"
+    "4. One reflection: one place where I could have communicated better today"
 )
 
 WEEKLY_PROMPT = (
-    "You are my weekly review assistant. Below are all meeting / conversation transcripts of "
-    "this week in chronological order.\n"
-    "Write a weekly report containing:\n"
-    "1. Overview: number of meetings and the two or three storylines running through the week "
-    "(connect related meetings; no meeting-by-meeting log)\n"
-    "2. Key decisions and progress: what was decided, what moved forward\n"
-    "3. Commitments ledger: new commitments this week (who, what, when); status of earlier "
-    "commitments this week (delivered / progressing / silent), tagged [meeting id]\n"
-    "4. People and relationships: whose stance or attitude shifted this week, with before/after quotes\n"
-    "5. Open issues and risks: questions that keep recurring without resolution, and the cost of inaction\n"
-    "6. Recommendations for next week: three to five concrete actions, each with a reason\n"
-    "Rely only on transcript evidence; never invent. Concise and ready to file."
+    "You are my weekly review assistant. Below are this week's meeting transcripts in chronological order. "
+    "Write a weekly report:\n"
+    "1. Storylines: the two or three threads running through the week; connect related meetings, no "
+    "meeting-by-meeting log\n"
+    "2. Decisions and progress: what was settled and what moved forward\n"
+    "3. Commitments ledger: new commitments this week (who, what, when); status of earlier commitments "
+    "this week (delivered / progressing / silent), tagged [meeting id]\n"
+    "4. Shifts in position: whose stance changed this week, with before and after quotes\n"
+    "5. Open issues and risks: questions that keep coming back unresolved, and the cost of leaving them\n"
+    "6. Next week: three to five concrete actions, each with the reason it belongs to next week"
 )
 
-LONGTERM_DELTA_PROMPT = (
-    "You maintain a long-term memory file that spans many meetings. Below are the current "
-    "memory in full and one new piece of material (a meeting transcript, or a daily brief "
-    "summarising a day of meetings).\n"
-    "Output ONLY the entries that must be added or updated; do not repeat unchanged content. Rules:\n"
-    "1. Use only these four section headings, exactly as in the current memory: "
-    "## {people}, ## {projects}, ## {commitments}, ## {terms}; omit sections with no change\n"
-    "2. One entry per line starting with '- ' (indented sub-lines allowed). Person / project / "
-    "term entries start with '**Name**:' and the name must match the existing entry exactly, "
-    "so that same-name entries are merged\n"
-    "3. When updating an existing entry, output its COMPLETE new version (not a diff) and keep the "
-    "trajectory: 'previously said X [old meeting] → now says Y [new meeting]'\n"
-    "4. Each '{commitments}' entry states who committed/decided what, the date if any, the status "
-    "(in progress / delivered / cancelled / unknown) and the source [meeting id]; when an existing "
-    "commitment changes status, rewrite that entry keeping its original key words so it can be matched\n"
-    "5. Record only facts supported by the transcript; no speculation; skip small talk and one-off details\n"
-    "6. If the new material contains nothing worth remembering long-term, output the single line: NO_CHANGE\n"
-    "Output the Markdown delta directly, with no explanation and no '# {longterm_title}' title."
+# Long-term memory merge: the model answers with JSON only; coco merges it into memory/knowledge.json
+MEMORY_JSON_PROMPT = (
+    "You maintain a cross-meeting long-term memory. Below are: existing entries that may relate to the "
+    "new material (JSON), an index of existing entry names, and the new material (one meeting transcript, "
+    "or a daily brief that summarises a day of meetings).\n"
+    "Output one JSON object and nothing else:\n"
+    '{{"digest": "one-sentence summary of the material, at most 25 words", "entities": [{{"type": '
+    '"person|project|commitment|term", "name": "…", "aliases": ["…"], "summary": "…", "facts": ["…"], '
+    '"status": "open|done|cancelled|unknown", "owner": "…", "due": "…"}}]}}\n'
+    "Rules:\n"
+    "1. type: person, project (projects and clients), commitment (commitments and decisions), term.\n"
+    "2. Record only facts grounded in the new material that will matter later; no small talk or one-off "
+    "details. If nothing is worth keeping, return an empty entities array.\n"
+    "3. For an existing entry use exactly the same name (or one of its aliases) so it is merged; invent a "
+    "new name only for a genuinely new entry.\n"
+    "4. summary is the complete new version of the entry's current state, one or two sentences, at most "
+    "35 words; omit the summary field when nothing changed.\n"
+    "5. facts are the facts added by this material, one sentence each, at most 25 words, not repeating "
+    "existing facts; write a change of position as 'said X, now says Y'.\n"
+    "6. A commitment's name reads 'Who: what'; give owner and status; when an existing commitment's "
+    "status changes, update it under the same name.\n"
+    "7. When the speaker is uncertain, do not record the statement under a person's name. No dashes."
 )
 
-LONGTERM_FULL_PROMPT = (
-    "You maintain a long-term memory file that spans many meetings. Below are the current memory "
-    "in full and one new piece of material (a meeting transcript, or a daily brief; the material "
-    "may be empty when this is a compaction pass).\n"
-    "Output the complete updated memory (Markdown). Rules:\n"
-    "1. Exactly four sections: ## {people}, ## {projects}, ## {commitments}, ## {terms}\n"
-    "2. Extract facts worth remembering long-term from the new material and merge them into the "
-    "right section; merge with existing entries instead of duplicating\n"
-    "3. Each '{commitments}' entry states who committed/decided what, the date if any, the status "
-    "(in progress / delivered / cancelled / unknown) and the source [meeting id]\n"
-    "4. When a new meeting updates a person or project (e.g. a changed stance), keep the "
-    "trajectory: 'previously said X [old meeting] → now says Y [new meeting]'\n"
-    "5. Record only facts supported by the transcript; no speculation; skip small talk and one-off details\n"
-    "6. Keep the file under 600 lines: merge scattered entries on the same subject and compress "
-    "stale low-value items, but never drop undelivered commitments, open issues or stance changes\n"
-    "Output the full updated text directly, starting with '# {longterm_title}', with no explanation."
+TIDY_PROMPT = (
+    "Below are several long-term memory entries (JSON); some summaries are too long, some facts are "
+    "duplicated or outdated. Tidy each entry and output one JSON object: {{\"entities\": [{{\"id\": \"…\", "
+    "\"summary\": \"…\", \"facts\": [{{\"text\": \"…\", \"date\": \"…\", \"source\": \"…\"}}]}}]}}\n"
+    "Rules:\n"
+    "1. Rewrite summary as the current state, one or two sentences, at most 35 words.\n"
+    "2. Merge duplicate facts and drop facts superseded by later ones, but keep every change of position "
+    "(said X, now says Y), unfinished commitment and open question; one sentence each, at most 25 words; "
+    "keep the original date and source.\n"
+    "3. Use only the content given; add nothing; no dashes. Return every input entry with its id unchanged."
 )
 
 TRACK_PROMPTS = {
     "track": (
         "You are a cross-meeting tracking analyst. Below are several meeting transcripts in "
-        "chronological order. Output three parts:\n"
-        "1. Commitments: who promised or agreed to what, in which meeting ([meeting id] + timestamp), "
-        "and whether later meetings show it delivered, progressing, or gone silent\n"
+        "chronological order (and the commitments recorded in long-term memory). Output three parts:\n"
+        "1. Commitments: a table 'Who | Promised what | Where [meeting id] | Later status (delivered / "
+        "progressing / silent)'\n"
         "2. Changed positions: where the same person or party said something different about the "
         "same matter over time; quote both passages and judge what the change means\n"
         "3. Recurring open issues: matters raised repeatedly without resolution, and how each time "
         "they were parked\n"
-        "Rely only on transcript evidence; never invent. Where there is only a single-meeting clue "
-        "and no cross-meeting comparison is possible, say so explicitly."
+        "Where there is only a single-meeting clue and no cross-meeting comparison is possible, say so."
     ),
     "signals": (
         "You are a deep-signal analyst whose job is to find what lies beneath the surface. Below "
@@ -262,11 +268,11 @@ PARTICIPANTS_PROMPT = (
 )
 
 CHAT_SYSTEM = (
-    "You are coco, my local meeting analysis assistant. Answer using the meeting transcripts and "
-    "memory provided.\n"
-    "Principles: rely only on transcript evidence and never invent; attach timestamps when quoting; "
-    "say 'not mentioned in the transcript' when the material does not cover something; give the "
-    "conclusion first, then the evidence."
+    "You are coco, my meeting analysis assistant. Answer using the meeting transcripts and memory provided.\n"
+    "Principles: rely only on transcript evidence and never invent; conclusion first, then the evidence; "
+    "quote one or two passages with timestamps when it helps; say 'not mentioned in the transcript' when "
+    "the material does not cover something; do not restate the question, no pleasantries; keep the length "
+    "proportional to the question."
 )
 
 NAME_FIX_PROMPT = (
@@ -285,7 +291,7 @@ NAME_FIX_PROMPT = (
 
 CTX = {
     "glossary_note": "standard spelling of names and proper nouns",
-    "longterm_note": "accumulated automatically from past meetings",
+    "longterm_note": "long-term memory entries related to this material",
     "truncated_one": "… (this meeting is too long and was truncated)",
     "truncated_all": "… (transcripts too long, truncated)",
     "empty_memory": "(still empty)",
@@ -295,4 +301,6 @@ CTX = {
     "date": "Date",
     "week": "Week",
     "meetings_count": "{n} meetings",
+    "index_note": "one-line summaries of other meetings in the library (full text not attached)",
+    "open_commitments": "unfinished commitments recorded in long-term memory",
 }

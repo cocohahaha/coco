@@ -14,6 +14,8 @@ LOCALES = sorted((PKG / "locales").glob("*.json"))
 # keys whose last segment is built at runtime: prefix -> list of suffixes that must exist
 DYNAMIC = {
     "msg.source.": ["upload", "import", "record", "text", "paste", "watch"],
+    "msg.asr.channel.": ["agy", "gemini", "openai", "bailian", "local"],
+    "msg.memory.status.": ["open", "done", "cancelled", "unknown"],
     "msg.files.": ["transcript", "brief", "weekly", "tracking", "prep", "prep_sources", "global",
                    "export", "memory", "longterm", "glossary", "chat"],
     "ui.memory.hint_": ["content", "longterm", "glossary"],

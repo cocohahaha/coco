@@ -37,7 +37,8 @@ def no_engine_hint() -> str:
 # repeated one-word segments, and it echoes the initial prompt. These rules remove the known
 # shapes; they are conservative on purpose so that short real utterances ("对", "ok") survive.
 HALLUCINATION_PATTERNS = [re.compile(p, re.I) for p in (
-    r"welcome back to (my|the) channel", r"thanks? (for|4) watching", r"takk for watching",
+    r"welcome back to (my|the) channel", r"thank(s| you) (so much )?(for|4) watching", r"takk for (watching|ating|at du s)",
+    r"tak fordi du (så|kiggede)", r"bedankt voor het kijken", r"merci (d'avoir regardé|de votre attention et à bientôt)",
     r"please (like|subscribe)", r"don'?t forget to subscribe", r"see you (in the )?next (video|time)",
     r"like,? share,? (and )?subscribe", r"subtitles? by", r"amara\.org", r"www\.\S+\.(org|com)",
     r"untertitel(ung)? (von|der|im auftrag)", r"sous-titr(es|age) (par|réalisés)", r"subtítulos (por|realizados)",
@@ -78,7 +79,9 @@ def is_hallucination(text: str, prompt: str = "", no_speech: "float | None" = No
     # a short "utterance" inside a window the model itself rates as silence; CJK packs a whole
     # sentence into a dozen characters, so the length cap is tighter there
     short = len(n) <= (6 if re.search(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]", n) else 12)
-    if no_speech is not None and no_speech > 0.85 and short:
+    # no_speech_prob is computed per 30 s window, so a real short answer inside a window that starts
+    # quietly also scores high: only drop it when the decoder itself was unsure as well
+    if no_speech is not None and no_speech > 0.85 and short and (avg_logprob is None or avg_logprob < -0.7):
         return "silence"
     if avg_logprob is not None and no_speech is not None and no_speech > 0.6 and avg_logprob < -1.0:
         return "silence"
@@ -261,23 +264,68 @@ def _speech_bounds(samples, sr: int = 16000, frame_s: float = 0.1) -> "tuple[flo
     return start, end
 
 
+# Languages whisper may report for a meeting. Its rarer labels (nn, cy, haw, la, jw, sn …) show up
+# when the first 30 seconds are chatter or noise – an English meeting came out as "nn".
+COMMON_LANGS = {"zh", "en", "fr", "de", "es", "it", "pt", "ja", "ko", "ru", "ar", "hi", "th", "vi",
+                "id", "ms", "nl", "tr", "pl", "sv", "da", "no", "fi", "cs", "el", "he", "uk", "yue"}
+
+
+def _vote_language(samples, repo: str, windows: int = 7) -> "str | None":
+    """Detect the language on several speech windows spread over the recording and add up the
+    probabilities, instead of trusting the first 30 seconds alone."""
+    import numpy as np
+    import mlx.core as mx
+    from mlx_whisper.audio import N_FRAMES, N_SAMPLES, log_mel_spectrogram, pad_or_trim
+    from mlx_whisper.transcribe import ModelHolder
+
+    model = ModelHolder.get_model(repo, mx.float16)
+    if not model.is_multilingual:
+        return "en"
+    x = np.asarray(samples, dtype=np.float32)
+    if len(x) <= N_SAMPLES:
+        starts = [0]
+    else:
+        starts = [int(v) for v in np.linspace(0, len(x) - N_SAMPLES, windows + 2)[1:-1]]
+    level = float(np.sqrt((x[: min(len(x), 16000 * 600)] ** 2).mean())) if len(x) else 0.0
+    totals: dict[str, float] = {}
+    for st in starts:
+        a = x[st: st + N_SAMPLES]
+        if len(a) < 16000 or float(np.sqrt((a ** 2).mean())) < level * 0.3:
+            continue  # mostly silence: its language guess is noise
+        mel = pad_or_trim(log_mel_spectrogram(mx.array(a), n_mels=model.dims.n_mels), N_FRAMES, axis=-2)
+        _, probs = model.detect_language(mel.astype(mx.float16))
+        for k, v in probs.items():
+            totals[k] = totals.get(k, 0.0) + float(v)
+    if not totals:
+        return None
+    ranked = sorted(totals, key=totals.get, reverse=True)
+    return next((k for k in ranked if k in COMMON_LANGS), ranked[0])
+
+
 def _transcribe_mlx(audio: Path, repo: str, lang: str | None, cfg: dict, progress) -> dict:
     import mlx_whisper  # lazy: importing mlx is slow
     from mlx_whisper.audio import SAMPLE_RATE, load_audio
 
     progress(t("transcribe.running"))
-    kwargs = _build_prompt(cfg, lang)
     source = str(audio)
     offset = 0.0
-    if _hallucination_filter_on(cfg):
-        try:  # trim leading / trailing silence so the first decoding window starts on speech
-            samples = load_audio(str(audio), sr=SAMPLE_RATE)
-            start, end = _speech_bounds(samples, SAMPLE_RATE)
-            if start >= 1.0 or end < len(samples) / SAMPLE_RATE - 3.0:
-                source = samples[int(start * SAMPLE_RATE): int(end * SAMPLE_RATE)]
-                offset = start
-        except Exception:  # decoding problems fall back to the plain file path
-            source, offset = str(audio), 0.0
+    samples = None
+    try:
+        samples = load_audio(str(audio), sr=SAMPLE_RATE)
+    except Exception:  # decoding problems fall back to the plain file path
+        samples = None
+    if lang is None and samples is not None:
+        try:
+            lang = _vote_language(samples, repo)
+        except Exception:
+            lang = None  # leave it to whisper's own first-window detection
+    kwargs = _build_prompt(cfg, lang)
+    if _hallucination_filter_on(cfg) and samples is not None:
+        # trim leading / trailing silence so the first decoding window starts on speech
+        start, end = _speech_bounds(samples, SAMPLE_RATE)
+        if start >= 1.0 or end < len(samples) / SAMPLE_RATE - 3.0:
+            source = samples[int(start * SAMPLE_RATE): int(end * SAMPLE_RATE)]
+            offset = start
     beam = _beam(cfg)
     if beam > 0:
         kwargs["beam_size"] = beam
@@ -289,6 +337,7 @@ def _transcribe_mlx(audio: Path, repo: str, lang: str | None, cfg: dict, progres
         source, path_or_hf_repo=repo, language=lang, verbose=None,
         condition_on_previous_text=False,  # long audio: avoid repetition loops / hallucination
         no_speech_threshold=0.6, logprob_threshold=-1.0, compression_ratio_threshold=2.4,
+        temperature=(0.0, 0.2, 0.4, 0.6),  # the 0.8 / 1.0 fallbacks mostly invent text
         **kwargs,
     )
     segments = [
@@ -392,35 +441,103 @@ def transcribe_file(audio: Path, model: str | None = None, language: str | None 
             "filtered": len(removed), "filtered_examples": [r["text"] for r in removed[:5]]}
 
 
+def _joiner(prev: str, nxt: str) -> str:
+    """Chinese fragments get a comma between them, text after CJK punctuation nothing, else a space."""
+    if re.search(r"[\u3400-\u9fff]$", prev) and re.match(r"[\u3400-\u9fff]", nxt):
+        return "，"
+    if re.search(r"[\u3000-\u303f\uff00-\uffef]$", prev):
+        return ""
+    return " "
+
+
+def merge_lines(segments: list[dict]) -> list[dict]:
+    """Whisper cuts speech into 2-second fragments ("[00:07] 口网"): join neighbours into readable
+    paragraphs for transcript.md (transcript.json keeps the original segments for subtitles).
+    A paragraph ends at a pause of more than 1.2 s, or after a full stop once it is long enough."""
+    out: list[dict] = []
+    for s in segments:
+        text = (s.get("text") or "").strip()
+        if not text:
+            continue
+        cur = out[-1] if out else None
+        cjk = bool(re.search(r"[\u3400-\u9fff]", text))
+        limit = 110 if cjk else 320
+        if (cur and not cur.get("speaker") and not s.get("speaker") and not s.get("gap") and not cur.get("gap")
+                and s["start"] - cur["end"] <= 1.2 and len(cur["text"]) + len(text) <= limit
+                and not (len(cur["text"]) >= limit * 0.45 and re.search(r"[。！？!?.]$", cur["text"]))):
+            joiner = _joiner(cur["text"], text)
+            cur["text"] = cur["text"] + joiner + text
+            cur["end"] = s.get("end", cur["end"])
+        else:
+            out.append({"start": s["start"], "end": s.get("end", s["start"]), "text": text,
+                        **({"gap": True} if s.get("gap") else {})})
+    return out
+
+
 def transcribe_meeting(mtg: Meeting, model: str | None = None,
-                       progress=lambda msg: None) -> None:
-    """Transcribe the meeting's audio into transcript.md / transcript.json and update meta."""
+                       progress=lambda msg: None, channel: "str | None" = None) -> None:
+    """Transcribe the meeting's audio into transcript.md / transcript.json and update meta.
+
+    ``channel``: agy / gemini / openai / bailian / local; None = the configured channel."""
+    from . import asr
+    from .glossary import apply_replacements, safe_replacements
+
     audio = mtg.audio_file
     if audio is None:
         raise FileNotFoundError(t("transcribe.no_audio", id=mtg.id))
-    mtg.save_meta(status="transcribing")
+    cfg = load_config()
+    channel = channel or asr.resolve_channel(cfg)
+    if not channel:
+        raise TranscriberUnavailable(no_engine_hint())
+    mtg.save_meta(status="transcribing", error=None)
+    workdir = mtg.path / ".asr"
     try:
-        result = transcribe_file(audio, model=model, progress=progress)
+        if channel == "local":
+            result = transcribe_file(audio, model=model, progress=progress)
+            result["channel"] = "local"
+            lines = merge_lines(result["segments"])
+        else:
+            lang = cfg.get("language")
+            result = asr.transcribe_cloud(audio, channel, workdir, title=mtg.title, date=mtg.date,
+                                          language=None if lang in (None, "", "auto") else lang,
+                                          progress=progress)
+            lines = result["segments"]  # already one paragraph per speaker turn
     except Exception as e:
         mtg.save_meta(status="error", error=str(e))
         raise
-
+    fixed = 0
+    if cfg.get("glossary_autofix", True):
+        try:
+            reps = safe_replacements()
+        except Exception:
+            reps = []
+        if reps:
+            for seg in lines:
+                seg["text"], n = apply_replacements(seg["text"], reps)
+                fixed += n
+            if lines is not result["segments"]:  # local: the raw segments in transcript.json too
+                for seg in result["segments"]:
+                    seg["text"], _ = apply_replacements(seg["text"], reps)
+    result["glossary_fixed"] = fixed
     mtg.transcript_json.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     src = mtg.meta.get("source", "")
-    lines = [
+    by = result["model"] if channel == "local" else f"{asr.label(channel)} · {result['model']}"
+    head = [
         f"# {mtg.title}", "",
         f"- {t('transcript.date')}: {mtg.meta.get('created', '')}",
         f"- {t('transcript.duration')}: {_fmt_ts(result['duration'])}",
         f"- {t('transcript.source')}: {t('source.' + src) if src else ''} "
-        f"({t('transcript.by_model', model=result['model'])})",
+        f"({t('transcript.by_model', model=by)})",
         f"- {t('transcript.language')}: {result.get('language') or 'auto'}",
         participants_line(mtg.meta.get("participants", "")),
         "", f"## {sections()['transcript']}", "",
     ]
-    for s in result["segments"]:
-        lines.append(f"[{_fmt_ts(s['start'])}] {s['text']}")
-    mtg.transcript_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    body = [f"[{_fmt_ts(s['start'])}] {s['text']}" for s in lines]
+    mtg.transcript_md.write_text("\n".join(head + body) + "\n", encoding="utf-8")
     mtg.save_meta(status="done", duration=_fmt_ts(result["duration"]), whisper_model=result["model"],
-                  language=result.get("language") or "auto",
-                  hallucinations_removed=result.get("filtered", 0),
+                  transcribe_channel=channel, language=result.get("language") or "auto",
+                  hallucinations_removed=result.get("filtered", 0), glossary_fixed=fixed,
+                  gaps=result.get("gaps", 0),
                   transcribed_at=dt.datetime.now().isoformat(timespec="seconds"), error=None)
+    if channel != "local":
+        asr.cleanup(workdir)

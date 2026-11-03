@@ -24,8 +24,13 @@ if os.name == "nt":  # Windows ignores the shebang: wrap the stub in a .cmd usin
 CONFIG = ROOT / "coco.config.json"
 
 
+# cloud transcription channels must not see this machine's agy login or API keys
+HERMETIC_ASR = {"agy": {"bin": str(ROOT / "no-agy")}, "gemini": {"api_key_env": "COCO_TEST_NONE"},
+                "openai": {"api_key_env": "COCO_TEST_NONE"}, "bailian": {"api_key_env": "COCO_TEST_NONE"}}
+
+
 def write_cfg(**extra):
-    CONFIG.write_text(json.dumps({"claude_bin": str(STUB), "ui_language": "zh-CN", **extra},
+    CONFIG.write_text(json.dumps({"claude_bin": str(STUB), "ui_language": "zh-CN", "asr": HERMETIC_ASR, **extra},
                                  ensure_ascii=False), encoding="utf-8")
 
 
@@ -105,34 +110,63 @@ check("来源标签本地化", all(m["source_label"] == "粘贴文本" for m in 
 d = c.get(f"/api/meetings/{mid1}").json()
 check("转写头部为中文标签", "- 日期：" in d["transcript"] or "- 日期:" in d["transcript"], d["transcript"][:80])
 
-# 2. long-term memory via incremental (delta) merge
+# 2. long-term memory: structured entries (memory/knowledge.json), JSON merge, Markdown view
 mem = c.get("/api/memory").json()["longterm"]
-check("增量合并后有四个章节", all(h in mem for h in ("## 人物", "## 项目与客户", "## 承诺与决定", "## 术语与说法")), mem[:200])
-check("增量合并不重复条目", mem.count("**林炜**") == 1, str(mem.count("**林炜**")))
+check("合并后 Markdown 视图有四个章节", all(h in mem for h in ("## 人物", "## 项目与客户", "## 承诺与决定", "## 术语与说法")), mem[:200])
+check("两场材料合并不重复条目", mem.count("**林炜**") == 1, str(mem.count("**林炜**")))
+check("别名并入条目", "林伟" in mem)
+ms_digest = [m.get("digest") for m in c.get("/api/meetings").json()]
+check("合并时写入一句话概述", any(ms_digest), str(ms_digest))
 
-from coco.ai import apply_delta  # noqa: E402
+from coco import memory as cmem  # noqa: E402
 from coco.i18n import detect_headings_lang  # noqa: E402
-old = ("# 长期记忆\n\n## 人物\n- **林炜**：产品负责人\n  - 6 月说排期没问题\n- **张三**：IT\n\n"
-       "## 承诺与决定\n- 林炜 承诺 8/25 前给出二期排期 [a] 状态：进行中\n")
-delta = ("## 人物\n- **林炜**：产品负责人，原说排期没问题 [a] → 现说要延期 [b]\n- **王五**：财务\n\n"
-         "## 承诺与决定\n- 林炜 承诺 8/25 前给出二期排期 [a] 状态：已兑现 [b]\n\n## 术语与说法\n- **智舱**：座舱项目\n")
-merged = apply_delta(old, delta, "zh-CN")
-check("apply_delta 同名替换", merged.count("**林炜**") == 1 and "现说要延期" in merged and "6 月说排期" not in merged, merged)
-check("apply_delta 新增条目", "**王五**" in merged and "**张三**" in merged)
-check("apply_delta 承诺模糊匹配替换", merged.count("8/25") == 1 and "已兑现" in merged)
-check("apply_delta 新章节按语言创建", "## 术语与说法" in merged and merged.index("## 承诺与决定") < merged.index("## 术语与说法"))
-check("apply_delta 保留标题与章节顺序", merged.startswith("# 长期记忆") and merged.index("## 人物") < merged.index("## 承诺与决定"))
-en_old = "# Long-term memory\n\n## People\n- **Lin Wei**: lead\n"
-en_merged = apply_delta(en_old, "## Commitments & decisions\n- Lin Wei: schedule by 8/25 [x] in progress\n", "en")
-check("apply_delta 英文标题识别", "## Commitments & decisions" in en_merged and "## People" in en_merged)
-check("detect_headings_lang", detect_headings_lang(old) == "zh-CN" and detect_headings_lang(en_old) == "en")
-twice = apply_delta("# 长期记忆\n\n## 承诺与决定\n- 王五 决定（8/17）：李四 不进 AI 试点 [a] 状态：待确认\n",
-                    "## 承诺与决定\n- 王五 决定（8/17）：李四 不进 AI 试点，8/26 需重新确认 [a][b] 状态：待确认\n"
-                    "- 王五 决定（8/17）：李四 进培训序列 [b] 状态：已生效\n", "zh-CN")
-check("apply_delta 同一条目只被替换一次（相似的第二条追加）", twice.count("- 王五") == 2 and "重新确认" in twice and "培训序列" in twice, twice)
-from coco.ai import _has_all_sections  # noqa: E402
-check("全量重写校验要求四章节齐全", _has_all_sections(old) is False and _has_all_sections(old + "\n## 项目与客户\n\n## 术语与说法\n") is True
-      and _has_all_sections("## 人物\n## 项目与客户\n## 承诺与决定\n## 术语与说法\n") is False)
+old = ("# 长期记忆\n\n## 人物\n- **林炜（转写亦作「林伟」）**：产品负责人\n  - 6 月说排期没问题\n- **张三**：IT\n"
+       "- **林炜**：重复条目的另一段说明\n\n"
+       "## 承诺与决定\n- **林炜 承诺（8/20）：8/25 前给出二期排期** 状态：进行中\n")
+ents = cmem.from_markdown(old)
+lw = [e for e in ents if e["name"] == "林炜"]
+check("迁移：粗体名称成条目、括号提示成别名", len(lw) == 1 and lw[0]["aliases"] == ["林伟"], str(lw))
+check("迁移：缩进行成事实、重名条目合并", lw and len(lw[0]["facts"]) == 2 and "排期没问题" in lw[0]["facts"][0]["text"], str(lw))
+cm = [e for e in ents if e["type"] == "commitment"]
+check("迁移：承诺状态与负责人", cm and cm[0]["status"] == "open" and cm[0]["owner"] == "林炜", str(cm))
+store = {"entities": [dict(e) for e in ents]}
+cmem.upsert({"type": "person", "name": "林伟", "facts": ["7 月说要延期"]}, source="m2", date="2026-07-01", data=store)
+lw2 = [e for e in store["entities"] if e["name"] == "林炜"][0]
+check("合并：按别名命中已有条目并追加事实", len([e for e in store["entities"] if e["type"] == "person"]) == 2
+      and lw2["facts"][-1]["source"] == "m2", str(lw2))
+cmem.upsert({"type": "person", "name": "林炜", "facts": ["7 月说要延期。"]}, source="m3", data=store)
+check("合并：相似事实不重复", sum("延期" in f["text"] for f in lw2["facts"]) == 1)
+cmem.upsert({"type": "commitment", "name": "林炜 承诺（8/20）：8/25 前给出二期排期", "status": "done"}, data=store)
+check("合并：承诺按名称更新状态", [e for e in store["entities"] if e["type"] == "commitment"][0]["status"] == "done")
+en_md = cmem.to_markdown(ents, lang="en")
+check("Markdown 视图按语言输出章节", "## People" in en_md and "## Commitments & decisions" in en_md, en_md[:120])
+check("detect_headings_lang", detect_headings_lang(old) == "zh-CN" and detect_headings_lang(en_md) == "en")
+ctx = cmem.context_block("会上林炜说排期要延期", budget=2000)
+check("相关记忆只注入被提到的条目", "**林炜**" in ctx and "**张三**" not in ctx, ctx)
+check("英文名按词匹配", cmem._mentions({"name": "Nora", "aliases": []}, "out of ignorance nora asked") == 1)
+
+r = c.get("/api/memory/entities?type=person").json()
+check("记忆条目列表", r["stats"]["person"] >= 2 and any(i["name"] == "林炜" for i in r["items"]), str(r["stats"]))
+lin = next(i for i in r["items"] if i["name"] == "林炜")
+d = c.get(f"/api/memory/entities/{lin['id']}").json()
+check("条目详情带来源会议标题", d["sources"] and d["sources"][0]["title"].startswith("访谈"), str(d["sources"]))
+r = c.post(f"/api/memory/entities/{lin['id']}", json={"summary": "产品负责人（手动修订）", "aliases": ["林伟", "Lin Wei"]})
+check("条目可编辑", r.status_code == 200 and r.json()["summary"].endswith("（手动修订）"))
+check("编辑同步到 Markdown 视图", "手动修订" in c.get("/api/memory").json()["longterm"])
+new_e = c.post("/api/memory/entities", json={"type": "person", "name": "林炜二号", "summary": "重复录入"}).json()
+r = c.post(f"/api/memory/entities/{new_e['id']}/merge", json={"into": lin["id"]})
+check("重复条目可合并", r.status_code == 200 and "林炜二号" in r.json()["aliases"], r.text[:200])
+check("合并后旧条目消失", c.get(f"/api/memory/entities/{new_e['id']}").status_code == 404)
+f = c.get("/api/find?q=林伟").json()
+check("统一搜索命中记忆条目（别名）", any(m["name"] == "林炜" for m in f["memory"]), str(f["memory"])[:200])
+check("统一搜索命中会议", len(c.get("/api/find?q=痛点").json()["meetings"]) >= 1)
+edited = c.get("/api/memory").json()["longterm"] + "\n- **王五**：财务\n"
+c.post("/api/memory", json={"longterm": edited})
+r = c.get("/api/memory/entities?q=王五").json()
+check("手改 Markdown 后解析回条目", any(i["name"] == "王五" for i in r["items"]), str(r["items"])[:200])
+check("手改后原有条目 id 不变", c.get(f"/api/memory/entities/{lin['id']}").status_code == 200)
+r = c.post(f"/api/memory/entities/{lin['id']}/tidy")
+check("单条整理（stub）", r.status_code == 200 and len(r.json()["summary"]) <= 40, r.text[:200])
 
 # 3. .srt upload
 srt = ("1\n00:00:01,000 --> 00:00:03,000\n王五：预算要走集团流程。\n\n"
@@ -540,6 +574,8 @@ check("输出语言指令", "日本語" in prompts.language_directive("ja") and 
       and prompts.get("zh-CN") is prompts.zh and prompts.get("ja") is prompts.en)
 
 # 24. memory compaction job + clear placeholders
+c.post("/api/memory/entities", json={"type": "project", "name": "积压项目", "summary": "很长的摘要" * 90,
+                                     "facts": [{"text": f"第 {i} 次讨论"} for i in range(14)]})
 r = c.post("/api/memory/compact")
 check("压缩长期记忆任务启动", r.status_code == 200 and r.json().get("job"), r.text[:120])
 for _ in range(40):
@@ -847,6 +883,122 @@ out = subprocess.run([sys.executable, "-m", "coco", "status"], capture_output=Tr
 check("coco status 可在无服务时运行", out.returncode == 0 and ("not running" in out.stdout or "没有在运行" in out.stdout), out.stdout + out.stderr)
 out = subprocess.run([sys.executable, "-m", "coco", "--help"], capture_output=True, text=True, env=env, cwd=str(REPO))
 check("--help 列出启动命令", out.returncode == 0 and all(w in out.stdout for w in ("start", "stop", "update")), out.stdout[-300:])
+
+# 36. transcription channels: agy (stub), timeline assembly, gaps, quota, glossary fixes
+from coco import asr as casr  # noqa: E402
+from coco.transcriber import merge_lines  # noqa: E402
+from coco.glossary import safe_replacements, apply_replacements, parse_glossary  # noqa: E402
+from coco.ai import compact_transcript  # noqa: E402
+from coco import providers as cprov  # noqa: E402
+
+segs = casr.assemble([({"offset": 0, "duration": 30}, "[00:00] 一\n\n[00:40] 二"),
+                      ({"offset": 30, "duration": 30}, "[00:05] 三")])
+check("拼接：时间戳超出段长时按比例收回", segs[1]["start"] <= 30 and segs[2]["start"] == 35, str(segs))
+check("拼接：end 取下一段开头", segs[0]["end"] == segs[1]["start"])
+check("段落解析：时间戳单独一行", casr.parse_paragraphs("[00:00]\n你好。\n\n[00:12]\nOK.") == [[0, "你好。"], [12, "OK."]])
+check("校验：要求时间戳开头", not casr.valid_transcript("前言\n[00:00] x", 60) and casr.valid_transcript("[00:00] x", 60))
+check("提取：去掉代码块", casr.extract_transcript("```\n[00:00] 你好\n```", 30) == "[00:00] 你好")
+check("切点：落在最近的静音", casr.cut_points(3000, [1180.0, 1250.0, 2390.0]) == [1180.0, 2390.0])
+check("文本语言判断", casr.detect_text_language("我们今天讨论 GEO") == "zh" and casr.detect_text_language("hello there") == "en")
+ml = merge_lines([{"start": 0, "end": 1, "text": "比如说是"}, {"start": 1.2, "end": 2, "text": "那个头网"},
+                  {"start": 6, "end": 7, "text": "下一段"}])
+check("本地短句合并成段、停顿处分段", len(ml) == 2 and ml[0]["text"] == "比如说是，那个头网", str(ml))
+check("旧转写送进提示词前合并", compact_transcript("# t\n\n[00:01] 一\n[00:02] 二\n[00:03] 三") == "# t\n\n[00:01] 一，二，三")
+g = parse_glossary("## 人名\n- Maxim（误写：马克西姆、麦斯）\n- Tom（误写：汤）\n## 专有名词\n- Release Plan（误写：发布计划）\n")
+reps = safe_replacements(g)
+check("词表自动替换只用人名的长误写", reps == [("马克西姆", "Maxim")], str(reps))
+check("替换计数", apply_replacements("马克西姆说汤不够", reps) == ("Maxim说汤不够", 1))
+
+args = cprov.claude_cli_args({"reasoning": ""}, "memory")
+st = json.loads(args[args.index("--settings") + 1])
+check("claude 调用覆盖个人设置：后台任务 effort=low、去掉语言偏好", st["effortLevel"] == "low" and st["language"] == "")
+check("claude 调用：主任务 effort=medium、关闭技能、精简系统提示",
+      json.loads(cprov.claude_cli_args({}, "report")[cprov.claude_cli_args({}, "report").index("--settings") + 1])["effortLevel"] == "medium"
+      and "--disable-slash-commands" in args and "--system-prompt" in args)
+fast = cprov.derive_fast({"type": "claude-cli", "model": "", "base_url": "", "preset": ""})
+check("未配置后台通道：同账号的较快模型", fast["model"] == "sonnet" and fast["reasoning"] == "low")
+check("API 预设的后台模型", cprov.derive_fast({"type": "openai", "model": "deepseek-v4-pro", "preset": "deepseek"})["model"] == "deepseek-flash")
+
+AGY = REPO / "tests" / "agy-stub"
+if os.name == "nt":
+    AGY = ROOT / "agy-stub.cmd"
+    AGY.write_text(f'@"{sys.executable}" -X utf8 "{REPO / "tests" / "agy-stub"}" %*\n', encoding="utf-8")
+asr_cfg = dict(HERMETIC_ASR, agy={"bin": str(AGY), "workers": 2})
+write_cfg(asr=asr_cfg, asr_channel="agy")
+(ROOT / "memory" / "glossary.md").write_text("# 词表\n\n## 人名\n- Maxim（误写：马克西姆）\n\n## 专有名词\n- GEO\n", encoding="utf-8")
+os.environ["COCO_FAST_RETRY"] = "1"
+from coco.sysenv import ensure_ffmpeg  # noqa: E402
+ff = ensure_ffmpeg()
+check("ffmpeg 可用（切分音频）", bool(ff))
+wav = ROOT / "agy-test.wav"
+import subprocess  # noqa: E402
+subprocess.run([ff, "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=8",
+                "-ac", "1", "-ar", "16000", str(wav)], check=True)
+cfg_now = c.get("/api/config").json()
+check("配置 agy 后可接收音频", cfg_now["transcribe"] == "agy", str(cfg_now["transcribe"]))
+st_asr = c.get("/api/settings/asr").json()
+check("转写设置：通道状态", st_asr["active"] == "agy" and st_asr["channels"]["agy"]["found"], str(st_asr["channels"]["agy"]))
+check("转写测试（agy stub）", c.post("/api/settings/asr/test", json={"channel": "agy"}).json()["ok"])
+
+
+def wait_job(jid, n=200):
+    for _ in range(n):
+        j = c.get(f"/api/jobs/{jid}").json()
+        if j["status"] != "running":
+            return j
+        time.sleep(0.1)
+    return j
+
+
+r = c.post("/api/upload", files={"file": ("周会.wav", wav.read_bytes(), "audio/wav")})
+check("上传音频走 agy", r.status_code == 200 and r.json().get("job"), r.text[:200])
+j = wait_job(r.json()["job"])
+mid = r.json()["meeting_id"]
+d = c.get(f"/api/meetings/{mid}").json()
+check("agy 转写完成", j["status"] == "done" and d["channel"] == "agy", str(j))
+check("agy 转写稿：段落 + 时间戳 + 中英混合", "[00:00] 好的，我们开始" in d["transcript"] and "let's review the GEO" in d["transcript"],
+      d["transcript"][-300:])
+check("agy 时间戳按段长收回", "[00:41]" not in d["transcript"] and "[00:07]" in d["transcript"], d["transcript"][-200:])
+check("词表误写自动修正", "Maxim 提的" in d["transcript"] or "Maxim提的" in d["transcript"], d["transcript"][-300:])
+check("转写完成后清理分段缓存", not (ROOT / "library" / mid / ".asr").exists())
+meta = json.loads((ROOT / "library" / mid / "meta.json").read_text(encoding="utf-8"))
+check("meta 记录通道与修正数", meta.get("transcribe_channel") == "agy" and meta.get("glossary_fixed") == 1, str(meta))
+
+log = ROOT / "agy-calls.log"
+os.environ["AGY_STUB_LOG"] = str(log)
+os.environ["AGY_STUB_FILTER"] = "gemini-3.8-flash-medium"
+r = c.post(f"/api/meetings/{mid}/transcribe", json={})
+j = wait_job(r.json()["job"])
+calls = log.read_text(encoding="utf-8").split()
+check("被过滤：同一段换 flash-high 重试并成功", j["status"] == "done" and "gemini-3.8-flash-high" in calls, str(calls))
+check("重新转写保留上一版", (ROOT / "library" / mid / "transcript.prev.md").exists())
+os.environ["AGY_STUB_FILTER"] = "gemini-3.8-flash-high"
+log.unlink()
+# all agy models filtered → a visible gap, never another engine
+write_cfg(asr=dict(asr_cfg, agy={"bin": str(AGY), "rescue": ["gemini-3.8-flash-high"]}), asr_channel="agy")
+import coco.asr as _asr_mod  # noqa: E402
+_orig_piece = _asr_mod._agy_piece
+_asr_mod._agy_piece = lambda path, prompt, model, cfg: ("filtered", "blocked by Gemini's filters")
+r = c.post(f"/api/meetings/{mid}/transcribe", json={})
+j = wait_job(r.json()["job"])
+d = c.get(f"/api/meetings/{mid}").json()
+check("全部档位被拦：标缺口而不是丢掉", j["status"] == "done" and "未转录" in d["transcript"] and d["gaps"] == 1, d["transcript"][-200:])
+_asr_mod._agy_piece = _orig_piece
+os.environ.pop("AGY_STUB_FILTER", None)
+os.environ["AGY_STUB_QUOTA"] = "1"
+r = c.post(f"/api/meetings/{mid}/transcribe", json={})
+j = wait_job(r.json()["job"])
+check("额度耗尽：任务报错并提示稍后继续", j["status"] == "error" and "额度" in j["detail"], str(j))
+check("额度耗尽：分段缓存保留以便续跑", (ROOT / "library" / mid / ".asr" / "chunks.json").exists())
+os.environ.pop("AGY_STUB_QUOTA", None)
+r = c.post(f"/api/meetings/{mid}/transcribe", json={})
+check("额度恢复后续跑成功", wait_job(r.json()["job"])["status"] == "done")
+os.environ.pop("AGY_STUB_LOG", None)
+r = c.post("/api/settings/asr", json={"channel": "gemini", "gemini": {"api_key": "k-test", "model": "gemini-3.8-flash"}})
+check("保存 Gemini API 通道", r.status_code == 200 and r.json()["channels"]["gemini"]["has_key"] and r.json()["active"] == "gemini")
+check("API key 不回传", "k-test" not in r.text)
+check("非法通道 400", c.post("/api/settings/asr", json={"channel": "nope"}).status_code == 400)
+write_cfg()
 
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

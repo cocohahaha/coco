@@ -55,9 +55,15 @@ PROFILE_DEFAULTS = {
     "max_context_chars": 0,  # 0 = default (400k chars); lower it for small-context models
     "max_tokens": 16000,     # anthropic / openai output cap
     "extra_args": [],        # claude-cli / codex-cli: appended to the command line
-    "reasoning": "",         # codex-cli: reasoning effort (low / medium / high); empty = model default
+    "reasoning": "",         # claude-cli / codex-cli effort (low … max); empty = coco's per-task default
     "preset": "",            # which preset the profile was built from (UI only)
 }
+BACKGROUND_TASKS = ("memory", "glossary", "namefix", "participants")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Claude Code alias of the faster model used for background work when no fast channel is set
+CLAUDE_FAST_MODEL = "sonnet"
+COCO_SYSTEM = ("You are coco, a meeting analysis assistant. Follow the task in the user message exactly "
+               "and output only the requested content.")
 TASK_PROFILE_DEFAULTS = {
     "report": "primary", "ask": "primary", "track": "primary", "prep": "primary",
     "brief": "primary", "weekly": "primary",
@@ -162,11 +168,30 @@ def preset_profile(name: str, fast: bool = False) -> dict:
     return d
 
 
+def derive_fast(primary: dict) -> dict:
+    """Background channel when none is configured: the same account / key with its faster model
+    (Claude Code: Sonnet at low effort; API presets: their documented fast model)."""
+    p = dict(primary)
+    preset = PRESETS.get(p.get("preset") or "") or {}
+    if p["type"] == "claude-cli" and not p.get("base_url"):
+        if not p.get("model") or p["model"] in ("opus", "default") or "opus" in str(p["model"]):
+            p["model"] = CLAUDE_FAST_MODEL
+    elif preset.get("fast_model"):
+        p["model"] = preset["fast_model"]
+    p["reasoning"] = "low"
+    p["derived"] = True
+    return p
+
+
 def get_profile(name: str = "primary", cfg: "dict | None" = None) -> dict:
     cfg = cfg or load_config()
     profiles = cfg.get("ai_profiles") or {}
     if name != "primary" and not profiles.get(name):
-        return get_profile("primary", cfg)  # unset secondary profile = same as primary
+        prim = get_profile("primary", cfg)  # unset secondary profile = primary's account …
+        if cfg.get("fast_auto", True):
+            prim = derive_fast(prim)       # … with its faster model, unless the user opted out
+        prim["name"] = name
+        return prim
     p = dict(PROFILE_DEFAULTS)
     stored = profiles.get(name) or {}
     if name == "primary" and not stored:
@@ -346,12 +371,30 @@ def _claude_cwd() -> str:
     return str(d)
 
 
+def claude_effort(p: dict, task: str = "report") -> str:
+    """Effort for one call: the profile's own choice, else medium for what the user reads and low
+    for background work. Without it the CLI inherits the user's personal default (often xhigh),
+    which made a one-page report take half a minute."""
+    r = str(p.get("reasoning") or "").strip().lower()
+    if r in EFFORTS:
+        return r
+    return "low" if task in BACKGROUND_TASKS else "medium"
+
+
+def claude_cli_args(p: dict, task: str = "report") -> "list[str]":
+    """Flags that make `claude -p` a plain model call: no MCP servers, no skills, a two-line system
+    prompt instead of the coding-agent one, and the user's personal response language / output
+    style / effort overridden (they belong to their coding sessions, not to coco's reports).
+    User settings are otherwise kept, so logins routed through settings.json keep working."""
+    overrides = {"effortLevel": claude_effort(p, task), "language": "", "outputStyle": "default"}
+    return ["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', "--disable-slash-commands",
+            "--system-prompt", COCO_SYSTEM, "--settings", json.dumps(overrides)]
+
+
 def _run_claude_cli(prompt: str, p: dict, cfg: dict, timeout: int,
-                    allowed_tools: "list[str] | None", on_delta) -> str:
+                    allowed_tools: "list[str] | None", on_delta, task: str = "report") -> str:
     cmd = [resolve_claude_bin(cfg), "-p", "--output-format", "stream-json", "--verbose",
-           "--include-partial-messages", "--no-session-persistence",
-           # no MCP servers and no tools for plain analysis: smaller system prompt, no side effects
-           "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}']
+           "--include-partial-messages", "--no-session-persistence", *claude_cli_args(p, task)]
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     key = resolve_api_key(p)
     if p.get("base_url"):
@@ -860,7 +903,7 @@ def run_model(prompt: str, *, task: str = "report", profile: "dict | None" = Non
         return _run_openai(prompt, p, timeout, on_delta)
     if p["type"] == "codex-cli":
         return _run_codex_cli(prompt, p, cfg, timeout, on_delta)
-    return _run_claude_cli(prompt, p, cfg, timeout, allowed_tools, on_delta)
+    return _run_claude_cli(prompt, p, cfg, timeout, allowed_tools, on_delta, task=task)
 
 
 def test_profile(name: str = "primary", profile: "dict | None" = None) -> dict:

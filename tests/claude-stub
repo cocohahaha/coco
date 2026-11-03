@@ -14,7 +14,7 @@ import time
 
 data = sys.stdin.read()
 DELAY = float(os.environ.get("COCO_STUB_DELAY", "0") or 0)  # seconds between deltas (UI tests)
-zh = "只依据转写证据" in data or "请" in data[:4000] or "维护一份" in data
+zh = "只依据转写证据" in data or "请" in data[:4000] or "维护一份" in data or "逐条整理" in data
 
 
 def emit(text: str) -> None:
@@ -41,28 +41,29 @@ elif "<current_glossary>" in data:
     else:
         emit("# Glossary\n\n## Names\n- Lin Wei (misheard: Lin Way) | product lead\n\n"
              "## Terms\n- SmartCabin (misheard: Smart Cabinet) | cockpit project\n- GEO | generative engine optimisation")
-elif "<current_memory>" in data and ("NO_CHANGE" in data):
-    # incremental long-term memory: only new / updated entries
+elif "<existing_entries>" in data:
+    # structured long-term memory merge: JSON only
     if zh:
-        emit("## 人物\n- **林炜**：产品负责人，主推智舱二期\n- **张三**：IT 部门\n\n"
-             "## 项目与客户\n- **智舱项目**：二期排期讨论中\n\n"
-             "## 承诺与决定\n- 林炜 承诺 8/25 前给出二期排期 [test] 状态：进行中\n\n"
-             "## 术语与说法\n- **智舱**：车机智能座舱项目")
+        emit(json.dumps({"digest": "智舱二期排期与数据权限讨论", "entities": [
+            {"type": "person", "name": "林炜", "aliases": ["林伟"], "summary": "产品负责人，主推智舱二期",
+             "facts": ["承诺 8/25 前给出二期排期"]},
+            {"type": "person", "name": "张三", "summary": "IT 部门，负责数据权限"},
+            {"type": "project", "name": "智舱项目", "summary": "二期排期讨论中"},
+            {"type": "commitment", "name": "林炜：8/25 前给出二期排期", "owner": "林炜", "status": "open",
+             "due": "8/25"},
+            {"type": "term", "name": "智舱", "summary": "车机智能座舱项目"}]}, ensure_ascii=False))
     else:
-        emit("## People\n- **Lin Wei**: product lead, pushing SmartCabin phase 2\n- **Zhang San**: IT department\n\n"
-             "## Projects & clients\n- **SmartCabin**: phase-2 schedule under discussion\n\n"
-             "## Commitments & decisions\n- Lin Wei committed to a phase-2 schedule by 8/25 [test] status: in progress\n\n"
-             "## Terms & phrasing\n- **SmartCabin**: in-car cockpit project")
-elif "<current_memory>" in data:
-    # full rewrite / compaction
-    if zh:
-        emit("# 长期记忆\n\n## 人物\n- **林炜**：产品负责人\n- **张三**：IT 部门\n- **李四**：数据权限\n\n"
-             "## 项目与客户\n- **智舱项目**：二期排期讨论中\n\n"
-             "## 承诺与决定\n- 林炜 承诺 8/25 前给出二期排期 [test] 状态：进行中\n\n"
-             "## 术语与说法\n- **智舱**：车机智能座舱项目")
-    else:
-        emit("# Long-term memory\n\n## People\n- **Lin Wei**: product lead\n\n## Projects & clients\n- **SmartCabin**: phase 2\n\n"
-             "## Commitments & decisions\n- Lin Wei: schedule by 8/25 [test] in progress\n\n## Terms & phrasing\n- **SmartCabin**: cockpit")
+        emit("```json\n" + json.dumps({"digest": "SmartCabin phase 2 schedule", "entities": [
+            {"type": "person", "name": "Lin Wei", "summary": "product lead, pushing SmartCabin phase 2",
+             "facts": ["committed to a phase-2 schedule by 8/25"]},
+            {"type": "project", "name": "SmartCabin", "summary": "phase-2 schedule under discussion"},
+            {"type": "commitment", "name": "Lin Wei: phase-2 schedule by 8/25", "owner": "Lin Wei",
+             "status": "open"}]}) + "\n```")
+elif "<tidy_entries>" in data:
+    m = re.search(r"<tidy_entries>\n(.*)\n</tidy_entries>", data, re.S)
+    rows = json.loads(m.group(1)) if m else []
+    emit(json.dumps({"entities": [{"id": r["id"], "summary": (r.get("summary") or r["name"])[:40],
+                                   "facts": r.get("facts") or []} for r in rows]}, ensure_ascii=False))
 elif "<speaker_material" in data:
     emit("张三（产品负责人）、李四（IT）" if zh else "Zhang San (product lead), Li Si (IT)")
 elif "Reply with exactly one word" in data:

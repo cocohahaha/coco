@@ -204,7 +204,8 @@
       "http_404": "Modèle « {model} » ou adresse introuvable. Cliquez sur « Charger la liste » pour choisir un modèle disponible, ou vérifiez l'URL de base.",
       "http_402": "Solde insuffisant : rechargez votre compte dans la console du fournisseur.",
       "http_429": "Trop de requêtes ou quota épuisé. Réessayez dans un moment.",
-      "http_5xx": "Erreur côté fournisseur. Réessayez dans un moment."
+      "http_5xx": "Erreur côté fournisseur. Réessayez dans un moment.",
+      "tidy_progress": "Rangement de la mémoire à long terme : lot {i}/{n}"
     },
     "server": {
       "file_missing": "Fichier introuvable : {name}",
@@ -243,7 +244,10 @@
       "forbidden_host": "coco n'accepte que les requêtes de cet ordinateur (127.0.0.1 / localhost)",
       "forbidden_origin": "Requête d'une autre page web refusée",
       "shutdown_busy": "Un enregistrement ou une transcription est en cours",
-      "bad_record_mode": "Le mode d'enregistrement doit être auto, browser ou ffmpeg"
+      "bad_record_mode": "Le mode d'enregistrement doit être auto, browser ou ffmpeg",
+      "compact_done_n": "{n} entrées rangées",
+      "bad_asr_channel": "Canal de transcription inconnu",
+      "already_transcribing": "Cette réunion est en cours de transcription ; attendez la fin"
     },
     "cli": {
       "description": "coco — enregistrement / transcription / analyse IA de réunions, en local",
@@ -414,6 +418,41 @@
       "updated": "✓ Mis à jour vers la dernière version",
       "restarting_old": "Une ancienne version de coco ({old}) tourne ; mise à jour vers {new}…",
       "update_later": "L'ancienne version enregistre ou transcrit ; elle continue pour l'instant : {url}. Lancez coco restart quand elle est libre pour terminer la mise à jour."
+    },
+    "asr": {
+      "no_ffmpeg": "ffmpeg est introuvable, l’audio ne peut pas être découpé. Lancez « coco setup » pour réinstaller les dépendances.",
+      "convert_failed": "Échec de la conversion audio : {detail}",
+      "gap": "(environ {minutes} minutes non transcrites : {why})",
+      "gap_filtered": "refusé par le filtre de contenu à chaque nouvel essai",
+      "agy_missing": "La commande agy est introuvable. Installez Google Antigravity CLI et lancez agy une fois dans un terminal pour vous connecter.",
+      "agy_login": "agy n’est pas connecté ou la connexion a expiré. Lancez agy dans un terminal pour vous reconnecter, puis cliquez sur Retranscrire.",
+      "quota": "Le quota de transcription est épuisé. Les parties terminées sont conservées ; une fois le quota rétabli, Retranscrire reprend là où la transcription s’est arrêtée.",
+      "need_key": "La transcription {channel} demande une clé API ; ajoutez-la dans Réglages → Transcription.",
+      "bad_key": "{channel} a refusé la clé API : {detail}",
+      "need_dashscope": "La transcription Bailian demande le paquet dashscope. Dans un terminal : coco setup --extra bailian",
+      "bad_output": "la réponse n’était pas une transcription horodatée",
+      "empty_piece": "(aucune parole reconnue dans cette partie)",
+      "preparing": "Découpage de l’audio…",
+      "progress": "Transcription {channel} : {done}/{total} parties",
+      "failed_pieces": "Transcription incomplète ({done}/{total} parties) : {detail}",
+      "channel": {
+        "agy": "Gemini (agy)",
+        "gemini": "API Gemini",
+        "openai": "API compatible OpenAI",
+        "bailian": "Alibaba Cloud Bailian",
+        "local": "Whisper sur cet ordinateur"
+      }
+    },
+    "memory": {
+      "status": {
+        "open": "en cours",
+        "done": "fait",
+        "cancelled": "annulé",
+        "unknown": "statut inconnu"
+      },
+      "md_note": "Généré par coco à partir de la mémoire structurée (knowledge.json). Modifiez les entrées sur la page Mémoire ; modifier et enregistrer ce fichier fonctionne aussi.",
+      "not_found": "Cette entrée de mémoire n’existe plus ; elle a peut-être été supprimée ou fusionnée.",
+      "need_name": "Donnez un nom à l’entrée et choisissez son type."
     }
   },
   "ui": {
@@ -512,7 +551,7 @@
       "participants_edit_title": "Saisir ou modifier les participants et leurs rôles ; écrit dans l'en-tête de la transcription",
       "participants_detect": "✦ Détecter",
       "participants_detect_title": "Laisser l'IA identifier les participants et leurs rôles dans la transcription ; vous confirmez avant d'enregistrer",
-      "participants_placeholder": "ex. Alex Chen (responsable produit), Sam Lee (IT)",
+      "participants_placeholder": "ex. Nora Lin (responsable produit), Sam Lee (IT)",
       "participants_saved": "Participants enregistrés (écrits dans l'en-tête de la transcription)",
       "participants_detecting": "Détection…",
       "participants_detected": "Suggestion insérée : modifiez si besoin puis Entrée pour enregistrer",
@@ -611,7 +650,7 @@
       "paste_hint": "Collez une transcription, un historique de discussion, un e-mail ou le compte rendu de quelqu'un d'autre. Les transcriptions SRT / VTT / JSON sont détectées et gardent leurs repères temporels. coco l'analyse exactement comme une transcription locale et l'intègre à la mémoire à long terme.",
       "paste_placeholder": "Collez ici…",
       "title_label": "Titre",
-      "title_placeholder": "ex. Échange avec Alex sur la feuille de route",
+      "title_placeholder": "ex. Échange avec Nora sur la feuille de route",
       "date_label": "Date du document (facultatif)",
       "go": "Importer",
       "need_path": "Collez d'abord un chemin",
@@ -733,7 +772,7 @@
       "topic": "Sujet de la réunion *",
       "topic_placeholder": "ex. Aligner le calendrier de la phase 2 avec l'équipe projet",
       "people": "Participants (séparés par des virgules, facultatif)",
-      "people_placeholder": "ex. Alex Chen, Mme Wang, Lee",
+      "people_placeholder": "ex. Nora Lin, Mme Wang, Lee",
       "goal": "Mon objectif (facultatif)",
       "goal_placeholder": "ex. Obtenir un engagement oral sur le budget de la phase 2",
       "web": "Rechercher sur le web des informations publiques sur les participants / entreprises (plus lent, sources citées ; canal Claude CLI uniquement)",

@@ -115,13 +115,20 @@ class Meeting:
         return sorted(self.reports_dir.glob("*.md"))
 
     def summary(self) -> dict:
-        m = self.meta
+        m = self.meta  # read once: the sidebar polls this for every meeting
         src = m.get("source", "")
+        created = m.get("created", "")
+        date = m.get("date") or created[:10] or (re.match(r"\d{4}-\d{2}-\d{2}", self.id) or [""])[0]
         return {
             "id": self.id,
-            "title": self.title,
-            "created": m.get("created", ""),
-            "date": self.date,
+            "title": m.get("title", self.id),
+            "created": created,
+            "date": date,
+            "digest": m.get("digest", ""),
+            "channel": m.get("transcribe_channel", ""),
+            "gaps": m.get("gaps", 0),
+            "glossary_fixed": m.get("glossary_fixed", 0),
+            "error": m.get("error") or "",
             "duration": m.get("duration", ""),
             "source": src,
             "source_label": source_label(src),

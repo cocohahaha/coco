@@ -214,25 +214,25 @@
   .ovl { position: fixed; inset: 0; background: rgba(38,36,31,.45);
     display: none; align-items: center; justify-content: center; z-index: 12; }
   .ovl.show { display: flex; }
-  .dlg { background: var(--panel); border-radius: 14px; width: 560px; max-width: 92vw;
+  .dialog { background: var(--panel); border-radius: 14px; width: 560px; max-width: 92vw;
     max-height: 86vh; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
-  .dlg.wide { width: 760px; }
-  .dlg h3 { font-size: 15px; margin-bottom: 6px; }
-  .dlg h4 { font-size: 13px; margin: 14px 0 6px; color: var(--ink); }
-  .dlg .hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
-  .dlg label.fld { font-size: 12px; color: var(--muted); margin: 10px 0 4px; display: block; }
-  .dlg input[type=text], .dlg input[type=date], .dlg input[type=password], .dlg input[type=number],
-  .dlg select.full { width: 100%; font: inherit; font-size: 13px;
+  .dialog.wide { width: 760px; }
+  .dialog h3 { font-size: 15px; margin-bottom: 6px; }
+  .dialog h4 { font-size: 13px; margin: 14px 0 6px; color: var(--ink); }
+  .dialog .hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
+  .dialog label.fld { font-size: 12px; color: var(--muted); margin: 10px 0 4px; display: block; }
+  .dialog input[type=text], .dialog input[type=date], .dialog input[type=password], .dialog input[type=number],
+  .dialog select.full { width: 100%; font: inherit; font-size: 13px;
     padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
-  .dlg textarea { width: 100%; min-height: 150px; font: 13px/1.6 ui-monospace, "PingFang SC", monospace;
+  .dialog textarea { width: 100%; min-height: 150px; font: 13px/1.6 ui-monospace, "PingFang SC", monospace;
     padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); resize: vertical; }
-  .dlg input:focus, .dlg textarea:focus { outline: none; border-color: var(--ink); }
-  .dlg .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; align-items: center; flex-wrap: wrap; }
-  .dlg .radio { display: block; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line);
+  .dialog input:focus, .dialog textarea:focus { outline: none; border-color: var(--ink); }
+  .dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+  .dialog .radio { display: block; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line);
     border-radius: 8px; margin: 5px 0; cursor: pointer; }
-  .dlg .radio:hover { border-color: var(--ink); }
-  .dlg .radio input { accent-color: var(--accent); margin-right: 6px; }
-  .dlg .radio .d { color: var(--muted); font-size: 12px; margin-left: 21px; }
+  .dialog .radio:hover { border-color: var(--ink); }
+  .dialog .radio input { accent-color: var(--accent); margin-right: 6px; }
+  .dialog .radio .d { color: var(--muted); font-size: 12px; margin-left: 21px; }
   .mini-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
   .mini-tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
@@ -444,7 +444,7 @@
   </div>
 </div></div>
 
-<div id="import-overlay" class="ovl"><div class="dlg">
+<div id="import-overlay" class="ovl"><div class="dialog">
   <h3 data-i18n="import.title"></h3>
   <div class="mini-tabs">
     <button id="imp-tab-path" class="on" data-i18n="import.tab_path"></button>
@@ -468,7 +468,7 @@
   </div>
 </div></div>
 
-<div id="prep-overlay" class="ovl"><div class="dlg">
+<div id="prep-overlay" class="ovl"><div class="dialog">
   <h3 data-i18n="prep.title"></h3>
   <div class="hint" data-i18n="prep.hint"></div>
   <label class="fld" data-i18n="prep.topic"></label>
@@ -486,7 +486,7 @@
   </div>
 </div></div>
 
-<div id="insight-overlay" class="ovl"><div class="dlg">
+<div id="insight-overlay" class="ovl"><div class="dialog">
   <h3 data-i18n="insight.title"></h3>
   <div class="hint" data-i18n="insight.hint"></div>
   <div id="insight-modes"></div>
@@ -500,7 +500,7 @@
   </div>
 </div></div>
 
-<div id="audio-help-overlay" class="ovl"><div class="dlg">
+<div id="audio-help-overlay" class="ovl"><div class="dialog">
   <h3 data-i18n="audiohelp.title"></h3>
   <div class="hint" id="audiohelp-body"></div>
   <div id="audiohelp-files" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
@@ -514,7 +514,7 @@
   </div>
 </div></div>
 
-<div id="cli-overlay" class="ovl"><div class="dlg">
+<div id="cli-overlay" class="ovl"><div class="dialog">
   <h3 id="cli-title"></h3>
   <div class="hint" id="cli-intro"></div>
   <pre id="cli-steps" style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,'PingFang SC',monospace;background:rgba(0,0,0,.05);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.8;margin:10px 0;user-select:text"></pre>
@@ -525,7 +525,7 @@
   </div>
 </div></div>
 
-<div id="welcome-overlay" class="ovl"><div class="dlg wide">
+<div id="welcome-overlay" class="ovl"><div class="dialog wide">
   <h3 data-i18n="welcome.title"></h3>
   <div class="hint" data-i18n="welcome.intro"></div>
   <div class="choices" id="welcome-choices"></div>
@@ -533,7 +533,7 @@
   <div class="row"><button id="btn-welcome-later" data-i18n="welcome.later"></button></div>
 </div></div>
 
-<div id="choose-overlay" class="ovl"><div class="dlg">
+<div id="choose-overlay" class="ovl"><div class="dialog">
   <h3 id="choose-title"></h3>
   <div class="hint" id="choose-body" style="font-size:13px;color:var(--ink)"></div>
   <div class="row" id="choose-buttons"></div>
@@ -541,7 +541,7 @@
 
 <div id="quit-screen"><div><b data-i18n="quit.title"></b><br><span data-i18n="quit.body"></span></div></div>
 
-<div id="settings-overlay" class="ovl"><div class="dlg wide">
+<div id="settings-overlay" class="ovl"><div class="dialog wide">
   <div class="set-head">
     <h3 data-i18n="settings.title"></h3>
     <div class="mini-tabs" id="set-tabs" style="margin:0">

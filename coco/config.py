@@ -53,12 +53,18 @@ DEFAULTS = {
     "audio_device": ":0",        # ffmpeg avfoundation input device (coco devices)
     "record_mode": "auto",       # auto | browser (MediaRecorder, every OS) | ffmpeg (server-side, macOS)
     "hf_endpoint": "",           # empty = auto-detect; mainland China: https://hf-mirror.com
+    # --- transcription channel (see asr.py) ---
+    "asr_channel": "auto",       # auto | agy | gemini | openai | bailian | local | none
+    "asr": {},                   # per channel: {"agy": {"model": …}, "gemini": {"api_key": …}, …}
+    "asr_context": "",           # one line of background for cloud transcription (company, meeting types)
+    "glossary_autofix": True,    # replace known misheard names (glossary) right after transcription
     # --- AI ---
     "claude_bin": "claude",
     "codex_bin": "codex",        # OpenAI Codex CLI (ChatGPT subscription channel)
     "claude_extra_args": [],     # appended to every claude CLI call
     "ai_profiles": {},           # {"primary": {...}, "fast": {...}} – see providers.PROFILE_DEFAULTS
     "ai_tasks": {},              # task -> profile name, see providers.TASK_PROFILE_DEFAULTS
+    "fast_auto": True,           # no fast channel set: background tasks use the primary's faster model
     "auto_memory": True,         # extract long-term memory after each transcript / import
     "memory_merge": "delta",     # delta (only changed entries, fast) | full (rewrite whole file)
     # --- server ---

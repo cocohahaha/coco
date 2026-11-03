@@ -204,7 +204,8 @@
       "http_404": "找不到模型「{model}」或接口地址不对。点「获取列表」选一个可用的模型，或检查 Base URL。",
       "http_402": "账户余额不足，请到服务商后台充值。",
       "http_429": "请求太频繁或额度用完，请稍后再试。",
-      "http_5xx": "服务商暂时出错，请稍后重试。"
+      "http_5xx": "服务商暂时出错，请稍后重试。",
+      "tidy_progress": "正在整理长期记忆：第 {i}/{n} 批"
     },
     "server": {
       "file_missing": "文件不存在：{name}",
@@ -243,7 +244,10 @@
       "forbidden_host": "coco 只接受本机访问（127.0.0.1 / localhost）",
       "forbidden_origin": "拒绝了来自其他网页的请求",
       "shutdown_busy": "还有录音或转写在进行",
-      "bad_record_mode": "录音方式只能是 auto / browser / ffmpeg"
+      "bad_record_mode": "录音方式只能是 auto / browser / ffmpeg",
+      "compact_done_n": "已整理 {n} 个条目",
+      "bad_asr_channel": "未知的转写通道",
+      "already_transcribing": "这场会议正在转写，请等它完成"
     },
     "cli": {
       "description": "coco — 本地会议录音 / 转写 / AI 分析工具",
@@ -414,6 +418,41 @@
       "updated": "✓ 已更新到最新版本",
       "restarting_old": "发现正在运行的旧版本 coco（{old}），准备升级为 {new}…",
       "update_later": "旧版本正有录音或转写在进行，这次先不重启：{url}。空闲时运行 coco restart 即可升级。"
+    },
+    "asr": {
+      "no_ffmpeg": "找不到 ffmpeg，无法切分音频。请运行「coco setup」重新安装依赖。",
+      "convert_failed": "音频转换失败：{detail}",
+      "gap": "（本段约 {minutes} 分钟未转录：{why}）",
+      "gap_filtered": "多次重试均被内容过滤拒绝",
+      "agy_missing": "找不到 agy 命令。请先安装 Google Antigravity CLI，并在终端运行一次 agy 完成登录。",
+      "agy_login": "agy 没有登录或登录已过期。请在终端运行 agy 重新登录，然后点「重新转写」。",
+      "quota": "转写额度已用完。已完成的分段已保存，额度恢复后点「重新转写」会从中断处继续。",
+      "need_key": "{channel} 转写需要 API key，请在「设置 → 转写」填写。",
+      "bad_key": "{channel} 拒绝了这个 API key：{detail}",
+      "need_dashscope": "百炼转写需要 dashscope 组件。请在终端运行：coco setup --extra bailian",
+      "bad_output": "返回内容不是带时间戳的转写稿",
+      "empty_piece": "（本段没有识别到语音）",
+      "preparing": "正在切分音频…",
+      "progress": "{channel} 转写中：{done}/{total} 段",
+      "failed_pieces": "转写未完成（{done}/{total} 段）：{detail}",
+      "channel": {
+        "agy": "Gemini（agy）",
+        "gemini": "Gemini API",
+        "openai": "OpenAI 兼容接口",
+        "bailian": "阿里云百炼",
+        "local": "本机 Whisper"
+      }
+    },
+    "memory": {
+      "status": {
+        "open": "进行中",
+        "done": "已完成",
+        "cancelled": "已取消",
+        "unknown": "状态未知"
+      },
+      "md_note": "由 coco 根据结构化记忆（knowledge.json）生成。可在「记忆」页按条目编辑；直接修改本文件并保存，也会被解析回条目。",
+      "not_found": "找不到这个记忆条目，可能已被删除或合并。",
+      "need_name": "请填写条目名称并选择类型。"
     }
   },
   "ui": {
