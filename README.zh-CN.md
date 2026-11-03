@@ -2,7 +2,7 @@
 
 **录音转写、会前调查、跨会议洞察，以及一份可以检索的长期记忆。**
 
-[English README → README.md](README.md)
+[English README → README.md](README.md) · 项目页：<https://coco-meeting.pages.dev/zh/>
 
 coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://younavi.me)）：
 把会议录音、访谈、聊天记录、他人纪要都喂给它，它帮你在**会前看懂局**、

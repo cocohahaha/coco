@@ -2,7 +2,7 @@
 
 **Transcription, pre-meeting briefs, cross-meeting insight and a long-term memory you can search.**
 
-[中文说明 → README.zh-CN.md](README.zh-CN.md)
+[中文说明 → README.zh-CN.md](README.zh-CN.md) · Project page: <https://coco-meeting.pages.dev>
 
 coco is a local meeting AI tool (inspired by [YouNavi](https://younavi.me)). Feed it recordings,
 interviews, chat logs or other people's minutes and it helps you **understand the situation before

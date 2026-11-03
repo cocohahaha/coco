@@ -35,7 +35,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .config import load_config
-from .i18n import get_lang, t
+from .i18n import get_lang, set_lang, t
 
 CHANNELS = ("agy", "gemini", "openai", "bailian", "local")
 CLOUD_CHANNELS = ("agy", "gemini", "openai", "bailian")
@@ -564,7 +564,8 @@ def transcribe_cloud(audio: Path, channel: str, workdir: Path, title: str = "", 
     total = len(chunks)
     done = {"n": sum(1 for ch in chunks if (workdir / (Path(ch["file"]).stem + ".txt")).exists())}
     stop = threading.Event()
-    errors: list[str] = []
+    errors: list[tuple[str, str]] = []  # (status, detail): status decides quota vs other failures
+    ui_lang = get_lang()  # pool threads do not inherit the request's language
     lock = threading.Lock()
     lang = None if not language or language == "auto" else language
     model = str(c.get("model") or "")
@@ -573,6 +574,7 @@ def transcribe_cloud(audio: Path, channel: str, workdir: Path, title: str = "", 
         progress(t("asr.progress", channel=label(channel), done=done["n"], total=total))
 
     def run(i: int) -> None:
+        set_lang(ui_lang)
         ch = chunks[i]
         piece = workdir / ch["file"]
         out = workdir / (piece.stem + ".txt")
@@ -615,12 +617,13 @@ def transcribe_cloud(audio: Path, channel: str, workdir: Path, title: str = "", 
                         return
                 if status_ == "fatal":
                     with lock:
-                        errors.append(str(detail))
+                        errors.append(("fatal", str(detail)))
                     stop.set()
                     return
                 if status_ == "filtered":
                     break  # same piece, next agy model (no further splitting, no other engine)
-                time.sleep(_backoff(status_, attempt))
+                if attempt < per_model:
+                    time.sleep(_backoff(status_, attempt))
             if status_ != "filtered":
                 break
         if status_ == "filtered":
@@ -631,15 +634,17 @@ def transcribe_cloud(audio: Path, channel: str, workdir: Path, title: str = "", 
             note()
             return
         with lock:
-            errors.append(f"{ch['file']}: {detail}")
+            errors.append((status_, f"{ch['file']}: {detail}"))
 
     note()
     workers = max(1, min(int(c.get("workers") or 3), 6))
     with ThreadPoolExecutor(workers) as pool:
         list(pool.map(run, range(total)))
     if errors:
-        quota = any(t("asr.quota") in e for e in errors)
-        msg = errors[0] if quota or len(errors) == 1 else f"{errors[0]} (+{len(errors) - 1})"
+        quota = any(st == "fatal" and d == t("asr.quota") for st, d in errors)
+        fatal = [d for st, d in errors if st == "fatal"]
+        first = fatal[0] if fatal else errors[0][1]
+        msg = first if fatal or len(errors) == 1 else f"{first} (+{len(errors) - 1})"
         raise (QuotaExhausted if quota else ASRError)(t("asr.failed_pieces", done=done["n"], total=total, detail=msg))
     pieces = []
     for ch in chunks:

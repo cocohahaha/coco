@@ -87,6 +87,11 @@ def listening(port: int) -> bool:
 
 
 def port_free(port: int) -> bool:
+    """Bindable *and* nobody answers on it. The connect test matters on macOS: a server on the
+    IPv6 wildcard ([::]:8765, e.g. `python -m http.server`) also takes 127.0.0.1 connections,
+    yet binding 127.0.0.1:8765 still succeeds; coco would then start on a port it cannot serve."""
+    if listening(port):
+        return False
     with socket.socket() as s:
         if not IS_WIN:  # like uvicorn: a just-closed socket in TIME_WAIT does not block the port
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
