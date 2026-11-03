@@ -384,7 +384,14 @@
       "h_status": "indiquer si coco tourne, et où sont les données et le journal",
       "h_setup": "installer / réparer les dépendances",
       "h_shortcut": "ajouter coco aux Applications / au menu Démarrer (--remove pour le retirer)",
-      "h_update": "mettre à jour vers la dernière version (bibliothèque et réglages intacts)"
+      "h_update": "mettre à jour vers la dernière version (bibliothèque et réglages intacts)",
+      "h_channel": "canal de transcription (par défaut : celui des réglages)",
+      "h_recall": "consulter la mémoire à long terme : personnes, projets, engagements, termes",
+      "h_recall_facts": "nombre de faits récents affichés par entrée",
+      "recall_none": "Rien sur « {q} » dans la mémoire à long terme",
+      "h_asr": "canaux de transcription : show / set <canal> / test [canal]",
+      "asr_active": "Réglage du canal de transcription : {setting}, utilisé : {active}",
+      "asr_set": "Canal de transcription réglé sur {channel}"
     },
     "launcher": {
       "starting": "Démarrage de coco…",
@@ -1050,7 +1057,7 @@
       "record": "Enregistrer",
       "upload": "Importer un fichier",
       "import": "Importer",
-      "search_placeholder": "Rechercher réunions, mémoire et synthèses",
+      "search_placeholder": "Rechercher partout",
       "filter": "Dates",
       "sel_insight": "Analyse croisée",
       "sel_download": "Télécharger",

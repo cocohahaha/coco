@@ -23,8 +23,9 @@ def _p(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _need_transcriber() -> None:
-    if not detect_backend():
+def _need_transcriber(channel: "str | None" = None) -> None:
+    from . import asr
+    if not (channel or asr.resolve_channel()):
         raise RuntimeError(no_engine_hint())
 
 
@@ -45,7 +46,7 @@ def cmd_record(args):
 
 
 def cmd_transcribe(args):
-    _need_transcriber()
+    _need_transcriber(args.channel)
     for f in args.files:
         src = Path(f).expanduser()
         if not src.exists():
@@ -54,7 +55,7 @@ def cmd_transcribe(args):
         title = args.title or src.stem
         mtg = create_meeting(title, audio_path=src, source="import", move=args.move)
         _p(t("cli.imported", id=mtg.id))
-        transcribe_meeting(mtg, model=args.model, progress=_p)
+        transcribe_meeting(mtg, model=args.model, progress=_p, channel=args.channel)
         _p(t("cli.transcribed", path=mtg.transcript_md))
 
 
@@ -264,8 +265,8 @@ def cmd_memorize(args):
             continue
         _p(t("cli.memorizing", id=m.id))
         try:
-            out = ai.update_longterm(m, force=args.force)
-            _p(t("cli.merged") if out else t("cli.skip_short"))
+            ai.update_longterm(m, force=args.force)
+            _p(t("cli.skip_short") if m.meta.get("memorized_at") == "skipped-too-short" else t("cli.merged"))
         except ai.AIError as e:
             _p(f"✗ {e}")
     if args.all:
@@ -451,6 +452,48 @@ def cmd_lang(args):
             _p(f"  {l['code']:<6} {l['name']}")
 
 
+def cmd_recall(args):
+    """Look up long-term memory entries: name, type, current state, latest facts."""
+    from . import memory
+    hits = memory.search(args.query, limit=args.limit)
+    if not hits:
+        _p(t("cli.recall_none", q=args.query))
+        return
+    for h in hits:
+        e = memory.get(h["id"]) or {}
+        extra = f" · {t('memory.status.' + e['status'])}" if e.get("type") == "commitment" and e.get("status") else ""
+        _p(f"\n{e.get('name')}  [{h['type']}{extra}]")
+        if e.get("summary"):
+            _p(f"  {e['summary']}")
+        for f in (e.get("facts") or [])[-args.facts:]:
+            src = f" [{f['source']}]" if f.get("source") else ""
+            _p(f"  - {f.get('date') or ''} {f['text']}{src}".rstrip())
+
+
+def cmd_asr(args):
+    """Transcription channels: show their state, choose one, test one."""
+    from . import asr
+    cfg = load_config()
+    if args.action == "show":
+        st = asr.status(cfg)
+        _p(t("cli.asr_active", setting=st["setting"], active=st["active"] or "-"))
+        for name, c in st["channels"].items():
+            _p(f"  {'*' if name == st['active'] else ' '} {name:8} {'ready' if c['ready'] else '-':6} {c.get('model') or ''}")
+        return
+    if args.action == "set":
+        if args.channel not in ("auto", "none") + asr.CHANNELS:
+            _p(t("server.bad_asr_channel"))
+            sys.exit(1)
+        cfg["asr_channel"] = args.channel
+        save_config(cfg)
+        _p(t("cli.asr_set", channel=args.channel))
+        return
+    r = asr.test_channel(args.channel or asr.resolve_channel(cfg) or "local", cfg)
+    _p(("✓ " if r["ok"] else "✗ ") + (r.get("detail") or f"{r.get('ms', 0)} ms"))
+    if not r["ok"]:
+        sys.exit(1)
+
+
 def cmd_ai(args):
     cfg = load_config()
     if args.action == "show":
@@ -526,6 +569,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("files", nargs="+")
     p.add_argument("--title", help=t("cli.h_title_default"))
     p.add_argument("--model", help=t("cli.h_model"))
+    p.add_argument("--channel", choices=("agy", "gemini", "openai", "bailian", "local"), help=t("cli.h_channel"))
     p.add_argument("--move", action="store_true", help=t("cli.h_move"))
     p.set_defaults(func=cmd_transcribe)
 
@@ -600,6 +644,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help=t("cli.h_memorize_force"))
     p.add_argument("--compact", action="store_true", help=t("cli.h_memorize_compact"))
     p.set_defaults(func=cmd_memorize)
+
+    p = sub.add_parser("recall", help=t("cli.h_recall"))
+    p.add_argument("query")
+    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--facts", type=int, default=3, help=t("cli.h_recall_facts"))
+    p.set_defaults(func=cmd_recall)
+
+    p = sub.add_parser("asr", help=t("cli.h_asr"))
+    p.add_argument("action", nargs="?", default="show", choices=("show", "set", "test"))
+    p.add_argument("channel", nargs="?")
+    p.set_defaults(func=cmd_asr)
 
     p = sub.add_parser("watch", help=t("cli.h_watch"))
     p.add_argument("folder")

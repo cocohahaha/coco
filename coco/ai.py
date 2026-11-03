@@ -498,6 +498,7 @@ def tidy_entries(ids: "list[str]", progress=lambda msg: None) -> int:
     """Rewrite the summaries and merge the facts of the given entries (8 per model call)."""
     P, directive, _ = _lang_ctx()
     changed = 0
+    memory._backup()  # knowledge.bak.json: one step back, whatever the model returns
     batches = [ids[i:i + 8] for i in range(0, len(ids), 8)]
     for bi, batch in enumerate(batches, 1):
         progress(t("ai.tidy_progress", i=bi, n=len(batches)))

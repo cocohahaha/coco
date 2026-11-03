@@ -299,6 +299,9 @@ def _uv_fallback() -> "str | None":
     return None
 
 
+EXTRAS = {"bailian": ["dashscope>=1.20"]}  # optional transcription channels, installed on request
+
+
 def ensure_deps(force: bool = False) -> None:
     if not force and deps_current():
         return
@@ -825,6 +828,10 @@ def main(argv: "list[str]") -> int:
             status()
         elif cmd == "setup":
             ensure_deps(force="--force" in flags)
+            if "bailian" in argv[1:]:  # coco setup --extra bailian: the optional DashScope SDK
+                code = subprocess.run(_installer(pip_index()) + EXTRAS["bailian"], check=False).returncode
+                if code:
+                    raise RuntimeError(t("launcher.deps_failed", log=str(LOG_FILE)))
             say(t("launcher.setup_done"))
         elif cmd == "shortcut":
             if "--remove" in flags:

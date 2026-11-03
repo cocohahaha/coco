@@ -1,6 +1,6 @@
-# coco — local meeting strategist
+# coco: a meeting adviser that keeps its data on your computer
 
-**Transcribe · prepare · see what was not said · build lasting knowledge — all on your own computer.**
+**Transcription, pre-meeting briefs, cross-meeting insight and a long-term memory you can search.**
 
 [中文说明 → README.zh-CN.md](README.zh-CN.md)
 
@@ -9,7 +9,10 @@ interviews, chat logs or other people's minutes and it helps you **understand th
 a meeting**, **catch what was left unsaid after it**, and **turn every conversation into reusable
 knowledge**.
 
-Audio never leaves your machine (Whisper runs locally). Analysis uses an AI **you already have**:
+Transcription runs where it suits the computer: Whisper on this machine (audio stays here), or a
+cloud channel for machines that cannot run it well: Gemini through a signed-in Google Antigravity
+CLI (`agy`), the Gemini API, any OpenAI-compatible transcription API, or Alibaba Cloud Bailian.
+Analysis uses an AI **you already have**:
 a ChatGPT account (through the official Codex CLI), a Claude account (through Claude Code), or one
 pasted API key (OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Kimi, GLM, OpenRouter …); a local Ollama
 or LM Studio keeps everything offline. coco has no cloud account and no subscription of its own.
@@ -61,10 +64,10 @@ Details: [Install and run](#install-and-run) and [AI channels](#ai-channels-chat
 
 | Route | Notes |
 |---|---|
-| ● Record | In the browser on macOS, Windows and Linux. Audio is saved on this computer every 4 seconds, so a closed tab or a restart keeps what was recorded; transcription starts when you stop |
+| Record | In the browser on macOS, Windows and Linux. Audio is saved on this computer every 4 seconds, so a closed tab or a restart keeps what was recorded; transcription starts when you stop |
 | Drag & drop / ↑ Upload | Audio, video, or existing text material — several files at once, queued |
-| ⌖ Import · local path | File or folder (folder = bulk). Audio + same-name transcript (Whisper export folders) are paired into one meeting |
-| ⌖ Import · paste | Chat logs, e-mails, someone else's minutes, raw transcripts — SRT / VTT / JSON content is detected and keeps its timestamps; the material's own date can be set |
+| Import · local path | File or folder (folder = bulk). Audio + same-name transcript (Whisper export folders) are paired into one meeting |
+| Import · paste | Chat logs, e-mails, someone else's minutes, raw transcripts — SRT / VTT / JSON content is detected and keeps its timestamps; the material's own date can be set |
 | `coco watch` | Watch a folder and transcribe new recordings (voice memos, Plaud exports …) |
 
 **Transcript formats accepted without transcription:** `txt md docx odt pdf rtf html eml csv tsv srt
@@ -80,28 +83,51 @@ part in every cross-meeting analysis, exactly like a transcription.
 
 ### Transcription
 
+- **Channels** (Settings → Transcription; `coco asr show | set <channel> | test`):
+
+  | Channel | Needs | Audio goes to |
+  |---|---|---|
+  | **Gemini (agy)** | Google Antigravity CLI, signed in once with `agy` | Google |
+  | **Gemini API** | an API key from Google AI Studio | Google |
+  | **OpenAI-compatible** | base URL + key (OpenAI, Groq, SiliconFlow, a server on your network) | that address |
+  | **Alibaba Cloud Bailian** | a Bailian key; `coco setup --extra bailian` installs the SDK | Alibaba Cloud |
+  | **Whisper on this computer** | mlx-whisper (Apple silicon) or faster-whisper | nowhere |
+
+  *Automatic* uses this computer when it transcribes at a usable speed (Apple silicon, NVIDIA GPU)
+  and otherwise the first ready cloud channel. Cloud channels split a recording into ~20-minute mp3
+  parts at silences and transcribe them in parallel; finished parts are cached, so a run stopped by
+  a quota or the network continues where it stopped (*More → Transcribe again*). With agy, a part
+  blocked by Gemini's content filter is retried on the same part with the other agy models only,
+  and a part that still fails is marked in the transcript instead of silently missing. Audio models
+  write approximate timestamps; when a part's stamps run past its length they are scaled back.
 - **Local Whisper**: Apple Silicon uses mlx-whisper (native acceleration; *turbo* transcribes a
   45-minute meeting in about 2 minutes); Windows / Linux / Intel Mac use faster-whisper (CUDA with an
   NVIDIA GPU, otherwise CPU — slow but working). *turbo* is fast, *large* the most accurate; model
-  and transcription language (auto-detect or any ISO code) are set in ⚙ Settings → Transcription & recording.
+  and transcription language (auto-detect or any ISO code) are set in Settings → Transcription.
 - **Hallucination guard**: Whisper invents text on silence and noise (YouTube-style greetings,
   subtitle credits, repeated one-word segments) and echoes its own prompt. coco trims leading and
   trailing silence before decoding, enables Whisper's silence-hallucination threshold, keeps each
   segment's confidence, and strips the known shapes afterwards. Existing transcripts can be cleaned
-  with *✦ Clean* on the transcript tab (preview, then apply; original kept as
+  with *Clean* on the transcript tab (preview, then apply; original kept as
   `transcript.preclean.md`) or `coco clean --all --apply`.
-- **No engine? No problem.** If a machine cannot transcribe (typical: Windows without
-  faster-whisper), dropping audio opens a help dialog that explains the situation and offers the
-  three routes: export a transcript from another tool and drop it in, paste the text, or install an
-  engine. CPU-only machines get a one-time warning about expected duration.
+- **Local Whisper fixes**: the language is decided from several speech windows across the
+  recording (an English meeting used to come out as Norwegian because its first 30 seconds
+  were chatter); "thank you for watching" style phrases are caught in more languages; the
+  silence rule no longer deletes real short answers; Whisper's 2-second fragments are joined into
+  paragraphs in `transcript.md` (`transcript.json` keeps the original segments for subtitles).
+- **Glossary fixes right after transcription**: known Chinese misspellings of names (three
+  characters or more, from the glossary's names section, e.g. 马克西姆 → Maxim) are replaced
+  automatically; everything else is left to the AI name correction, which sees the context.
+- **No channel? No problem.** A computer without any ready channel still imports transcripts; dropping
+  audio opens a dialog that points to the transcription settings, pasting text, or other tools.
 - **Glossary** (`memory/glossary.md`): standard spellings of names and terms, one per line
   `- Correct spelling (misheard: wrong1, wrong2) | note`. Correct spellings are injected into the
-  Whisper prompt; *✦ Extract glossary* lets the AI collect names and terms from your history.
-- **✦ Correct names & terms**: rewrites every transcript and report in the library to the glossary
+  Whisper prompt; *Extract glossary* lets the AI collect names and terms from your history.
+- **Correct names & terms**: rewrites every transcript and report in the library to the glossary
   spellings; originals are backed up and can be restored per meeting.
-- **✎ Edit**: transcripts and reports are editable; later analyses use the edited version.
+- **Edit**: transcripts and reports are editable; later analyses use the edited version.
 - **Participants**: a *Participants* line under the meeting title (also written into the transcript
-  header) holds `Name (role), Name (role)`. Fill it by hand, or let *✦ Detect* propose it from the
+  header) holds `Name (role), Name (role)`. Fill it by hand, or let *Detect* propose it from the
   transcript and confirm. Every later report, chat answer and cross-meeting analysis receives it as
   the authority for who said what, so a mis-attributed speaker is fixed once instead of in every report.
 - **Download** a transcript as `.md`, `.txt`, `.srt`, `.vtt` or `.json`.
@@ -121,7 +147,7 @@ meeting; tick *across all meetings* to ask about the whole library. *↓ Export*
 conversation as Markdown and, when a meeting is selected, also stores it as a *Chat HH:MM* tab of
 that meeting.
 
-### Pre-meeting brief (◎ Prep)
+### Pre-meeting brief (Prep)
 
 Enter topic, participants and your goal. coco picks the most relevant past meetings and, with
 long-term memory and the glossary, writes a brief: situation, key people with their past statements
@@ -130,7 +156,7 @@ warning signs, information gaps. Inferences are labelled. Optional **web search*
 information on participants and companies (sources cited; Claude CLI channel only; off by default).
 Briefs are kept in `library/_prep/`.
 
-### Cross-meeting insight (⛓ Insight)
+### Cross-meeting insight (Insight)
 
 | Mode | Question it answers |
 |---|---|
@@ -143,18 +169,21 @@ project or client.
 
 ### Memory (it learns you)
 
-- **Long-term memory** (automatic): after each transcript or import, people, projects & clients,
-  commitments & decisions and terms are extracted and merged into `memory/longterm.md`, then
-  injected into every later analysis. Changed positions keep their trajectory
-  (*previously said X [old meeting] → now says Y [new meeting]*). Merging is **incremental**: the
-  model only outputs new or changed entries and coco merges them by name in seconds, instead of
-  rewriting the whole file each time. *⟲ Compact long-term memory* runs a full merge-and-compress
-  pass when you want one.
-- **Daily brief** and **weekly report** (☀ Briefs): action items and insights of a day; storylines,
+- **Long-term memory** (automatic, `memory/knowledge.json`): after each transcript or import, the
+  people, projects & clients, commitments & decisions and terms in it become **entries**: a short
+  current state plus dated facts, each linked to its source meeting. The merge sends the model only
+  the entries the new material mentions and gets JSON back, so it takes seconds whatever the size of
+  the memory; it also writes the meeting's one-line digest. Analyses receive only the entries related
+  to their material. `memory/longterm.md` is rendered from the entries for reading, downloading and
+  hand editing (saved edits are parsed back). An existing longterm.md is migrated on first start
+  (kept as `longterm.pre-structured.md`).
+- **Memory page**: browse and search entries by type, filter commitments by status, open a fact's
+  meeting, edit, merge duplicates, delete, *Tidy* one entry or *Tidy long-term memory* (summaries
+  rewritten, duplicate facts merged; `knowledge.bak.json` first). `coco recall <name>` does the same
+  lookup in a terminal. One search box searches meetings, memory and briefs together.
+- **Daily brief** and **weekly report** (Briefs): action items and insights of a day; storylines,
   decisions, commitments ledger, changed positions and recommendations for a week. Briefs also feed
   the memory.
-- **Knowledge base** (☷ Knowledge): counts, the memory and glossary at a glance, click-a-person
-  review.
 - Memory and glossary are plain Markdown you can edit; every automatic overwrite leaves a `.bak.md`.
 
 ### Management
@@ -164,11 +193,11 @@ delete) · per-file download · bulk zip export · interrupted transcriptions re
 
 ## Languages
 
-- **Interface**: English, 简体中文, français. Switch in ⚙ Settings → Language, `?lang=fr` in the URL, or `coco lang zh-CN` for the CLI. The choice is saved.
-- **AI output language** (⚙ Settings): *same as the interface* (default), *same as the material*
+- **Interface**: English, 简体中文, français. Switch in Settings → Language, `?lang=fr` in the URL, or `coco lang zh-CN` for the CLI. The choice is saved.
+- **AI output language** (Settings): *same as the interface* (default), *same as the material*
   (write in whatever language the transcript is in), or any fixed language (Japanese, German …).
   It applies to reports, briefs, insights, prep, chat and the wording of memory and glossary.
-- **Transcription language**: auto-detect or a fixed ISO code, in ⚙ Settings → Transcription & recording.
+- **Transcription language**: auto-detect or a fixed ISO code, in Settings → Transcription.
 - Libraries survive language switches: coco recognises the memory/glossary headings of every
   shipped language, and old report files named in Chinese keep their labels.
 
@@ -178,7 +207,7 @@ English with a "write in <language>" directive; Chinese output uses the Chinese 
 
 ## AI channels (ChatGPT, Claude, OpenAI, Gemini, DeepSeek, Ollama …)
 
-The round chip at the top right shows the AI in use (green = ready); click it for ⚙ Settings → AI
+The round chip at the top right shows the AI in use (green = ready); click it for Settings → AI
 channel. With nothing configured, coco uses a logged-in Claude Code, then a logged-in Codex
 (ChatGPT); when neither exists, the first screen helps you pick one.
 
@@ -216,16 +245,24 @@ thinking… N s" status meanwhile). Model and reasoning effort can be chosen in 
 
 ## Performance
 
-Where the time goes: one CLI round-trip costs a fixed ~5–8 s before the first token on the machine
-this was developed on (measured with `claude --version` 2.1.246, August 2026 — your numbers will
-differ), then output speed. coco therefore:
+Measured on an Apple M5 in November 2026 with Claude Code 2.1.317 (your numbers will differ):
 
-- **streams** every report, chat answer, insight, brief and prep to the screen as it is written;
-- merges long-term memory **incrementally** (a few hundred output tokens instead of rewriting a
-  file that can grow to thousands of lines);
-- lets you route background work to a **faster channel** (`haiku` via the Claude CLI, or DeepSeek);
-- starts the CLI without MCP servers, without tools and in an empty working directory, so no
-  project `CLAUDE.md` or MCP start-up leaks into the analysis.
+| Same minutes task (9 000-character transcript, "at most 250 words") | Time | Output tokens |
+|---|---|---|
+| Before: `claude -p` inheriting the user's settings (Opus, effort xhigh) | 33.0 s | 3 007 |
+| Now: personal effort / language / output style overridden, skills off, short system prompt, effort medium | 11.4 s | 825 |
+| Background work now: Sonnet at effort low | 8.0 s | 548 |
+
+- `claude -p` used to inherit the personal Claude Code settings of whoever runs coco (model, effort
+  level, response language, output style). coco now overrides those per call (`--settings`), turns
+  skills off and replaces the coding-agent system prompt, while keeping logins that are configured
+  in settings.json.
+- Background work (memory, glossary, name fixing, participants) uses the same account's faster
+  model unless you set another channel (Settings → AI channels).
+- Prompts are smaller: only related memory and glossary entries, transcripts joined into paragraphs,
+  questions across the library read the most relevant meetings in full plus a one-line index of the
+  rest, and reports have a length cap derived from the material.
+- Every report, answer, insight, brief and prep is streamed as it is written.
 
 ## Install and run
 
@@ -268,7 +305,7 @@ installs the core only and the transcript route is unaffected.
 
 ### Quit, restart, update
 
-- **Quit**: ⏻ at the top right, ⚙ Settings → About → Quit coco, or `coco stop`. A running recording or
+- **Quit**: at the top right, Settings → About → Quit coco, or `coco stop`. A running recording or
   transcription asks first; recorded audio is kept and unfinished transcriptions resume at the next start
 - **Double-clicking again** never starts a second server, it only opens the browser; a port taken by
   another program is skipped automatically
@@ -276,11 +313,11 @@ installs the core only and the transcript route is unaffected.
   the old one, never touching the library, memory or settings), or run the one-line installer again.
   After an update, opening coco restarts an older running server as the new version (unless it is
   recording or transcribing)
-- Where data and logs live: ⚙ Settings → About opens both
+- Where data and logs live: Settings → About opens both
 
 ### Modest hardware / transcription too slow?
 
-- Switch the model to **small** in ⚙ Settings → Transcription & recording (≈ 0.5 GB download, faster
+- Switch the model to **small** in Settings → Transcription (≈ 0.5 GB download, faster
   and lighter; slightly less accurate, and name correction cleans up most of it)
 - Or skip local transcription: let your meeting software or a transcription service produce the
   transcript (txt / docx / pdf / srt) and upload it; every analysis feature works the same
@@ -294,7 +331,8 @@ Output follows the interface language.
 
 | Command | Purpose |
 |---|---|
-| `coco transcribe <files…>` | Import audio/video and transcribe (`--model turbo/large/small`) |
+| `coco transcribe <files…>` | Import audio/video and transcribe (`--channel agy\|gemini\|openai\|bailian\|local`, `--model turbo/large/small`) |
+| `coco asr show\|set <channel>\|test [channel]` | Transcription channels |
 | `coco import <files/folders…>` | Import text material (txt/docx/pdf/srt/vtt/json …) without transcription |
 | `coco record [title]` | Microphone recording, Ctrl+C to stop and transcribe (macOS) |
 | `coco watch <folder>` | Watch a folder, transcribe new audio |
@@ -304,11 +342,12 @@ Output follows the interface language.
 | `coco prep "topic" [--who …] [--goal …] [--web]` | Pre-meeting brief |
 | `coco track [focus] [--mode track\|signals\|synthesis] [--refs a,b]` | Cross-meeting insight |
 | `coco brief [date]` / `coco weekly [date]` | Daily brief / weekly report |
-| `coco search <text>` | Full-text search |
+| `coco search <text>` | Full-text search of transcripts and reports |
+| `coco recall <name or word>` | Look up long-term memory entries with their latest facts and source meetings |
 | `coco glossary [entry] [--extract]` | Show / add / extract the glossary |
 | `coco clean <meeting>\|--all [--apply]` | Remove Whisper hallucinations from existing transcripts (preview without `--apply`) |
 | `coco memory [text]` | Show / append global memory |
-| `coco memorize [meeting\|--all\|--compact]` | Extract long-term memory / compact it |
+| `coco memorize [meeting\|--all\|--compact]` | Extract long-term memory / tidy long entries |
 | `coco lang [code] [--output …]` | Interface and AI output language |
 | `coco ai show\|test\|preset\|set\|task` | AI channels (`--profile fast` for the background channel) |
 | `coco start` · `coco stop` · `coco restart` · `coco status` | Start in the background and open the browser · quit · restart · state and data location |
@@ -328,15 +367,18 @@ library/_briefs/        daily briefs          library/_weekly/    weekly reports
 library/_tracking/      cross-meeting insights library/_prep/     pre-meeting briefs
 library/_trash/         trash
 memory/memory.md        global memory (hand-written, injected everywhere)
-memory/longterm.md      long-term memory (automatic, editable)
+memory/knowledge.json   long-term memory as entries (automatic; edit on the Memory page)
+memory/longterm.md      the same memory rendered as Markdown (editable; parsed back on save)
 memory/glossary.md      glossary (names and terms)
 coco.config.json        configuration (incl. API keys — git-ignored)
 ```
 
 Useful keys (`coco config <key> <value>`): `ui_language` (auto / en / zh-CN / fr),
 `output_language` (ui / source / ISO code), `whisper_model`, `language` (transcription),
+`asr_channel` (auto / agy / gemini / openai / bailian / local / none), `asr` (per-channel model, key, base URL),
+`asr_context` (one line of background for cloud transcription), `glossary_autofix`,
 `beam_size`, `hallucination_filter`, `transcribe_backend` (auto / mlx / faster / none), `record_mode`
-(auto / browser / ffmpeg), `auto_memory`, `memory_merge` (delta / full), `ai_profiles`, `ai_tasks`, `claude_bin`,
+(auto / browser / ffmpeg), `auto_memory`, `fast_auto`, `ai_profiles`, `ai_tasks`, `claude_bin`,
 `codex_bin`, `claude_extra_args`, `hf_endpoint`, `port`, `desktop_shortcut` (auto / created / off), `allowed_hosts`
 (extra host names accepted besides this computer, advanced).
 `COCO_ROOT` points the data directory elsewhere; `COCO_LANG` overrides the CLI language; `COCO_PORT` sets the
@@ -344,13 +386,16 @@ port; `COCO_PIP_INDEX` sets the package index used for installing dependencies.
 
 ## Known limits
 
-- No speaker diarization for local transcription (speaker labels from imported material are kept)
+- No speaker labels: the agy channel starts a new paragraph per speaker without naming them, local
+  Whisper does not separate speakers (labels from imported material are kept). Prompts therefore tell
+  the model not to guess who said something unless the participants line settles it
+- Cloud transcription channels send the audio to their provider; Whisper on this computer does not
 - Whisper's anti-repetition logic means the glossary prompt mostly helps at the start of a
-  recording; whole-file corrections are done by *✦ Correct names & terms*
+  recording; whole-file corrections are done by *Fix names from the glossary*
 - Prep's web search sends search terms to a search engine — tick it only when you want public
   intelligence; nothing else goes online (except model downloads and the API channel you chose)
 - Browser recording captures the microphone only. To also record the other side of an online call on
-  macOS, install a virtual audio device such as BlackHole, choose server recording in ⚙ Settings →
+  macOS, install a virtual audio device such as BlackHole, choose server recording in Settings →
   Transcription & recording and select the input with `coco devices` / `audio_device`
 - The ChatGPT (Codex) channel does not stream; web search exists on the Claude account channel only
 - coco only accepts requests addressed to this computer (127.0.0.1 / localhost) and refuses
@@ -360,13 +405,29 @@ port; `COCO_PIP_INDEX` sets the package index used for installing dependencies.
 ## Development
 
 ```bash
-.venv/bin/python tests/smoke.py      # ~240 assertions: temporary COCO_ROOT, stub claude / codex, fake local APIs
+.venv/bin/python tests/smoke.py      # ~290 assertions: temporary COCO_ROOT, stub claude / codex / agy, fake local APIs
 .venv/bin/python tests/check_i18n.py # every key used in Python / the UI exists in every locale
 ```
 
 Neither touches real data or spends model quota (Windows: `.venv\Scripts\python tests\smoke.py`).
 
 ## Changelog
+
+### 2026-11-03 · Transcription channels, a memory you can search, shorter and faster analysis
+- **Transcription channels**: Gemini through agy, the Gemini API, OpenAI-compatible APIs, Alibaba
+  Cloud Bailian or local Whisper; parts cached and resumable, filtered parts retried then marked as
+  gaps, *Transcribe again* with another channel; `coco transcribe --channel`, `coco asr`
+- **Local Whisper**: language voted over the whole recording, more hallucination phrases caught,
+  real short answers kept, fragments joined into paragraphs, known misheard names fixed from the glossary
+- **Long-term memory** as structured entries with dated, sourced facts; existing memory migrated
+  losslessly and duplicates merged; merges and analyses read only related entries; Memory page with
+  search, edit, merge, tidy; one search box for meetings, memory and briefs; `coco recall`
+- **Shorter reports**: conclusion first, each fact once, empty sections left out, a length cap from
+  the material, no guessing who said what; minutes lead with the outcome
+- **Faster**: personal Claude Code settings no longer leak into coco's calls; background work on the
+  same account's faster model (see Performance)
+- **Interface**: navigation, list and content columns; meeting digests in the list; settings as a
+  page; quieter typography (three sizes, two weights, 1 px rules, no symbol icons)
 
 ### 2026-09-25 · One way to start, and ChatGPT accounts work too
 - **Start**: one double-click file per system at the root (`coco.command` on Mac, `coco.bat` on Windows);
@@ -376,7 +437,7 @@ Neither touches real data or spends model quota (Windows: `.venv\Scripts\python 
   version after an update
 - **One-line install**: `scripts/install.sh` / `install.ps1`; after the first start coco is in
   Applications / the Start menu and on the desktop
-- **Quit and update**: ⏻ in the interface; `coco stop / restart / status / update / shortcut`
+- **Quit and update**: in the interface; `coco stop / restart / status / update / shortcut`
 - **ChatGPT channel**: new `codex-cli` type analyses on a ChatGPT plan; with nothing configured coco picks
   a logged-in Claude or Codex by itself
 - **API channels**: presets for OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Qwen (CN / intl), Kimi

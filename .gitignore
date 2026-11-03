@@ -16,3 +16,6 @@ alignment-*.md
 
 # 系统
 .DS_Store
+
+# memory backups made during upgrades (private data)
+memory.backup-*/

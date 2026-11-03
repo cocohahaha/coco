@@ -384,7 +384,14 @@
       "h_status": "查看运行状态、数据与日志位置",
       "h_setup": "安装 / 修复依赖",
       "h_shortcut": "把 coco 加入应用程序 / 开始菜单（--remove 移除）",
-      "h_update": "更新到最新版本（不动会议库与配置）"
+      "h_update": "更新到最新版本（不动会议库与配置）",
+      "h_channel": "转写通道（不填用设置里的通道）",
+      "h_recall": "查长期记忆：人物、项目、承诺、术语",
+      "h_recall_facts": "每条显示最近几条事实",
+      "recall_none": "长期记忆里没有找到「{q}」",
+      "h_asr": "转写通道：show / set <通道> / test [通道]",
+      "asr_active": "转写通道设置：{setting}，当前使用：{active}",
+      "asr_set": "转写通道已设为 {channel}"
     },
     "launcher": {
       "starting": "正在启动 coco…",

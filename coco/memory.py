@@ -704,7 +704,7 @@ def name_index(limit: int = 400) -> str:
 
 
 def tidy_targets(min_facts: int = 12) -> list[dict]:
-    return [e for e in entities() if len(e.get("facts") or []) >= min_facts or len(e.get("summary") or "") > 400]
+    return [e for e in entities() if len(e.get("facts") or []) >= min_facts or len(e.get("summary") or "") > 240]
 
 
 def path() -> Path:

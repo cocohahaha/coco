@@ -1,6 +1,6 @@
-# coco — 本地会议参谋
+# coco：数据留在你自己电脑上的会议参谋
 
-**录音转写 · 会前调查 · 深层洞察 · 知识沉淀，全部在你自己的电脑上完成。**
+**录音转写、会前调查、跨会议洞察，以及一份可以检索的长期记忆。**
 
 [English README → README.md](README.md)
 
@@ -8,7 +8,9 @@ coco 是一个跑在本机的会议 AI 工具（灵感来自 [YouNavi](https://y
 把会议录音、访谈、聊天记录、他人纪要都喂给它，它帮你在**会前看懂局**、
 **会后抓住没说破的东西**、并把每一次沟通**沉淀成可复用的认知资产**。
 
-音频不出本机（Whisper 本地转写）。分析用你**已经有的** AI：ChatGPT 账号（通过官方 Codex CLI）、
+转写放在适合这台电脑的地方：本机 Whisper（音频不离开电脑），或者给跑不动本地模型的电脑用的云端通道：
+已登录的 Google Antigravity CLI（`agy`，调用 Gemini）、Gemini API、任意 OpenAI 兼容的转写接口、阿里云百炼。
+分析用你**已经有的** AI：ChatGPT 账号（通过官方 Codex CLI）、
 Claude 账号（通过 Claude Code），或者粘贴一个 API key（DeepSeek、通义千问、Kimi、智谱、豆包、
 OpenAI、Gemini、OpenRouter……），也可以接本机 Ollama / LM Studio 完全离线。没有 coco 自己的
 云端账号，也不另收订阅费。
@@ -55,10 +57,10 @@ irm https://raw.githubusercontent.com/cocohahaha/coco/main/scripts/install.ps1 |
 
 | 方式 | 说明 |
 |---|---|
-| ● 录音 | 浏览器直接录（macOS / Windows / Linux 都可以），音频每 4 秒存到本机，页面意外关闭也能恢复已录部分；停止后自动转写 |
+| 录音 | 浏览器直接录（macOS / Windows / Linux 都可以），音频每 4 秒存到本机，页面意外关闭也能恢复已录部分；停止后自动转写 |
 | 拖拽 / ↑ 上传 | 音频、视频，或已有的文字材料，多选、排队 |
-| ⌖ 导入 · 本地路径 | 文件或文件夹（文件夹 = 批量）；音频 + 同名转写（Whisper 导出目录）自动配对成一场会议 |
-| ⌖ 导入 · 粘贴文本 | 聊天记录、邮件、他人纪要、原始文字稿；SRT / VTT / JSON 内容自动识别并保留时间轴；可标注材料原始日期 |
+| 导入 · 本地路径 | 文件或文件夹（文件夹 = 批量）；音频 + 同名转写（Whisper 导出目录）自动配对成一场会议 |
+| 导入 · 粘贴文本 | 聊天记录、邮件、他人纪要、原始文字稿；SRT / VTT / JSON 内容自动识别并保留时间轴；可标注材料原始日期 |
 | `coco watch` | 监控文件夹，新录音自动转写（语音备忘录、Plaud 导出目录） |
 
 **不经转写直接入库的文字格式：** `txt md docx odt pdf rtf html eml csv tsv srt vtt sbv lrc ass ssa json`。
@@ -72,23 +74,41 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ### 转写与校正
 
+- **转写通道**（「设置 → 转写」；命令行 `coco asr show | set <通道> | test`）：
+
+  | 通道 | 需要什么 | 音频发往 |
+  |---|---|---|
+  | **Gemini（agy）** | 安装 Google Antigravity CLI，在终端运行一次 `agy` 登录 | Google |
+  | **Gemini API** | Google AI Studio 的 API key | Google |
+  | **OpenAI 兼容接口** | Base URL + key（OpenAI、Groq、硅基流动、局域网里的转写服务） | 所填地址 |
+  | **阿里云百炼** | 百炼 key；`coco setup --extra bailian` 安装 SDK | 阿里云 |
+  | **本机 Whisper** | mlx-whisper（Apple 芯片）或 faster-whisper | 不上传 |
+
+  「自动」在本机能较快转写时（Apple 芯片、NVIDIA 显卡）用本机，否则用第一个就绪的云端通道。云端通道把录音
+  在静音处切成约 20 分钟的 mp3 分段并行转写；已完成的分段会缓存，因额度或网络中断后点「更多 → 重新转写」
+  从中断处继续。用 agy 时，被 Gemini 内容过滤拦下的段只在原段上换 agy 的其他档位重试，仍失败就在转写里标出
+  「本段未转录」，不会悄悄缺一段。音频模型写的时间戳是近似值，某段的时间戳超出段长时按比例收回
 - **本地 Whisper**：Apple Silicon 用 mlx-whisper（原生加速，turbo 转 45 分钟会议约 2 分钟）；
   Windows / Linux / Intel Mac 用 faster-whisper（有 NVIDIA 显卡走 CUDA，否则 CPU，慢但可用）。
-  turbo 快、large 最准；在「⚙ 设置 → 转写与录音」切换模型与转写语言（自动识别或指定 ISO 码）
+  turbo 快、large 最准；在「设置 → 转写」切换模型与转写语言（自动识别或指定 ISO 码）
 - **幻觉抑制**：Whisper 会在静音和噪音处脑补文字（YouTube 式开场白、字幕致谢、单字复读），还会把
   注入的提示词原样吐出来。coco 转写前先裁掉首尾静音，开启 Whisper 自带的静音幻觉阈值，保留每段的置信度，
-  转写后再按已知模式清洗。已有转写可在「转写」页签点「✦ 清理」（先预览再应用，原稿备份为
+  转写后再按已知模式清洗。已有转写可在「转写」页签点「清理」（先预览再应用，原稿备份为
   `transcript.preclean.md`），或用 `coco clean --all --apply`
-- **没有引擎也不慌**：不能本地转写的电脑（典型：没装 faster-whisper 的 Windows）一旦有人
-  拖入音频，会弹出说明对话框：这台电脑暂时不能转写，录音本身没问题，给出三条路——用其他工具
-  转成文字稿再拖进来 / 直接粘贴文字稿 / 安装引擎（附命令）。只有 CPU 的机器首次会提示预计耗时
+- **本地 Whisper 的修正**：转写语言按整段录音的多个语音窗口投票决定（以前有英文会议因为开头 30 秒是闲聊，
+  被判成了挪威语）；「thank you for watching」一类幻觉在更多语言里能识别；静音规则不再误删真实的
+  短句回答；Whisper 两秒一段的碎片在 `transcript.md` 里合并成段（`transcript.json` 保留原始分段，供字幕使用）
+- **转写后按词表修正人名**：词表人名一节里三个字以上的已知中文误写（如 马克西姆 → Maxim）自动替换；其余交给能
+  看上下文的 AI 校正
+- **没有可用通道也不慌**：没有任何就绪通道的电脑照样能导入文字稿；拖入音频会弹出说明，指向转写设置、粘贴文字或
+  其他工具
 - **词表**（`memory/glossary.md`）：人名与专有名词的标准写法，格式
-  `- 正确写法（误写：错1、错2）｜备注`。正确写法注入转写提示；「✦ 提炼词表」让 AI 从会议历史里
+  `- 正确写法（误写：错1、错2）｜备注`。正确写法注入转写提示；「提炼词表」让 AI 从会议历史里
   自动归集
-- **✦ 人名与术语校正**：按词表统一修正全部会议转写与报告里的写法；原文自动备份，可逐场恢复原稿
-- **✎ 编辑**：转写和报告都可以直接改，后续分析用改过的版本
+- **人名与术语校正**：按词表统一修正全部会议转写与报告里的写法；原文自动备份，可逐场恢复原稿
+- **编辑**：转写和报告都可以直接改，后续分析用改过的版本
 - **参与人员**：会议标题下多一行「参与人员」（同步写进转写头部），格式「姓名（角色）、姓名（角色）」。
-  可手动填写，也可点「✦ 识别」让 AI 从转写里提出建议再确认。之后的每份报告、对话回答和跨会议分析
+  可手动填写，也可点「识别」让 AI 从转写里提出建议再确认。之后的每份报告、对话回答和跨会议分析
   都以它为准判断谁说了什么——说话人判断失误改一次即可，不用每份报告重来
 - **下载转写**：`.md` / `.txt` / `.srt` / `.vtt` / `.json` 任选
 
@@ -103,14 +123,14 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 右侧对话框可对当前会议自由提问；勾选「跨全部会议」后提问范围扩展到整个会议库。「↓ 导出」把这次对话
 保存为 Markdown，选中会议时同时存为该会议的「对话 HH:MM」页签。
 
-### 会前调查（◎ 会前）
+### 会前调查（会前）
 
 填三样：会议主题、参会人、你的目标。coco 自动挑出最相关的历史会议，结合长期记忆与词表生成
 会前简报——所有判断标注来源（会议 id + 时间戳），推测明确标「推测」。可选**联网搜索**参会人/
 公司的公开信息（结果注明来源；仅 Claude CLI 通道；默认关闭，逐次勾选）。历史简报保存在
 `library/_prep/`。
 
-### 跨会议洞察（⛓ 洞察）
+### 跨会议洞察（洞察）
 
 | 模式 | 回答的问题 |
 |---|---|
@@ -122,13 +142,16 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ### 沉淀（越用越懂你）
 
-- **长期记忆**（自动）：每场转写/导入完成后，提取人物、项目与客户、承诺与决定、术语，合并进
-  `memory/longterm.md`，注入之后所有分析；同一人表态变化保留轨迹（「原说 X [旧会议] → 现说 Y
-  [新会议]」）。合并是**增量**的：模型只输出新增/变化的条目，coco 按名称合并，几秒完成，不再
-  每次重写整份文件。「⟲ 压缩长期记忆」按需做一次整体合并压缩
-- **日报 / 周报**（☀ 简报）：汇总一天的行动项与洞察；一周的主线、决定、行动项总账、表态变化、
+- **长期记忆**（自动，`memory/knowledge.json`）：每场转写或导入完成后，其中的人物、项目与客户、承诺与决定、术语
+  成为**条目**：一句当前状态，加上带日期的事实，每条事实连着来源会议。合并时只把新材料提到的条目发给模型，
+  模型返回 JSON，所以无论记忆多大都在几十秒内完成，同时写下这场会议的一句话概述。分析只取与材料相关的条目。
+  `memory/longterm.md` 由条目生成，用于阅读、下载和手改（保存后解析回条目）。已有的 longterm.md 在首次启动时
+  迁移，原文保留为 `longterm.pre-structured.md`
+- **记忆页**：按类型浏览与搜索条目，按状态筛选承诺，点事实打开来源会议，编辑、合并重复条目、删除、「整理」单条，
+  或「整理长期记忆」（改写过长的摘要、合并重复事实，先备份 `knowledge.bak.json`）。命令行 `coco recall <名字>`
+  做同样的查询。会议页的搜索框同时搜会议、记忆和简报
+- **日报 / 周报**（简报）：汇总一天的行动项与洞察；一周的主线、决定、行动项总账、表态变化、
   下周建议。简报也并入长期记忆
-- **知识底座**（☷ 底座）：沉淀统计 + 人物点选提问
 - 记忆、词表都是可手动编辑的 Markdown；任何自动覆盖前都留 `.bak.md` 备份
 
 ### 管理
@@ -138,12 +161,12 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ## 语言
 
-- **界面语言**：简体中文、English、français。「⚙ 设置 → 语言」、URL 加 `?lang=en`、
+- **界面语言**：简体中文、English、français。「设置 → 语言」、URL 加 `?lang=en`、
   命令行 `coco lang zh-CN` 都能切换，选择会记住
-- **AI 输出语言**（⚙ 设置）：跟随界面（默认）/ 跟随材料（转写是什么语言就用什么语言）/
+- **AI 输出语言**（设置）：跟随界面（默认）/ 跟随材料（转写是什么语言就用什么语言）/
   指定某种语言（日语、德语……）。影响报告、简报、洞察、会前调查、对话回答，以及长期记忆和
   词表的写法
-- **转写语言**：「⚙ 设置 → 转写与录音」单独设置，自动识别或指定 ISO 码
+- **转写语言**：「设置 → 转写」单独设置，自动识别或指定 ISO 码
 - 切换语言不影响已有会议库：coco 认得所有语言包的记忆/词表章节标题，旧的中文报告文件名也照常
   显示标签
 
@@ -152,7 +175,7 @@ ASS 角色名、CSV/JSON 的 speaker 列）保留；自动识别 UTF-8 / UTF-16 
 
 ## AI 模型通道（ChatGPT、Claude、DeepSeek、通义千问、Ollama……）
 
-顶栏右侧的圆点标签显示当前用的 AI（绿色 = 就绪），点它进入「⚙ 设置 → AI 通道」。什么都没配置时，
+顶栏右侧的圆点标签显示当前用的 AI（绿色 = 就绪），点它进入「设置 → AI 通道」。什么都没配置时，
 coco 会自动使用已登录的 Claude Code，其次是已登录的 Codex（ChatGPT）；都没有就在首屏引导你选一个。
 
 | 你有什么 | 选哪个 | 说明 |
@@ -183,13 +206,20 @@ coco 会自动使用已登录的 Claude Code，其次是已登录的 Codex（Cha
 
 ## 性能
 
-时间花在哪：在本机测得，每次 CLI 往返在拿到第一个字之前有约 5–8 秒的固定开销
-（`claude --version` 2.1.246，2026 年 8 月；你的机器数字会不同），之后是模型输出速度。所以 coco：
+2026 年 11 月在 Apple M5、Claude Code 2.1.317 上实测（你的机器数字会不同）：
 
-- **流式输出**：报告、对话、洞察、简报、会前调查边生成边显示；
-- **增量合并长期记忆**：只输出几百 token 的变化条目，而不是重写可能有几千行的整份文件；
-- 后台任务可走**更快的通道**（Claude CLI 的 `haiku`，或 DeepSeek）；
-- 启动 CLI 时不加载 MCP、不给工具、在空目录里运行，避免项目 `CLAUDE.md` 和 MCP 启动拖慢每次分析。
+| 同一份纪要任务（9000 字符转写，要求 250 词以内） | 耗时 | 输出 token |
+|---|---|---|
+| 改动前：`claude -p` 继承使用者的个人设置（Opus、effort xhigh） | 33.0 秒 | 3007 |
+| 现在：覆盖个人的 effort、语言、输出风格，关闭技能，精简系统提示，effort medium | 11.4 秒 | 825 |
+| 现在的后台任务：Sonnet，effort low | 8.0 秒 | 548 |
+
+- 以前 `claude -p` 会继承运行 coco 的人自己的 Claude Code 设置（模型、effort、回复语言、输出风格）。现在每次调用
+  用 `--settings` 覆盖这几项，关闭技能，替换掉编程助手的系统提示；写在 settings.json 里的登录方式照常可用
+- 后台任务（长期记忆、词表、人名校正、参与人识别）默认用同一账号的较快模型，也可以在「设置 → AI 通道」单独设置
+- 提示词更小：只带相关的记忆和词表条目，转写合并成段，跨全部会议的提问只读最相关几场的全文、其余附一句话概述，
+  报告篇幅按材料长度设上限
+- 报告、回答、洞察、简报、会前调查都边生成边显示
 
 ## 安装与启动
 
@@ -227,16 +257,16 @@ coco 只装核心依赖，文字稿路线不受影响。
 
 ### 退出、重启、更新
 
-- **退出**：顶栏右上角 ⏻，或「⚙ 设置 → 关于 → 退出 coco」，或命令行 `coco stop`。有录音或转写在进行时会先确认；
+- **退出**：顶栏右上角 ，或「设置 → 关于 → 退出 coco」，或命令行 `coco stop`。有录音或转写在进行时会先确认；
   已录的音频会保留，未完成的转写下次启动自动继续
 - **重复双击**不会起第二个服务，只会打开浏览器；端口被别的程序占用时自动换一个
 - **更新**：`coco update`（git 仓库执行 `git pull`，ZIP 安装则下载最新代码覆盖，会议库、记忆和配置不动），
   或重新运行一行安装命令。代码更新后再双击图标，旧版本服务会自动重启为新版本（正在录音或转写时除外）
-- 数据和日志在哪：「⚙ 设置 → 关于」可以直接打开数据文件夹和日志
+- 数据和日志在哪：「设置 → 关于」可以直接打开数据文件夹和日志
 
 ### 电脑配置一般 / 转写太慢？
 
-- 「⚙ 设置 → 转写与录音」把模型切成 **small**（下载约 0.5GB，更快、更省内存；精度略降，人名可靠「校正」修）
+- 「设置 → 转写」把模型切成 **small**（下载约 0.5GB，更快、更省内存；精度略降，人名可靠「校正」修）
 - 或者不在本机转写：会议软件 / 转写服务出文字稿（txt / docx / pdf / srt），直接上传，分析功能完整
 - AI 分析本身不吃本机配置（跑在订阅账号 / API 通道上），老电脑一样能用
 
@@ -247,7 +277,8 @@ coco 只装核心依赖，文字稿路线不受影响。
 
 | 命令 | 作用 |
 |---|---|
-| `coco transcribe <文件…>` | 导入音频/视频转写（`--model turbo/large/small`） |
+| `coco transcribe <文件…>` | 导入音频/视频转写（`--channel agy\|gemini\|openai\|bailian\|local`，`--model turbo/large/small`） |
+| `coco asr show\|set <通道>\|test [通道]` | 转写通道 |
 | `coco import <文件/文件夹…>` | 导入文字材料（txt/docx/pdf/srt/vtt/json…），不转写 |
 | `coco record [标题]` | 麦克风录音，Ctrl+C 停止后转写（macOS） |
 | `coco watch <文件夹>` | 监控文件夹，新音频自动转写 |
@@ -257,11 +288,12 @@ coco 只装核心依赖，文字稿路线不受影响。
 | `coco prep "主题" [--who …] [--goal …] [--web]` | 会前调查 |
 | `coco track [焦点] [--mode track\|signals\|synthesis] [--refs a,b]` | 跨会议洞察 |
 | `coco brief [日期]` / `coco weekly [日期]` | 日报 / 周报 |
-| `coco search <词>` | 全文搜索 |
+| `coco search <词>` | 全文搜索转写与报告 |
+| `coco recall <名字或词>` | 查长期记忆条目，附最近的事实和来源会议 |
 | `coco glossary [词条] [--extract]` | 查看/追加/AI 提炼词表 |
 | `coco clean <会议>\|--all [--apply]` | 清理已有转写里的 Whisper 幻觉（不加 `--apply` 只预览） |
 | `coco memory [内容]` | 查看/追加全局记忆 |
-| `coco memorize [会议\|--all\|--compact]` | 提取长期记忆 / 压缩整理 |
+| `coco memorize [会议\|--all\|--compact]` | 提取长期记忆 / 整理过长的条目 |
 | `coco lang [代码] [--output …]` | 界面与 AI 输出语言 |
 | `coco ai show\|test\|preset\|set\|task` | AI 通道（`--profile fast` 操作后台通道） |
 | `coco start` · `coco stop` · `coco restart` · `coco status` | 后台启动并打开浏览器 · 退出 · 重启 · 运行状态与数据位置 |
@@ -281,7 +313,8 @@ library/_briefs/       每日简报            library/_weekly/     周报
 library/_tracking/     跨会议洞察报告       library/_prep/       会前调查简报
 library/_trash/        回收站
 memory/memory.md       全局记忆（手动维护，注入每次分析）
-memory/longterm.md     长期记忆（自动提取，可手动修订）
+memory/knowledge.json  长期记忆条目（自动维护，在「记忆」页编辑）
+memory/longterm.md     同一份记忆的 Markdown 视图（可手改，保存后解析回条目）
 memory/glossary.md     词表（人名与专有名词标准写法）
 coco.config.json       配置（含 API key，已在 .gitignore）
 ```
@@ -289,17 +322,20 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 常用配置（`coco config 键 值`）：`ui_language`（auto / zh-CN / en / fr）、`output_language`
 （ui / source / 语言代码）、`whisper_model`、`language`（转写语言）、`beam_size`、
 `hallucination_filter`、`transcribe_backend`（auto / mlx / faster / none）、`record_mode`（auto / browser / ffmpeg）、
-`auto_memory`、`memory_merge`（delta / full）、`ai_profiles`、`ai_tasks`、`claude_bin`、`codex_bin`、`claude_extra_args`、
+`asr_channel`（auto / agy / gemini / openai / bailian / local / none）、`asr`（各通道的模型、key、Base URL）、
+`asr_context`（给云端转写的一行录音背景）、`glossary_autofix`、`auto_memory`、`fast_auto`、`ai_profiles`、`ai_tasks`、`claude_bin`、`codex_bin`、`claude_extra_args`、
 `hf_endpoint`、`port`、`desktop_shortcut`（auto / created / off）、`allowed_hosts`（除本机外额外允许的主机名，高级）。环境变量 `COCO_ROOT` 可把数据根
 目录指到别处；`COCO_LANG` 覆盖 CLI 语言；`COCO_PORT` 指定端口；`COCO_PIP_INDEX` 指定依赖安装源。
 
 ## 已知边界
 
-- 本地转写不区分说话人（导入材料里的说话人标签会保留）
-- Whisper 的防复读机制使词表提示主要作用于音频开头，全文纠错靠「✦ 校正」完成
+- 没有说话人标签：agy 通道在换人时另起一段但不标名字，本机 Whisper 不区分说话人（导入材料里的说话人标签会保留）。
+  所以提示词要求模型不要猜测是谁说的，除非参与人员信息能说明
+- 云端转写通道会把音频发送给对应服务商；本机 Whisper 不上传
+- Whisper 的防复读机制使词表提示主要作用于音频开头，全文纠错靠「按词表校正人名」完成
 - 会前调查的「联网搜索」会把检索词发给搜索引擎——只在需要公开情报时勾选；其余功能均不联网
   （模型下载与你选择的 API 通道除外）
-- 浏览器录音只录麦克风。要同时录下线上会议对方的声音：macOS 安装 BlackHole 等虚拟声卡，在「⚙ 设置 →
+- 浏览器录音只录麦克风。要同时录下线上会议对方的声音：macOS 安装 BlackHole 等虚拟声卡，在「设置 →
   转写与录音」选服务端录音并用 `coco devices` / `audio_device` 指定输入
 - ChatGPT（Codex）通道不流式输出；联网搜索只有 Claude 账号通道支持
 - coco 只接受本机访问（Host 必须是 127.0.0.1 / localhost），并拒绝其他网页发来的修改类请求
@@ -308,7 +344,7 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 ## 开发自检
 
 ```bash
-.venv/bin/python tests/smoke.py      # 约 240 项断言：临时 COCO_ROOT + stub claude / codex + 本地假 API
+.venv/bin/python tests/smoke.py      # 约 290 项断言：临时 COCO_ROOT + stub claude / codex / agy + 本地假 API
 .venv/bin/python tests/check_i18n.py # Python / 前端用到的每个键在三个语言包里都存在
 ```
 
@@ -316,12 +352,23 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 
 ## 更新日记
 
+### 2026-11-03 · 转写通道、可检索的记忆、更短更快的分析
+- **转写通道**：agy（Gemini）、Gemini API、OpenAI 兼容接口、阿里云百炼或本机 Whisper；分段缓存可续跑，被过滤的段
+  换档位重试后标缺口，「重新转写」可换通道；`coco transcribe --channel`、`coco asr`
+- **本机 Whisper**：语言按整段录音投票、识别更多幻觉短语、保留真实短句、碎片合并成段、按词表修正已知误写的人名
+- **长期记忆**改为结构化条目，事实带日期和来源；旧记忆无损迁移并合并重名条目；合并与分析只读相关条目；「记忆」页
+  可搜索、编辑、合并、整理；一个搜索框同时搜会议、记忆和简报；`coco recall`
+- **报告更短**：先写结论，每个事实只写一次，空小节省略，篇幅按材料长度设上限，不猜说话人；纪要从结论开始
+- **更快**：个人的 Claude Code 设置不再带进 coco 的调用；后台任务用同一账号的较快模型（见「性能」）
+- **界面**：导航、列表、内容三栏；会议列表显示一句话概述；设置改为整页；版式更安静（三级字号、两种字重、1 px 细线，
+  不用符号图标）
+
 ### 2026-09-25 · 一个入口启动，ChatGPT 账号也能用
 - **启动**：根目录只留每个系统一个双击入口（Mac `coco.command`、Windows `coco.bat`），`run.sh` / `run.bat` 移除；
   启动逻辑收敛到跨平台的 `coco start`：找原生 Python（没有就用 uv 自动装）、测速选 PyPI 镜像、端口冲突自动换、
   后台运行不占终端、重复双击只开浏览器、旧版本在跑时自动重启为新版本
 - **一行安装**：`scripts/install.sh` / `install.ps1`；首次启动后 coco 出现在「应用程序」/ 开始菜单和桌面
-- **退出与更新**：界面 ⏻ 退出；`coco stop / restart / status / update / shortcut`
+- **退出与更新**：界面 退出；`coco stop / restart / status / update / shortcut`
 - **ChatGPT 通道**：新增 `codex-cli`，用 ChatGPT 订阅额度分析；什么都没配时自动选已登录的 Claude 或 Codex
 - **API 通道**：预设扩充到 DeepSeek、通义千问（国内 / 国际）、Kimi（国内 / 国际）、智谱 GLM / Z.ai、豆包、
   MiniMax、硅基流动、OpenAI、Anthropic、Gemini、OpenRouter、Ollama、LM Studio；「获取列表」实时拉取可用模型；

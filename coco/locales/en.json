@@ -384,7 +384,14 @@
       "h_status": "show whether coco runs, and where data and logs live",
       "h_setup": "install / repair dependencies",
       "h_shortcut": "add coco to Applications / the Start menu (--remove to take it away)",
-      "h_update": "update to the latest version (library and settings untouched)"
+      "h_update": "update to the latest version (library and settings untouched)",
+      "h_channel": "transcription channel (default: the one in settings)",
+      "h_recall": "look up long-term memory: people, projects, commitments, terms",
+      "h_recall_facts": "how many recent facts to show per entry",
+      "recall_none": "Nothing about \"{q}\" in long-term memory",
+      "h_asr": "transcription channels: show / set <channel> / test [channel]",
+      "asr_active": "Transcription channel setting: {setting}, in use: {active}",
+      "asr_set": "Transcription channel set to {channel}"
     },
     "launcher": {
       "starting": "Starting coco…",
@@ -1050,7 +1057,7 @@
       "record": "Record",
       "upload": "Upload",
       "import": "Import",
-      "search_placeholder": "Search meetings, memory and briefs",
+      "search_placeholder": "Search meetings and memory",
       "filter": "Dates",
       "sel_insight": "Cross-meeting insight",
       "sel_download": "Download",

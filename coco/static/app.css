@@ -283,3 +283,4 @@ details.adv summary { cursor: pointer; color: var(--muted); }
 @media (max-width: 1080px) { #list { width: 260px; } #nav { width: 150px; } .starts { grid-template-columns: 1fr; }
   .start { border-right: none; border-bottom: 1px solid var(--line); padding-left: 0 !important; } .stats { grid-template-columns: repeat(3, auto); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .cursor::after { content: ""; } }
+.md > :first-child { margin-top: 0; }
