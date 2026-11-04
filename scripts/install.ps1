@@ -26,9 +26,25 @@ function Update-FromZip {
   Remove-Item (Join-Path $dest 'run.bat'), (Join-Path $dest 'run.sh') -ErrorAction SilentlyContinue
 }
 
+function Update-Git {  # fast-forward; when the published history was rewritten, move to it if nothing local is lost
+  git -C $dest pull --ff-only
+  if ($LASTEXITCODE -eq 0) { return }
+  $branch = git -C $dest rev-parse --abbrev-ref HEAD
+  $changes = git -C $dest diff --ignore-cr-at-eol HEAD
+  if ($branch -eq 'main' -and -not $changes) {
+    Write-Host "[coco] The published version has a new history; switching to it (meetings, memory and settings are kept) / 发布的版本换了历史，正在切换（会议库、记忆与配置不动）"
+    git -C $dest fetch origin main
+    if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
+    git -C $dest reset -q --hard FETCH_HEAD
+    if ($LASTEXITCODE -ne 0) { throw "git reset failed" }
+  } else {
+    throw "$dest has local changes; update it by hand"
+  }
+}
+
 if ((Test-Path (Join-Path $dest '.git')) -and $git) {
   Write-Host "[coco] Updating $dest ... / 更新中..."
-  git -C $dest pull --ff-only
+  Update-Git
 } elseif (Test-Path (Join-Path $dest 'coco\__init__.py')) {
   Write-Host "[coco] Updating $dest ... / 更新中..."
   Update-FromZip

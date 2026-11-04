@@ -1108,7 +1108,8 @@
       "autofix": "Corriger les noms mal entendus après la transcription",
       "autofix_desc": "Remplace seulement les graphies chinoises erronées de trois caractères ou plus listées sous les noms du glossaire (马克西姆 devient Maxim). Le reste relève de la correction des noms par l’IA.",
       "test_ok": "Connexion correcte ({ms} ms)",
-      "none_ready": "Aucun canal de transcription n’est prêt ; choisissez-en un dans les réglages."
+      "none_ready": "Aucun canal de transcription n’est prêt ; choisissez-en un dans les réglages.",
+      "tag_blocked": "Indisponible dans cette édition"
     },
     "mem": {
       "title": "Mémoire",

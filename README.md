@@ -405,7 +405,7 @@ port; `COCO_PIP_INDEX` sets the package index used for installing dependencies.
 ## Development
 
 ```bash
-.venv/bin/python tests/smoke.py      # ~290 assertions: temporary COCO_ROOT, stub claude / codex / agy, fake local APIs
+.venv/bin/python tests/smoke.py      # ~300 assertions: temporary COCO_ROOT, stub claude / codex / agy, fake local APIs
 .venv/bin/python tests/check_i18n.py # every key used in Python / the UI exists in every locale
 ```
 

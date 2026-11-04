@@ -1108,7 +1108,8 @@
       "autofix": "Fix known misheard names after transcription",
       "autofix_desc": "Replaces only Chinese misspellings of three characters or more listed under names in the glossary (马克西姆 becomes Maxim). The rest is left to AI name correction.",
       "test_ok": "Connection works ({ms} ms)",
-      "none_ready": "No transcription channel is ready yet; choose one in Settings first."
+      "none_ready": "No transcription channel is ready yet; choose one in Settings first.",
+      "tag_blocked": "Not in this edition"
     },
     "mem": {
       "title": "Memory",

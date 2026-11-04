@@ -344,7 +344,7 @@ coco.config.json       配置（含 API key，已在 .gitignore）
 ## 开发自检
 
 ```bash
-.venv/bin/python tests/smoke.py      # 约 290 项断言：临时 COCO_ROOT + stub claude / codex / agy + 本地假 API
+.venv/bin/python tests/smoke.py      # 约 300 项断言：临时 COCO_ROOT + stub claude / codex / agy + 本地假 API
 .venv/bin/python tests/check_i18n.py # Python / 前端用到的每个键在三个语言包里都存在
 ```
 

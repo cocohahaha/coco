@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import ai, i18n, providers
+from . import ai, edition, i18n, providers
 from .config import GLOSSARY_FILE, MEMORY_FILE, ensure_dirs, load_config, save_config
 from .i18n import t
 from .library import (AUDIO_EXTS, create_meeting, delete_meeting, find_meeting, list_meetings,
@@ -478,11 +478,16 @@ def cmd_asr(args):
         st = asr.status(cfg)
         _p(t("cli.asr_active", setting=st["setting"], active=st["active"] or "-"))
         for name, c in st["channels"].items():
+            if c.get("blocked"):
+                continue  # the channel policy does not offer it
             _p(f"  {'*' if name == st['active'] else ' '} {name:8} {'ready' if c['ready'] else '-':6} {c.get('model') or ''}")
         return
     if args.action == "set":
         if args.channel not in ("auto", "none") + asr.CHANNELS:
             _p(t("server.bad_asr_channel"))
+            sys.exit(1)
+        if asr.blocked(args.channel, cfg):
+            _p(asr.blocked(args.channel, cfg))
             sys.exit(1)
         cfg["asr_channel"] = args.channel
         save_config(cfg)
@@ -503,7 +508,7 @@ def cmd_ai(args):
         tasks = dict(providers.TASK_PROFILE_DEFAULTS)
         tasks.update(cfg.get("ai_tasks") or {})
         _p(t("cli.ai_tasks") + " " + json.dumps(tasks, ensure_ascii=False))
-        _p(t("cli.ai_presets") + " " + ", ".join(providers.PRESETS))
+        _p(t("cli.ai_presets") + " " + ", ".join(edition.visible_presets(providers.PRESETS)))
     elif args.action == "test":
         _p(t("cli.ai_testing", profile=args.profile))
         r = providers.test_profile(args.profile)
@@ -512,8 +517,9 @@ def cmd_ai(args):
         else:
             raise RuntimeError(t("cli.ai_test_failed", detail=r["error"]))
     elif args.action == "preset":
-        if not args.name or args.name not in providers.PRESETS:
-            raise RuntimeError(t("cli.ai_unknown_preset", names=", ".join(providers.PRESETS)))
+        presets = edition.visible_presets(providers.PRESETS)
+        if not args.name or args.name not in presets:
+            raise RuntimeError(t("cli.ai_unknown_preset", names=", ".join(presets)))
         profiles = dict(cfg.get("ai_profiles") or {})
         old = profiles.get(args.profile) or {}
         new = providers.preset_profile(args.name, fast=args.profile == "fast")

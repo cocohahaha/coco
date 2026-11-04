@@ -21,7 +21,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, ai, asr, i18n, memory, providers
+from . import __version__, ai, asr, edition, i18n, memory, providers
 from .config import (ROOT, SELECTABLE_MODELS, BRIEFS_DIR, GLOSSARY_FILE, LONGTERM_FILE, MEMORY_FILE, PREP_DIR,
                      TRACKING_DIR, TRASH_DIR, WEEKLY_DIR, ensure_dirs, load_config,
                      save_config)
@@ -1019,7 +1019,9 @@ def _ai_settings(cfg: dict) -> dict:
         "fast_configured": bool(profiles.get("fast")),
         "fast_auto": bool(cfg.get("fast_auto", True)),
         "tasks": tasks,
-        "presets": providers.PRESETS,
+        "presets": edition.visible_presets(providers.PRESETS),
+        "edition": edition.name(),
+        "edition_note": edition.note("ai"),
         "claude_bin_found": providers.claude_found(cfg),
         "clis": providers.detect_clis(cfg),
         "configured": bool((cfg.get("ai_profiles") or {}).get("primary")),
@@ -1056,7 +1058,7 @@ def _profile_dict(body: AIProfileBody, old: dict) -> dict:
          "api_key_env": body.api_key_env.strip(), "max_context_chars": max(0, int(body.max_context_chars)),
          "max_tokens": max(256, int(body.max_tokens)), "extra_args": [str(a) for a in body.extra_args],
          "reasoning": body.reasoning.strip() if body.reasoning.strip() in ("",) + providers.EFFORTS else "",
-         "preset": body.preset.strip() if body.preset.strip() in providers.PRESETS else ""}
+         "preset": body.preset.strip() if body.preset.strip() in edition.visible_presets(providers.PRESETS) else ""}
     d["api_key"] = old.get("api_key", "") if body.api_key is None else body.api_key.strip()
     return d
 
@@ -1793,6 +1795,8 @@ def api_asr_settings_save(body: ASRSettingsBody):
     if body.channel is not None:
         if body.channel not in ("auto", "none") + asr.CHANNELS:
             _err(ValueError(t("server.bad_asr_channel")))
+        if asr.blocked(body.channel, cfg):
+            _err(PermissionError(asr.blocked(body.channel, cfg)), 403)
         cfg["asr_channel"] = body.channel
     if body.context is not None:
         cfg["asr_context"] = body.context.strip()[:300]
@@ -1861,6 +1865,8 @@ def api_retranscribe(mid: str, body: RetranscribeBody = RetranscribeBody()):
         _err(RuntimeError(no_engine_hint()))
     if ch not in asr.CHANNELS:
         _err(ValueError(t("server.bad_asr_channel")))
+    if asr.blocked(ch):
+        _err(PermissionError(asr.blocked(ch)), 403)
     if m.transcript_md.exists():
         with ai.TRANSCRIPT_LOCK:
             (m.path / "transcript.prev.md").write_text(m.transcript_text(), encoding="utf-8")

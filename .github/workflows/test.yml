@@ -21,8 +21,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Core dependencies (the smoke test stubs every model and engine)
-        run: python -m pip install "fastapi>=0.110" "uvicorn>=0.29" "python-multipart>=0.0.9" "pypdf>=4.0" httpx
+      - name: Core dependencies (the smoke test stubs every model and engine; ffmpeg splits audio for cloud channels)
+        run: python -m pip install "fastapi>=0.110" "uvicorn>=0.29" "python-multipart>=0.0.9" "pypdf>=4.0" "imageio-ffmpeg>=0.5" httpx
       - name: i18n completeness
         run: python tests/check_i18n.py
       - name: Smoke test

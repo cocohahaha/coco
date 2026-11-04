@@ -166,6 +166,7 @@ function buildProfile(name, p, ai) {
   key.onchange = () => { if (key.value.trim()) fetchModels(name, true); };
   sel.value = guessPreset(p, presets);
   el.dataset.preset = sel.value;
+  el.dataset.saved = sel.value; el.dataset.blocked = p.blocked || '';
   sel.onchange = () => {
     const pr = presets[sel.value]; if (!pr) return;
     el.dataset.preset = sel.value;
@@ -207,6 +208,9 @@ function refreshProfile(name, ai) {
     else if (clis.codex && clis.codex_login === 'apikey') { st.classList.add('ok'); st.textContent = t('settings.codex_apikey'); }
     else { st.innerHTML = esc(t(clis.codex ? 'settings.codex_login' : 'settings.codex_missing')) + ` <button class="link">${esc(t('settings.show_steps'))}</button>`; st.querySelector('button').onclick = () => openCliGuide('codex'); }
   } else if (local) { st.hidden = false; st.textContent = t('settings.local_hint'); }
+  if (el.dataset.blocked && el.dataset.preset === el.dataset.saved) {  // the channel policy refuses the saved channel
+    st.hidden = false; st.className = 'note p-status bad'; st.textContent = el.dataset.blocked;
+  }
 }
 async function fetchModels(name, quiet) {
   const el = prof(name), q = c => el.querySelector(c);
@@ -248,6 +252,7 @@ function renderAI(box, cfg) {
   const ai = cfg.ai || {};
   const fastMode = ai.fast_configured ? 'custom' : (ai.fast_auto === false ? 'same' : 'auto');
   box.innerHTML = `<h2>${esc(t('settings.sec_ai'))}</h2><p class="lead">${esc(t('settings.ai_hint'))}</p>
+    ${ai.edition_note ? `<p class="lead">${esc(ai.edition_note)}</p>` : ''}
     <div class="prof" data-prof="primary"></div>
     <div class="section-title">${esc(t('settings.fast_title'))}</div>
     <div class="form">${['auto', 'same', 'custom'].map(k => `<label class="radio"><input type="radio" name="fast-mode" value="${k}"${fastMode === k ? ' checked' : ''}>
@@ -285,6 +290,7 @@ function renderAI(box, cfg) {
 
 /* transcription channels */
 function channelTag(name, c) {
+  if (c.blocked) return ['bad', t('asr.tag_blocked')];
   if (name === 'agy') return c.ready ? ['ok', t('asr.tag_ready')] : c.found ? ['bad', t('asr.tag_login')] : ['', t('asr.tag_missing')];
   if (name === 'local') return c.ready ? ['ok', t('asr.tag_engine', { engine: c.device || c.engine })] : ['', t('asr.tag_no_engine')];
   return c.ready ? ['ok', t('asr.tag_ready')] : ['', t('asr.tag_need_key')];
@@ -296,10 +302,12 @@ async function renderASR(box, cfg) {
     <b>${esc(label)}</b>${tag ? `<span class="tag ${tag[0]}">${esc(tag[1])}</span>` : ''}<span class="d">${esc(desc)}</span></label>`;
   const langs = [['auto', t('header.lang_auto')], ['zh', '中文'], ['en', 'English'], ['fr', 'Français'], ['de', 'Deutsch'], ['es', 'Español'],
     ['it', 'Italiano'], ['pt', 'Português'], ['ja', '日本語'], ['ko', '한국어'], ['ru', 'Русский'], ['ar', 'العربية']];
+  const shown = CHANNELS.filter(k => !(s.channels[k] || {}).blocked || s.setting === k);
   box.innerHTML = `<h2>${esc(t('settings.sec_asr'))}</h2><p class="lead">${esc(t('asr.lead'))}</p>
+    ${s.edition_note ? `<p class="lead">${esc(s.edition_note)}</p>` : ''}
     <div class="form channels">
       ${opt('auto', t('asr.auto'), t('asr.auto_desc', { channel: s.active ? t('asr.channel_' + s.active) : t('nav.asr_none') }))}
-      ${CHANNELS.map(k => opt(k, t('asr.channel_' + k), t('asr.desc_' + k), channelTag(k, s.channels[k]))).join('')}
+      ${shown.map(k => opt(k, t('asr.channel_' + k), t('asr.desc_' + k), channelTag(k, s.channels[k]))).join('')}
       ${opt('none', t('asr.none'), t('asr.none_desc'))}
     </div>
     <div id="asr-panels"></div>
@@ -323,6 +331,7 @@ async function renderASR(box, cfg) {
   const field = (k, label, value, type = 'text', ph = '') => `<div><label class="fld">${esc(label)}</label><input data-k="${k}" type="${type}" class="full" value="${esc(value || '')}" placeholder="${esc(ph)}"></div>`;
   const panelHtml = k => {
     const c = s.channels[k];
+    if (c.blocked) return `<div class="prof" data-ch="${k}"><b>${esc(t('asr.channel_' + k))}</b><div class="note bad">${esc(c.blocked)}</div></div>`;
     const test = `<div class="row"><button class="asr-test" data-ch="${k}">${esc(t('settings.test'))}</button><span class="test-out"></span></div>`;
     if (k === 'agy') return `<div class="prof" data-ch="agy"><b>${esc(t('asr.channel_agy'))}</b>
       <p class="lead" style="margin-top:6px">${esc(c.found ? (c.login ? t('asr.agy_ok') : t('asr.agy_login_hint')) : t('asr.agy_missing_hint'))}</p>
@@ -496,10 +505,10 @@ export function openWelcome() {
   const codexState = clis.codex && clis.codex_login ? [true, t('welcome.ready')] : clis.codex ? [false, t('welcome.needs_login')] : [false, t('welcome.not_installed')];
   const cards = [
     ['claude', t('welcome.claude_title'), t('welcome.claude_desc'), badge(!!clis.claude, clis.claude ? t('welcome.ready') : t('welcome.not_installed'))],
-    ['codex', t('welcome.chatgpt_title'), t('welcome.chatgpt_desc'), badge(...codexState)],
+    clis.codex_allowed === false ? null : ['codex', t('welcome.chatgpt_title'), t('welcome.chatgpt_desc'), badge(...codexState)],
     ['api', t('welcome.api_title'), t('welcome.api_desc'), ''],
     ['local', t('welcome.local_title'), t('welcome.local_desc'), ''],
-  ];
+  ].filter(Boolean);
   $('welcome-choices').innerHTML = cards.map(([k, title, desc, b]) => `<button class="choice" data-k="${k}"><b>${esc(title)}</b><span>${esc(desc)}</span>${b}</button>`).join('');
   qsa('#welcome-choices .choice').forEach(c => { c.onclick = () => pickWelcome(c.dataset.k); });
   openDialog('welcome-dialog');

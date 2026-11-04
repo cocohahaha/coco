@@ -29,9 +29,20 @@ overlay_tarball() {  # download the latest code and copy it over $DEST, keeping 
   rm -f "$DEST/run.sh" "$DEST/run.bat"  # old launchers, replaced by coco.command / coco.bat
 }
 
+update_git() {  # fast-forward; when the published history was rewritten, move to it if nothing local is lost
+  git -C "$DEST" pull --ff-only && return 0
+  if [ "$(git -C "$DEST" rev-parse --abbrev-ref HEAD)" = "main" ] && [ -z "$(git -C "$DEST" diff --ignore-cr-at-eol HEAD)" ]; then
+    echo "[coco] The published version has a new history; switching to it (meetings, memory and settings are kept) / 发布的版本换了历史，正在切换（会议库、记忆与配置不动）"
+    git -C "$DEST" fetch origin main && git -C "$DEST" reset -q --hard FETCH_HEAD
+  else
+    echo "[coco] $DEST has local changes; update it by hand / $DEST 里有本地改动，请手动更新"
+    exit 1
+  fi
+}
+
 if [ -d "$DEST/.git" ] && have_git; then
   echo "[coco] Updating $DEST … / 更新中…"
-  git -C "$DEST" pull --ff-only
+  update_git
 elif [ -f "$DEST/coco/__init__.py" ]; then
   echo "[coco] Updating $DEST … / 更新中…"
   overlay_tarball

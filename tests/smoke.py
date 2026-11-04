@@ -17,6 +17,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 ROOT = Path(tempfile.mkdtemp(prefix="coco-smoke-"))
 os.environ["COCO_ROOT"] = str(ROOT)
+os.environ["COCO_EDITION"] = "public"  # a build with a channel policy reads this; the smoke test covers every channel
 STUB = REPO / "tests" / "claude-stub"
 if os.name == "nt":  # Windows ignores the shebang: wrap the stub in a .cmd using this interpreter
     STUB = ROOT / "claude-stub.cmd"
@@ -702,9 +703,11 @@ check("reveal 只接受固定目标", c.post("/api/reveal", json={"which": "../e
 
 # 31. browser recording: chunks appended in order, retries deduplicated, recovery after a restart
 _orig_start_job, _orig_backend = srv_mod._start_transcribe_job, srv_mod.detect_backend
+_orig_resolve = srv_mod.asr.resolve_channel
 queued = []
-srv_mod._start_transcribe_job = lambda m, model=None: (queued.append(m.id), "job-stub")[1]
+srv_mod._start_transcribe_job = lambda m, model=None, channel=None: (queued.append(m.id), "job-stub")[1]
 srv_mod.detect_backend = lambda cfg=None: "mlx"
+srv_mod.asr.resolve_channel = lambda cfg=None: "local"  # CI runners have no transcription engine
 r = c.post("/api/record/browser/start", json={"title": "网页录音", "mime": "audio/webm;codecs=opus"})
 check("浏览器录音开始", r.status_code == 200, r.text[:120])
 rid = r.json()["meeting_id"]
@@ -744,6 +747,7 @@ cut.save_meta(status="recording")
 srv_mod.resume_interrupted()
 check("重启后恢复中断的录音并转写", cut.meta["status"] == "new" and cut.id in queued)
 srv_mod._start_transcribe_job, srv_mod.detect_backend = _orig_start_job, _orig_backend
+srv_mod.asr.resolve_channel = _orig_resolve
 check("config 报告录音方式", c.get("/api/config").json()["record_mode"] in ("browser", "ffmpeg"))
 check("录音方式可保存", c.post("/api/config", json={"record_mode": "browser"}).status_code == 200
       and c.post("/api/config", json={"record_mode": "tape"}).status_code == 400)
@@ -755,7 +759,7 @@ if os.name == "nt":
     CODEX.write_text(f'@"{sys.executable}" -X utf8 "{REPO / "tests" / "codex-stub"}" %*\n', encoding="utf-8")
 write_cfg(codex_bin=str(CODEX))
 providers._LOGIN_CACHE.clear()
-check("检测到已登录的 codex", providers.detect_clis() == {"claude": True, "codex": True, "codex_login": "chatgpt"},
+check("检测到已登录的 codex", providers.detect_clis() == {"claude": True, "codex": True, "codex_login": "chatgpt", "codex_allowed": True},
       str(providers.detect_clis()))
 cx = dict(providers.PROFILE_DEFAULTS, type="codex-cli", name="primary")
 t_ = providers.test_profile(profile=cx)
@@ -1007,6 +1011,51 @@ check("保存 Gemini API 通道", r.status_code == 200 and r.json()["channels"][
 check("API key 不回传", "k-test" not in r.text)
 check("非法通道 400", c.post("/api/settings/asr", json={"channel": "nope"}).status_code == 400)
 write_cfg()
+
+# ---------- channel policy hooks (coco/edition.py): every entry point asks them ----------
+import coco.edition as _ed  # noqa: E402
+ai_pub = c.get("/api/settings/ai").json()
+check("通道检查：本版放行全部通道", ai_pub["edition"] == "public" and ai_pub["edition_note"] == ""
+      and "deepseek" in ai_pub["presets"] and "codex-cli" in ai_pub["presets"] and ai_pub["clis"]["codex_allowed"] is True)
+_saved = {k: getattr(_ed, k) for k in ("restricted", "visible_presets", "blocked_reason", "asr_blocked_reason",
+                                       "subscription_allowed", "note")}
+_ed.restricted = lambda: True
+_ed.visible_presets = lambda presets: {k: v for k, v in presets.items() if k in ("claude-cli", "ollama")}
+_ed.blocked_reason = lambda p: "policy-test-ai" if p.get("type") == "claude-cli" else ""
+_ed.asr_blocked_reason = lambda ch, base_url="": "policy-test-asr" if ch not in ("local", "bailian") else ""
+_ed.subscription_allowed = lambda preset: preset == "claude-cli"
+_ed.note = lambda section: f"policy-note-{section}"
+ai_pol = c.get("/api/settings/ai").json()
+check("通道检查：设置页只列出允许的通道并显示说明", sorted(ai_pol["presets"]) == ["claude-cli", "ollama"]
+      and ai_pol["edition_note"] == "policy-note-ai" and ai_pol["clis"]["codex_allowed"] is False)
+check("通道检查：被拦的通道显示原因且不算就绪", ai_pol["primary"]["blocked"] == "policy-test-ai" and not ai_pol["ready"])
+r = c.post("/api/settings/ai/test", json={"profile": "primary"}).json()
+check("通道检查：调用模型前拦下", not r["ok"] and r["error"] == "policy-test-ai", str(r))
+_, done, err = stream("/api/stream/ask", {"question": "test", "ids": [mid2]})
+check("通道检查：问答同样拦下", done is None and err == "policy-test-ai", str(err))
+r = c.post("/api/settings/ai", json={"primary": {"type": "openai", "base_url": "https://api.deepseek.com", "preset": "deepseek"}})
+check("通道检查：不在列表里的预设不保存", r.status_code == 200 and r.json()["primary"]["preset"] == "")
+write_cfg(asr_channel="agy")
+st = c.get("/api/settings/asr").json()
+check("通道检查：转写只列出允许的通道", st["allowed"] == ["bailian", "local"] and st["channels"]["agy"]["blocked"] == "policy-test-asr"
+      and st["edition_note"] == "policy-note-asr" and st["active"] != "agy", str(st["allowed"]))
+check("通道检查：选被拦的转写通道 403", c.post("/api/settings/asr", json={"channel": "agy"}).status_code == 403)
+check("通道检查：重新转写指定被拦通道 403", c.post(f"/api/meetings/{mid}/transcribe", json={"channel": "agy"}).status_code == 403)
+try:
+    _asr_mod.transcribe_cloud(ROOT / "none.mp3", "agy", ROOT / "asr-none")
+    check("通道检查：转写入口拦下", False)
+except _asr_mod.ASRError as e:
+    check("通道检查：转写入口拦下", str(e) == "policy-test-asr", str(e))
+check("通道检查：转写测试也拦下", _asr_mod.test_channel("gemini")["detail"] == "policy-test-asr")
+for _k, _v in _saved.items():
+    setattr(_ed, _k, _v)
+write_cfg()
+check("通道检查：恢复后全部放行", c.get("/api/settings/asr").json()["allowed"] == list(_asr_mod.CHANNELS))
+
+# a build with its own channel policy ships its checks here; they run with everything above in scope
+_extra = REPO / "tests" / "edition_check.py"
+if _extra.exists():
+    exec(compile(_extra.read_text(encoding="utf-8"), str(_extra), "exec"))
 
 print("\n" + ("全部通过 ✓" if not FAIL else f"失败 {len(FAIL)} 项：{FAIL}"))
 sys.exit(1 if FAIL else 0)

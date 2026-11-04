@@ -106,8 +106,23 @@ def agy_logged_in() -> bool:
     return (g / "oauth_creds.json").exists()
 
 
+def blocked(name: str, cfg: "dict | None" = None) -> str:
+    """Why the channel policy keeps meeting audio away from the channel ("" = allowed)."""
+    from . import edition
+    if not edition.restricted() or name not in CHANNELS:
+        return ""
+    return edition.asr_blocked_reason(name, channel_cfg(name, cfg or load_config()).get("base_url", ""))
+
+
+def allowed_channels(cfg: "dict | None" = None) -> list[str]:
+    cfg = cfg or load_config()
+    return [name for name in CHANNELS if not blocked(name, cfg)]
+
+
 def channel_ready(name: str, cfg: "dict | None" = None) -> bool:
     cfg = cfg or load_config()
+    if blocked(name, cfg):
+        return False
     if name == "agy":
         return agy_found(cfg) and agy_logged_in()
     if name in ("gemini", "openai", "bailian"):
@@ -134,8 +149,8 @@ def resolve_channel(cfg: "dict | None" = None) -> str:
     want = str(cfg.get("asr_channel") or "auto").strip().lower()
     if want == "none":
         return ""
-    if want in CHANNELS:
-        return want
+    if want in CHANNELS and not blocked(want, cfg):
+        return want  # a channel the policy does not allow falls back to automatic choice
     from .transcriber import detect_device
     device = detect_device(cfg)
     if device in ("mlx", "cuda"):
@@ -156,13 +171,15 @@ def status(cfg: "dict | None" = None) -> dict:
         chans[name] = {"ready": channel_ready(name, cfg), "model": c.get("model", ""),
                        "base_url": c.get("base_url", ""), "has_key": bool(api_key(c)),
                        "api_key_set": bool(c.get("api_key")), "api_key_env": c.get("api_key_env", ""),
-                       "cloud": name in CLOUD_CHANNELS}
+                       "cloud": name in CLOUD_CHANNELS, "blocked": blocked(name, cfg)}
     chans["agy"]["found"] = agy_found(cfg)
     chans["agy"]["login"] = agy_logged_in()
     chans["local"].update(engine=detect_backend(cfg), device=detect_device(cfg),
                           model=cfg.get("whisper_model", "turbo"))
+    from . import edition
     return {"setting": str(cfg.get("asr_channel") or "auto"), "active": resolve_channel(cfg),
-            "channels": chans}
+            "channels": chans, "allowed": allowed_channels(cfg), "edition": edition.name(),
+            "edition_note": edition.note("asr")}
 
 
 # ---------- audio helpers ----------
@@ -385,8 +402,10 @@ def _agy_piece(path: Path, prompt: str, model: str, cfg: dict) -> "tuple[str, st
     """One agy call → (status, text|detail). status: ok | filtered | fatal | transient | failed."""
     try:
         proc = subprocess.run(
-            [agy_bin(cfg), "-p", prompt, "--model", model, "--sandbox", "--output-format", "json",
-             "--print-timeout", "900s"],
+            # flags before the prompt: a .cmd wrapper on Windows cuts the command line at the prompt's
+            # first newline, and agy stops reading flags at the first non-flag argument
+            [agy_bin(cfg), "--model", model, "--sandbox", "--output-format", "json", "--print-timeout", "900s",
+             "-p", prompt],
             cwd=str(path.parent), capture_output=True, text=True, encoding="utf-8", errors="replace",
             stdin=subprocess.DEVNULL, timeout=960)
     except FileNotFoundError:
@@ -558,6 +577,9 @@ def transcribe_cloud(audio: Path, channel: str, workdir: Path, title: str = "", 
                      language: "str | None" = None, progress=lambda msg: None) -> dict:
     """Transcribe with a cloud channel → {segments, text, duration, model, language, channel, gaps}."""
     cfg = load_config()
+    reason = blocked(channel, cfg)
+    if reason:
+        raise ASRError(reason)
     c = channel_cfg(channel, cfg)
     progress(t("asr.preparing"))
     chunks = split_audio(audio, workdir)
@@ -683,13 +705,16 @@ def test_channel(channel: str, cfg: "dict | None" = None) -> dict:
     """Cheap readiness check without audio: agy answers a two-word prompt, APIs list their models."""
     cfg = cfg or load_config()
     t0 = time.time()
+    reason = blocked(channel, cfg)
+    if reason:
+        return {"ok": False, "ms": 0, "detail": reason}
     try:
         if channel == "agy":
             if not agy_found(cfg):
                 return {"ok": False, "detail": t("asr.agy_missing")}
-            r = subprocess.run([agy_bin(cfg), "-p", "Reply with the single word: ready", "--output-format", "json",
-                                "--model", channel_cfg("agy", cfg).get("model") or "gemini-3.8-flash-low",
-                                "--print-timeout", "90s"], capture_output=True, text=True, encoding="utf-8",
+            r = subprocess.run([agy_bin(cfg), "--model", channel_cfg("agy", cfg).get("model") or "gemini-3.8-flash-low",
+                                "--output-format", "json", "--print-timeout", "90s",
+                                "-p", "Reply with the single word: ready"], capture_output=True, text=True, encoding="utf-8",
                                errors="replace", stdin=subprocess.DEVNULL, timeout=120, cwd=str(Path.home()))
             data = json.loads(r.stdout or "{}") if (r.stdout or "").strip().startswith("{") else {}
             ok = data.get("status") == "SUCCESS"

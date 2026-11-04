@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from . import edition
 from .config import load_config
 from .i18n import t
 
@@ -210,7 +211,7 @@ def auto_profile(cfg: "dict | None" = None) -> dict:
     cfg = cfg or load_config()
     if claude_found(cfg):
         return {"type": "claude-cli", "auto": True}
-    if codex_found(cfg) and codex_login(cfg):
+    if edition.subscription_allowed("codex-cli") and codex_found(cfg) and codex_login(cfg):
         return {"type": "codex-cli", "auto": True}
     return {"type": "claude-cli", "auto": True}
 
@@ -251,7 +252,8 @@ def public_profile(p: dict) -> dict:
     """Profile as shown to the UI: never returns the key itself."""
     return {**{k: p.get(k) for k in PROFILE_DEFAULTS if k != "api_key"},
             "has_key": bool(resolve_api_key(p)), "api_key_set": bool(p.get("api_key")),
-            "name": p.get("name", ""), "auto": bool(p.get("auto")), "label": profile_label(p)}
+            "name": p.get("name", ""), "auto": bool(p.get("auto")), "label": profile_label(p),
+            "blocked": edition.blocked_reason(p)}
 
 
 def profile_label(p: dict) -> str:
@@ -346,6 +348,8 @@ def is_ready(cfg: "dict | None" = None) -> bool:
     /api/config; the real check is the per-profile Test button."""
     cfg = cfg or load_config()
     p = get_profile("primary", cfg)
+    if edition.blocked_reason(p):
+        return False
     if p["type"] == "claude-cli":
         ok = claude_found(cfg)
         if p.get("base_url"):  # CLI pointed at a third-party endpoint also needs its key
@@ -359,8 +363,9 @@ def is_ready(cfg: "dict | None" = None) -> bool:
 def detect_clis(cfg: "dict | None" = None) -> dict:
     """What the onboarding screen shows: which subscription CLIs are installed / logged in."""
     cfg = cfg or load_config()
-    return {"claude": claude_found(cfg), "codex": codex_found(cfg),
-            "codex_login": codex_login(cfg) if codex_found(cfg) else ""}
+    codex = edition.subscription_allowed("codex-cli") and codex_found(cfg)
+    return {"claude": claude_found(cfg), "codex": codex, "codex_login": codex_login(cfg) if codex else "",
+            "codex_allowed": edition.subscription_allowed("codex-cli")}
 
 
 def _claude_cwd() -> str:
@@ -895,6 +900,9 @@ def run_model(prompt: str, *, task: str = "report", profile: "dict | None" = Non
     """
     cfg = load_config()
     p = profile or profile_for_task(task, cfg)
+    reason = edition.blocked_reason(p)
+    if reason:  # the channel policy keeps meeting content away from this channel
+        raise ModelError(reason)
     if allowed_tools and not supports_web(p):
         raise ModelError(t("ai.web_needs_claude"))
     if p["type"] == "anthropic":
